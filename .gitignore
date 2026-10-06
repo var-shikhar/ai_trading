@@ -1,0 +1,20 @@
+# Secrets
+.env
+*.token
+backend/data/*
+!backend/data/.gitkeep
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
