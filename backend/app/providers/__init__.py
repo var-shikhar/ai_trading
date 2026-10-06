@@ -1,3 +1,17 @@
-from app.providers.base import Candle, Instrument, MarketDataProvider, Tick
+from app.providers.base import (
+    AuthRequired,
+    Candle,
+    Instrument,
+    MarketDataProvider,
+    ProviderError,
+    Tick,
+)
 
-__all__ = ["Candle", "Instrument", "MarketDataProvider", "Tick"]
+__all__ = [
+    "AuthRequired",
+    "Candle",
+    "Instrument",
+    "MarketDataProvider",
+    "ProviderError",
+    "Tick",
+]

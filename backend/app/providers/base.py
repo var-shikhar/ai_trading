@@ -7,12 +7,12 @@ swapped or combined without touching charting/analysis code.
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 
 @dataclass(frozen=True)
 class Candle:
-    ts: datetime  # candle open time, IST
+    ts: datetime  # candle open time, naive IST (daily candles: 00:00)
     open: float
     high: float
     low: float
@@ -30,32 +30,40 @@ class Tick:
 
 @dataclass(frozen=True)
 class Instrument:
-    symbol: str
+    symbol: str  # provider symbol, e.g. NSE:SBIN-EQ
+    ticker: str  # e.g. SBIN
     name: str
     exchange: str
-    segment: str
+    kind: str  # EQ, ETF, INDEX
     lot_size: int = 1
     tick_size: float = 0.05
 
 
+class ProviderError(Exception):
+    pass
+
+
+class AuthRequired(ProviderError):
+    """The provider needs a (new) login before it can serve data."""
+
+
 class MarketDataProvider(ABC):
     name: str
-
-    @property
-    @abstractmethod
-    def supports_history(self) -> bool: ...
+    supports_history: bool
 
     @abstractmethod
-    async def is_authenticated(self) -> bool: ...
+    def is_authenticated(self) -> bool: ...
 
     @abstractmethod
     async def get_history(
-        self, symbol: str, resolution: str, start: datetime, end: datetime
+        self, symbol: str, resolution: str, start: date, end: date
     ) -> list[Candle]:
-        """Fetch candles. Providers handle their own per-request range limits."""
+        """Candles for [start, end] inclusive, in provider resolution codes
+        ('1', '5', '15', '60', '240', 'D', ...). Providers split the range
+        into chunks to respect their own per-request limits."""
 
     @abstractmethod
-    async def search_instruments(self, query: str, limit: int = 20) -> list[Instrument]: ...
+    async def fetch_instruments(self) -> list[Instrument]: ...
 
     @abstractmethod
     def stream_ticks(self, symbols: list[str]) -> AsyncIterator[Tick]: ...

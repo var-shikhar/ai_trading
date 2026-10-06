@@ -11,6 +11,13 @@ class Settings(BaseSettings):
 
     db_path: str = "data/market.duckdb"
     cors_origins: list[str] = ["http://localhost:5173"]
+    frontend_url: str = "http://localhost:5173"
+
+    # How far back 15m base candles are kept; older intraday requests are
+    # served from the timeframe's own candles fetched from the API.
+    intraday_base_days: int = 730
+    # Minimum seconds between API refreshes of today's candles per symbol.
+    refresh_seconds: int = 60
 
     fyers_app_id: str = ""
     fyers_secret_key: str = ""

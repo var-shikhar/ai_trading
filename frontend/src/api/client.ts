@@ -10,6 +10,27 @@ export interface Candle {
 export interface Health {
   status: string
   candles: number
+  instruments: number
+}
+
+export interface AuthStatus {
+  fyers: { configured: boolean; authenticated: boolean; login_url: string }
+}
+
+export interface InstrumentHit {
+  symbol: string
+  ticker: string
+  name: string
+  kind: 'EQ' | 'ETF' | 'INDEX'
+}
+
+export class ApiError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
 }
 
 async function get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -17,13 +38,18 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
     ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
     : ''
   const res = await fetch(`/api${path}${query}`)
-  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, body.detail ?? res.statusText)
+  }
   return res.json() as Promise<T>
 }
 
 export const api = {
   health: () => get<Health>('/health'),
+  authStatus: () => get<AuthStatus>('/auth/status'),
   timeframes: () => get<string[]>('/timeframes'),
-  candles: (symbol: string, tf: string, limit = 1000) =>
+  search: (q: string) => get<InstrumentHit[]>('/instruments/search', { q, limit: 10 }),
+  candles: (symbol: string, tf: string, limit = 500) =>
     get<Candle[]>('/candles', { symbol, tf, limit }),
 }

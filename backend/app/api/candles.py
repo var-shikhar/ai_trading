@@ -1,62 +1,32 @@
-from calendar import timegm
+from datetime import date
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.db import get_conn
+from app.deps import get_candle_service
+from app.providers.base import AuthRequired, ProviderError
+from app.services.candles import TIMEFRAMES, CandleService
 
 router = APIRouter(prefix="/api", tags=["candles"])
-
-# Timeframes the chart can request, mapped to DuckDB intervals.
-# All intraday timeframes are resampled from stored 1-minute candles.
-TIMEFRAMES = {
-    "1m": "1 minute",
-    "3m": "3 minutes",
-    "5m": "5 minutes",
-    "15m": "15 minutes",
-    "30m": "30 minutes",
-    "1h": "1 hour",
-    "4h": "4 hours",
-}
 
 
 @router.get("/timeframes")
 def timeframes() -> list[str]:
-    return [*TIMEFRAMES, "1D"]
+    return list(TIMEFRAMES)
 
 
 @router.get("/candles")
-def candles(
+async def candles(
     symbol: str = Query(..., examples=["NSE:SBIN-EQ"]),
-    tf: str = Query("5m"),
-    limit: int = Query(1000, ge=1, le=20000),
+    tf: str = Query("1D"),
+    limit: int = Query(500, ge=1, le=5000),
+    end: date | None = Query(None, description="Last date to include (default today)"),
+    service: CandleService = Depends(get_candle_service),
 ):
-    con = get_conn()
-    if tf == "1D":
-        rows = con.execute(
-            """
-            SELECT ts, open, high, low, close, volume FROM candles
-            WHERE symbol = ? AND resolution = 'D'
-            ORDER BY ts DESC LIMIT ?
-            """,
-            [symbol, limit],
-        ).fetchall()
-    elif tf in TIMEFRAMES:
-        # Buckets are aligned to the 09:15 IST session open.
-        rows = con.execute(
-            f"""
-            SELECT time_bucket(INTERVAL '{TIMEFRAMES[tf]}', ts, TIMESTAMP '2000-01-03 09:15:00') AS b,
-                   arg_min(open, ts), max(high), min(low), arg_max(close, ts), sum(volume)
-            FROM candles
-            WHERE symbol = ? AND resolution = '1'
-            GROUP BY b ORDER BY b DESC LIMIT ?
-            """,
-            [symbol, limit],
-        ).fetchall()
-    else:
-        raise HTTPException(400, f"Unknown timeframe '{tf}'")
-
-    return [
-        # IST wall time sent as UTC epoch so the chart labels show IST.
-        {"time": timegm(ts.timetuple()), "open": o, "high": h, "low": l, "close": c, "volume": v}
-        for ts, o, h, l, c, v in reversed(rows)
-    ]
+    if tf not in TIMEFRAMES:
+        raise HTTPException(400, f"Unknown timeframe '{tf}'. Use one of {list(TIMEFRAMES)}")
+    try:
+        return await service.get_candles(symbol, tf, limit, end)
+    except AuthRequired as e:
+        raise HTTPException(401, str(e)) from e
+    except ProviderError as e:
+        raise HTTPException(502, str(e)) from e

@@ -1,7 +1,8 @@
-"""DuckDB storage for candles.
+"""DuckDB storage.
 
-We store 1-minute (and daily) candles as fetched; higher timeframes are
-resampled from these on read.
+Candles are stored per provider resolution code ('15', 'D', '60', ...).
+'15' and 'D' are the base resolutions other timeframes are resampled from;
+other codes are only stored when fetched directly as a fallback.
 """
 
 import threading
@@ -13,8 +14,8 @@ from app.config import get_settings
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS candles (
     symbol     VARCHAR   NOT NULL,   -- e.g. NSE:SBIN-EQ
-    resolution VARCHAR   NOT NULL,   -- '1' (minute) or 'D' (day)
-    ts         TIMESTAMP NOT NULL,   -- candle open time, IST
+    resolution VARCHAR   NOT NULL,   -- provider code: '15', '60', 'D', ...
+    ts         TIMESTAMP NOT NULL,   -- candle open time, IST (daily: 00:00)
     open       DOUBLE    NOT NULL,
     high       DOUBLE    NOT NULL,
     low        DOUBLE    NOT NULL,
@@ -23,14 +24,33 @@ CREATE TABLE IF NOT EXISTS candles (
     PRIMARY KEY (symbol, resolution, ts)
 );
 
+-- Date range already fetched per (symbol, resolution), so we only call
+-- the API for what is missing.
+CREATE TABLE IF NOT EXISTS coverage (
+    symbol       VARCHAR   NOT NULL,
+    resolution   VARCHAR   NOT NULL,
+    covered_from DATE      NOT NULL,
+    covered_to   DATE      NOT NULL,
+    fetched_at   TIMESTAMP NOT NULL, -- last time covered_to was refreshed
+    PRIMARY KEY (symbol, resolution)
+);
+
 CREATE TABLE IF NOT EXISTS instruments (
-    symbol      VARCHAR PRIMARY KEY, -- provider symbol, e.g. NSE:SBIN-EQ
-    name        VARCHAR,
-    exchange    VARCHAR,
-    segment     VARCHAR,             -- CM, FO, CD, COMM
-    lot_size    INTEGER,
-    tick_size   DOUBLE,
-    provider    VARCHAR NOT NULL
+    symbol    VARCHAR PRIMARY KEY,   -- provider symbol, e.g. NSE:SBIN-EQ
+    ticker    VARCHAR NOT NULL,      -- e.g. SBIN
+    name      VARCHAR NOT NULL,
+    exchange  VARCHAR NOT NULL,
+    kind      VARCHAR NOT NULL,      -- EQ, ETF, INDEX
+    lot_size  INTEGER NOT NULL,
+    tick_size DOUBLE  NOT NULL,
+    provider  VARCHAR NOT NULL,
+    updated   DATE    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tokens (
+    provider     VARCHAR PRIMARY KEY,
+    access_token VARCHAR   NOT NULL,
+    expires_at   TIMESTAMP NOT NULL  -- IST
 );
 """
 

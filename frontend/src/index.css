@@ -44,3 +44,118 @@ h1 {
 .status.err {
   color: var(--err);
 }
+
+:root {
+  --border: #e0e3eb;
+  --surface: #f8f9fd;
+  --accent: #2962ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --border: #2a2e39;
+    --surface: #1e222d;
+  }
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.bar h1 {
+  margin: 0;
+}
+
+.button {
+  background: var(--accent);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+}
+
+.controls input,
+.controls select {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.controls input {
+  width: 320px;
+  max-width: 100%;
+}
+
+.search {
+  position: relative;
+}
+
+.hits {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.hits button {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hits button:hover {
+  background: var(--border);
+}
+
+.hits span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hits em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.result h2 {
+  font-size: 18px;
+  margin: 24px 0 4px;
+}
+
+.muted {
+  color: var(--muted);
+  font-weight: normal;
+}
