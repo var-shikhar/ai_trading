@@ -11,6 +11,30 @@ from app.services.candles import TIMEFRAMES, CandleService
 router = APIRouter(prefix="/api", tags=["chart"])
 
 
+COLUMNS = ["time", "open", "high", "low", "close", "volume"]
+
+
+async def load_frame(service: CandleService, symbol: str, tf: str, limit: int) -> pd.DataFrame:
+    """The latest `limit` bars plus WARMUP_BARS before them, as a DataFrame."""
+    if tf not in TIMEFRAMES:
+        raise HTTPException(400, f"Unknown timeframe '{tf}'. Use one of {list(TIMEFRAMES)}")
+    try:
+        rows = await service.get_candles(symbol, tf, limit + WARMUP_BARS)
+    except AuthRequired as e:
+        raise HTTPException(401, str(e)) from e
+    except ProviderError as e:
+        raise HTTPException(502, str(e)) from e
+    return pd.DataFrame(rows, columns=COLUMNS)
+
+
+def candle_records(df: pd.DataFrame) -> list[dict]:
+    """Plain-Python candle dicts (numpy scalars don't serialise to JSON)."""
+    return [
+        {"time": int(t), "open": float(o), "high": float(h), "low": float(l), "close": float(c), "volume": int(v)}
+        for t, o, h, l, c, v in df[COLUMNS].itertuples(index=False)
+    ]
+
+
 @router.get("/chart")
 async def chart(
     symbol: str = Query(..., examples=["NSE:SBIN-EQ"]),
@@ -20,16 +44,7 @@ async def chart(
 ):
     """Latest `limit` candles plus indicators. To load older history, call
     again with a larger `limit`; indicators stay consistent across reloads."""
-    if tf not in TIMEFRAMES:
-        raise HTTPException(400, f"Unknown timeframe '{tf}'. Use one of {list(TIMEFRAMES)}")
-    try:
-        rows = await service.get_candles(symbol, tf, limit + WARMUP_BARS)
-    except AuthRequired as e:
-        raise HTTPException(401, str(e)) from e
-    except ProviderError as e:
-        raise HTTPException(502, str(e)) from e
-
-    df = pd.DataFrame(rows, columns=["time", "open", "high", "low", "close", "volume"])
+    df = await load_frame(service, symbol, tf, limit)
     visible = df.index[-limit:]
     indicators = {}
     for key, fn in CHART_INDICATORS.items():
@@ -41,8 +56,8 @@ async def chart(
         ]
 
     return {
-        "candles": rows[-limit:],
+        "candles": candle_records(df.iloc[-limit:]),
         "indicators": indicators,
         # Fewer bars than asked for means we reached the start of available history.
-        "has_more": len(rows) >= limit + WARMUP_BARS,
+        "has_more": len(df) >= limit + WARMUP_BARS,
     }

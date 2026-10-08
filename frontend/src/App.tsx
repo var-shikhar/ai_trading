@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, type AuthStatus, type ChartData, type Health, type InstrumentHit } from './api/client'
+import type { SeriesMarker, Time, UTCTimestamp } from 'lightweight-charts'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  api,
+  type AuthStatus,
+  type ChartData,
+  type Health,
+  type InstrumentHit,
+  type PatternCatalog,
+  type PatternResult,
+} from './api/client'
 import { EMA_KEYS, PriceChart, type EmaKey } from './chart/PriceChart'
-import { useChartTheme } from './chart/theme'
+import { useChartTheme, type ChartTheme } from './chart/theme'
+import { PatternPanel, type PatternSettings } from './patterns/PatternPanel'
 
 const PAGE_BARS = 500
 const DAILY_TIMEFRAMES = new Set(['1D', '1W', '1M'])
@@ -54,6 +64,16 @@ function App() {
   )
   const [showRsi, setShowRsi] = useState<boolean>(() => loadPref('rsi', true))
   const [showVolume, setShowVolume] = useState<boolean>(() => loadPref('volume', true))
+  const [showPatterns, setShowPatterns] = useState<boolean>(() => loadPref('patterns', false))
+  const [patternSettings, setPatternSettings] = useState<PatternSettings>(() =>
+    loadPref('patternSettings', { preset: 'common', custom: [], inContext: true }),
+  )
+  const [catalog, setCatalog] = useState<PatternCatalog | null>(null)
+  const [patterns, setPatterns] = useState<PatternResult | null>(null)
+  const [patternsLoading, setPatternsLoading] = useState(false)
+  const [patternsError, setPatternsError] = useState<string | null>(null)
+  const [focus, setFocus] = useState<{ time: number; seq: number } | null>(null)
+  const patternRequestId = useRef(0)
 
   const [limit, setLimit] = useState(PAGE_BARS)
   const [chart, setChart] = useState<ChartData | null>(null)
@@ -77,6 +97,12 @@ function App() {
   useEffect(() => savePref('emas', visibleEmas), [visibleEmas])
   useEffect(() => savePref('rsi', showRsi), [showRsi])
   useEffect(() => savePref('volume', showVolume), [showVolume])
+  useEffect(() => savePref('patterns', showPatterns), [showPatterns])
+  useEffect(() => savePref('patternSettings', patternSettings), [patternSettings])
+
+  useEffect(() => {
+    if (showPatterns && !catalog) api.patternCatalog().then(setCatalog).catch(() => {})
+  }, [showPatterns, catalog])
 
   const authenticated = auth?.fyers.authenticated ?? false
   const key = `${symbol.symbol}|${tf}`
@@ -103,6 +129,42 @@ function App() {
         if (id === requestId.current) setLoading(false)
       })
   }, [authenticated, symbol.symbol, tf, limit, key])
+
+  // Patterns are scanned on the same bars the chart shows.
+  const patternKey = `${key}|${limit}|${JSON.stringify(patternSettings)}`
+  useEffect(() => {
+    if (!authenticated || !showPatterns) return
+    const { preset, custom, inContext } = patternSettings
+    if (preset === 'custom' && custom.length === 0) {
+      setPatterns({ hits: [], stats: [] })
+      return
+    }
+    const id = ++patternRequestId.current
+    setPatternsLoading(true)
+    setPatternsError(null)
+    api
+      .patterns(symbol.symbol, tf, limit, {
+        inContext,
+        ...(preset === 'custom' ? { patterns: custom } : {}),
+        ...(preset === 'all' ? { allPatterns: true } : {}),
+      })
+      .then((r) => {
+        if (id === patternRequestId.current) setPatterns(r)
+      })
+      .catch((e: Error) => {
+        if (id === patternRequestId.current) setPatternsError(e.message)
+      })
+      .finally(() => {
+        if (id === patternRequestId.current) setPatternsLoading(false)
+      })
+    // patternKey covers symbol/tf/limit/settings
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated, showPatterns, patternKey])
+
+  const markers = useMemo(
+    () => (showPatterns && patterns && catalog ? toMarkers(patterns, catalog, theme) : []),
+    [showPatterns, patterns, catalog, theme],
+  )
 
   const loadMore = useCallback(() => {
     if (!loading && chart?.has_more && chartKey === key) setLimit((l) => l + PAGE_BARS)
@@ -173,6 +235,14 @@ function App() {
             RSI
           </label>
         </div>
+        <button
+          className={`toggle-button ${showPatterns ? 'active' : ''}`}
+          aria-pressed={showPatterns}
+          onClick={() => setShowPatterns((v) => !v)}
+        >
+          Patterns
+          {showPatterns && patterns ? ` · ${patterns.hits.length}` : ''}
+        </button>
         <span className="status small">
           {loading
             ? 'Loading…'
@@ -182,24 +252,65 @@ function App() {
         </span>
       </section>
 
-      <main className="chart-area">
-        {loadError && <div className="overlay err">{loadError}</div>}
-        {!authenticated && fyers && <div className="overlay">Connect Fyers to load charts.</div>}
-        {chart && (
-          <PriceChart
-            data={chart}
-            datasetKey={chartKey}
+      <div className="workspace">
+        <main className="chart-area">
+          {loadError && <div className="overlay err">{loadError}</div>}
+          {!authenticated && fyers && <div className="overlay">Connect Fyers to load charts.</div>}
+          {chart && (
+            <PriceChart
+              data={chart}
+              datasetKey={chartKey}
+              intraday={!DAILY_TIMEFRAMES.has(tf)}
+              theme={theme}
+              visibleEmas={visibleEmas}
+              showVolume={showVolume && !isIndex}
+              showRsi={showRsi}
+              markers={markers}
+              focus={focus}
+              onNeedMore={loadMore}
+            />
+          )}
+        </main>
+        {showPatterns && catalog && (
+          <PatternPanel
+            catalog={catalog}
+            settings={patternSettings}
+            onSettings={setPatternSettings}
+            result={patterns}
+            loading={patternsLoading}
+            error={patternsError}
             intraday={!DAILY_TIMEFRAMES.has(tf)}
-            theme={theme}
-            visibleEmas={visibleEmas}
-            showVolume={showVolume && !isIndex}
-            showRsi={showRsi}
-            onNeedMore={loadMore}
+            onFocus={(time) => setFocus((f) => ({ time, seq: (f?.seq ?? 0) + 1 }))}
           />
         )}
-      </main>
+      </div>
     </div>
   )
+}
+
+function toMarkers(result: PatternResult, catalog: PatternCatalog, theme: ChartTheme): SeriesMarker<Time>[] {
+  const labels = Object.fromEntries(catalog.patterns.map((p) => [p.id, p.label]))
+  // One marker per bar and side; several patterns on the same bar share it.
+  const byBar = new Map<string, SeriesMarker<Time>>()
+  for (const h of result.hits) {
+    const above = h.direction !== 'bullish'
+    const key = `${h.time}|${above}`
+    const label = labels[h.pattern] ?? h.pattern
+    const existing = byBar.get(key)
+    if (existing) {
+      existing.text = `${existing.text}, ${label}`
+      continue
+    }
+    byBar.set(key, {
+      time: h.time as UTCTimestamp,
+      position: above ? 'aboveBar' : 'belowBar',
+      shape: h.direction === 'bullish' ? 'arrowUp' : h.direction === 'bearish' ? 'arrowDown' : 'circle',
+      color: h.direction === 'bullish' ? theme.up : h.direction === 'bearish' ? theme.down : theme.muted,
+      text: label,
+      size: 1,
+    })
+  }
+  return [...byBar.values()].sort((a, b) => (a.time as number) - (b.time as number))
 }
 
 function SymbolSearch({ onPick }: { onPick: (hit: InstrumentHit) => void }) {

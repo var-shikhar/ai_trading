@@ -20,6 +20,52 @@ export interface ChartData {
   has_more: boolean
 }
 
+export type Direction = 'bullish' | 'bearish' | 'neutral'
+
+export interface PatternInfo {
+  id: string
+  name: string
+  label: string
+  kind: 'reversal' | 'continuation' | 'indecision'
+  bars: number
+  common: boolean
+}
+
+export interface PatternCatalog {
+  patterns: PatternInfo[]
+  trend_lookback: number
+  outcome_bars: number
+}
+
+export interface PatternHit {
+  time: number
+  pattern: string
+  direction: Direction
+  confirmed: boolean
+  prior_trend: 'up' | 'down' | 'flat' | null
+  in_context: boolean
+  move_pct: number | null // % move OUTCOME_BARS later; null if too recent
+}
+
+export interface PatternStat {
+  pattern: string
+  direction: Direction
+  count: number
+  win_rate: number | null
+  avg_move_pct: number
+}
+
+export interface PatternResult {
+  hits: PatternHit[]
+  stats: PatternStat[]
+}
+
+export interface PatternQuery {
+  patterns?: string[] // explicit ids; omitted = common set (or all with allPatterns)
+  allPatterns?: boolean
+  inContext: boolean
+}
+
 export interface Health {
   status: string
   candles: number
@@ -67,4 +113,14 @@ export const api = {
     get<Candle[]>('/candles', { symbol, tf, limit }),
   chart: (symbol: string, tf: string, limit = 500) =>
     get<ChartData>('/chart', { symbol, tf, limit }),
+  patternCatalog: () => get<PatternCatalog>('/patterns/candlestick/catalog'),
+  patterns: (symbol: string, tf: string, limit: number, q: PatternQuery) =>
+    get<PatternResult>('/patterns/candlestick', {
+      symbol,
+      tf,
+      limit,
+      in_context: String(q.inContext),
+      ...(q.patterns ? { patterns: q.patterns.join(',') } : {}),
+      ...(q.allPatterns ? { all_patterns: 'true' } : {}),
+    }),
 }

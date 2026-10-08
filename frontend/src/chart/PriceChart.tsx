@@ -1,14 +1,17 @@
 import {
   CandlestickSeries,
   createChart,
+  createSeriesMarkers,
   HistogramSeries,
   LineSeries,
   LineStyle,
   type CandlestickData,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type LineData,
   type MouseEventParams,
+  type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from 'lightweight-charts'
@@ -35,6 +38,9 @@ interface Props {
   visibleEmas: Record<EmaKey, boolean>
   showVolume: boolean
   showRsi: boolean
+  markers: SeriesMarker<Time>[]
+  /** Scrolls the chart to this bar; `seq` lets the same bar be focused twice. */
+  focus: { time: number; seq: number } | null
   onNeedMore: () => void
 }
 
@@ -125,11 +131,14 @@ export function PriceChart({
   visibleEmas,
   showVolume,
   showRsi,
+  markers,
+  focus,
   onNeedMore,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<Series | null>(null)
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
   const loadedKeyRef = useRef<string | null>(null)
   const dataRef = useRef(data)
   const hasMoreRef = useRef(data.has_more)
@@ -174,7 +183,9 @@ export function PriceChart({
 
     chartRef.current = chart
     seriesRef.current = series
+    markersRef.current = createSeriesMarkers(candles, [])
     return () => {
+      markersRef.current = null
       chart.remove()
       chartRef.current = null
       seriesRef.current = null
@@ -223,6 +234,20 @@ export function PriceChart({
     // theme is handled by the effect above
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, datasetKey])
+
+  // Pattern markers (re-applied after data so they attach to the new bars).
+  useEffect(() => {
+    markersRef.current?.setMarkers(markers)
+  }, [markers, data])
+
+  // Jump to a bar, e.g. a pattern hit picked from the list.
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !focus) return
+    const index = dataRef.current.candles.findIndex((c) => c.time === focus.time)
+    if (index < 0) return
+    chart.timeScale().setVisibleLogicalRange({ from: index - 60, to: index + 30 })
+  }, [focus])
 
   // Indicator visibility.
   useEffect(() => {
