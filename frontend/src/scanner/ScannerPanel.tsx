@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, type InstrumentHit } from '../api/client'
+import { api, type InstrumentHit, type InstrumentKind, type Watchlist } from '../api/client'
+import { Dropdown } from '../ui/Dropdown'
 import { usePref } from '../prefs'
 import { CONDITION_DEFS, type ScanCatalog, type ScanCondition, type ScanJob, type ScanMatch } from './types'
 
@@ -239,6 +240,7 @@ export function ScannerPanel({ onOpen }: { onOpen: (s: InstrumentHit) => void })
             </tbody>
           </table>
         )}
+        {job && results.length > 0 && !running && <AddToWatchlist matches={results} />}
         {job && job.status === 'done' && results.length === 0 && (
           <p className="status">No matches. Loosen a condition (e.g. a wider range %) or try another list.</p>
         )}
@@ -311,4 +313,56 @@ function ConditionCard({
 
 function formatEta(seconds: number): string {
   return seconds < 60 ? `${seconds}s` : `${Math.ceil(seconds / 60)} min`
+}
+
+/** Append scan results to a watchlist. */
+function AddToWatchlist({ matches }: { matches: ScanMatch[] }) {
+  const [lists, setLists] = useState<Watchlist[] | null>(null)
+  const [saved, setSaved] = useState<string | null>(null)
+  useEffect(() => {
+    api.watchlists().then(setLists, () => setLists([]))
+  }, [])
+  const kind = (s: string): InstrumentKind => (s.startsWith('MCX:') ? 'COM' : s.endsWith('-INDEX') ? 'INDEX' : 'EQ')
+  const addTo = async (l: Watchlist) => {
+    const have = new Set(l.items.map((i) => i.symbol))
+    const items = [
+      ...l.items,
+      ...matches
+        .filter((m) => !have.has(m.symbol))
+        .map((m) => ({ symbol: m.symbol, ticker: m.ticker, name: m.name, kind: kind(m.symbol), exchange: m.symbol.split(':')[0] })),
+    ]
+    await api.updateWatchlist(l.id, { items })
+    setLists((all) => all?.map((x) => (x.id === l.id ? { ...x, items } : x)) ?? null)
+    setSaved(`Added to ${l.name}`)
+  }
+  return (
+    <div className="scan-actions">
+      <Dropdown label={`Add ${matches.length} to watchlist`} title="Add results to a watchlist">
+        {(close) => (
+          <div className="menu-list">
+            {(lists ?? []).map((l) => (
+              <div key={l.id} className="menu-item">
+                <button className="menu-main" onClick={() => (close(), addTo(l))}>
+                  {l.name}
+                </button>
+              </div>
+            ))}
+            <div className="menu-item">
+              <button
+                className="menu-main"
+                onClick={async () => {
+                  close()
+                  const name = window.prompt('New watchlist name', 'Scan results')?.trim()
+                  if (name) addTo(await api.createWatchlist(name))
+                }}
+              >
+                New list…
+              </button>
+            </div>
+          </div>
+        )}
+      </Dropdown>
+      {saved && <span className="status ok small">{saved}</span>}
+    </div>
+  )
 }

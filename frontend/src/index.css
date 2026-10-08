@@ -1197,3 +1197,132 @@ select {
 details.note {
   padding: 8px 12px;
 }
+
+/* --- watchlist & live --- */
+
+.watchlist-panel {
+  width: 320px;
+}
+.watch-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 6px 6px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.watch-head .icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.live-status {
+  font-size: 11px;
+  margin-right: 4px;
+}
+.live-status.connected {
+  color: var(--ok);
+}
+.live-status.error {
+  color: var(--err);
+}
+.watch-columns,
+.watch-main {
+  display: grid;
+  grid-template-columns: 1fr 78px 64px 62px;
+  gap: 4px;
+  align-items: center;
+}
+.watch-columns {
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.watch-columns .num,
+.watch-main .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.watchlist-panel .panel-body {
+  padding: 0;
+}
+.watch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.watch-row {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.4s;
+}
+.watch-row:hover {
+  background: var(--hover);
+}
+.watch-row.active {
+  background: var(--selected);
+}
+.watch-row.flash-up {
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+}
+.watch-row.flash-down {
+  background: color-mix(in srgb, var(--err) 18%, transparent);
+}
+.watch-main {
+  width: 100%;
+  padding: 7px 12px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.watch-symbol {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.watch-symbol b {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.watch-symbol .muted {
+  font-size: 10px;
+}
+.watch-main .pos {
+  color: var(--ok);
+}
+.watch-main .neg {
+  color: var(--err);
+}
+.watch-actions {
+  position: absolute;
+  top: 50%;
+  left: 92px;
+  display: none;
+  gap: 2px;
+  transform: translateY(-50%);
+}
+.watch-row:hover .watch-actions {
+  display: inline-flex;
+}
+.watch-actions button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.watch-actions button:hover {
+  color: var(--fg);
+}
+.live-dot {
+  color: var(--ok);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}

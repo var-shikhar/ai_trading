@@ -31,6 +31,8 @@ DATA_API = "https://api-t1.fyers.in/data"
 SYMBOL_MASTER_URL = "https://public.fyers.in/sym_details/{segment}.csv"
 
 IST = timezone(timedelta(hours=5, minutes=30))
+IST_OFFSET = 5 * 3600 + 1800
+QUOTES_PER_CALL = 50
 
 # Symbol master files and the instrument-type codes we keep from each
 # (options are left out: ~100k contracts). Our kinds: EQ, ETF, INDEX,
@@ -175,6 +177,36 @@ class FyersProvider(MarketDataProvider):
         if body.get("s") not in ("ok", "no_data"):
             raise ProviderError(f"Fyers error {body.get('code')}: {body.get('message', body)}")
         return body
+
+    # --- quotes ---------------------------------------------------------------
+
+    async def get_quotes(self, symbols: list[str]) -> dict[str, dict]:
+        """Last price snapshot per symbol (works when the market is closed)."""
+        out: dict[str, dict] = {}
+        for i in range(0, len(symbols), QUOTES_PER_CALL):
+            chunk = symbols[i : i + QUOTES_PER_CALL]
+            body = await self._get(f"{DATA_API}/quotes", {"symbols": ",".join(chunk)})
+            for item in body.get("d", []):
+                v = item.get("v") or {}
+                if item.get("s") != "ok" or "lp" not in v:
+                    continue
+                out[item.get("n", v.get("symbol", ""))] = {
+                    "ltp": v.get("lp"),
+                    "ch": v.get("ch"),
+                    "chp": v.get("chp"),
+                    "open": v.get("open_price"),
+                    "high": v.get("high_price"),
+                    "low": v.get("low_price"),
+                    "prev_close": v.get("prev_close_price"),
+                    "volume": v.get("volume"),
+                    # Fyers sends UTC epoch; bars use IST wall time as epoch.
+                    "time": int(v["tt"]) + IST_OFFSET if v.get("tt") else None,
+                }
+        return out
+
+    def access_token(self) -> str | None:
+        token = tokens.load_token(self.name, now_ist())
+        return f"{self.settings.fyers_app_id}:{token}" if token else None
 
     # --- instruments ----------------------------------------------------------
 

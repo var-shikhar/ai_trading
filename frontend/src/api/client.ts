@@ -111,6 +111,34 @@ export interface StudyChartData {
   candles: Candle[]
   studies: Record<string, StudyResult>
   has_more: boolean
+  session?: { start: string; end: string }
+}
+
+export interface Quote {
+  ltp: number
+  ch: number | null
+  chp: number | null
+  open: number | null
+  high: number | null
+  low: number | null
+  prev_close: number | null
+  volume: number | null
+  time: number | null
+}
+
+export interface WatchItem {
+  symbol: string
+  ticker: string
+  name: string
+  kind: InstrumentKind
+  exchange?: string | null
+}
+
+export interface Watchlist {
+  id: string
+  name: string
+  items: WatchItem[]
+  position: number
 }
 
 export interface Health {
@@ -190,6 +218,13 @@ export const api = {
   ) => post<StudyChartData>('/chart', { symbol, tf, limit, studies }),
   chartPatterns: (symbol: string, tf: string, limit: number, sensitivity: Sensitivity) =>
     get<ChartPatternResult>('/patterns/chart', { symbol, tf, limit, sensitivity }),
+  quotes: (symbols: string[]) =>
+    get<Record<string, Quote | null>>('/quotes', { symbols: symbols.join(',') }),
+  watchlists: () => get<Watchlist[]>('/watchlists'),
+  createWatchlist: (name: string, items: WatchItem[] = []) => post<Watchlist>('/watchlists', { name, items }),
+  updateWatchlist: (id: string, patch: { name?: string; items?: WatchItem[] }) =>
+    post<Watchlist>(`/watchlists/${id}`, patch, 'PUT'),
+  deleteWatchlist: (id: string) => post<{ ok: boolean }>(`/watchlists/${id}`, {}, 'DELETE'),
   scannerCatalog: () => get<ScanCatalog>('/scanner/catalog'),
   runScan: (universe: string, tf: string, conditions: ScanCondition[], custom: string[]) =>
     post<ScanJob>('/scanner/run', { universe, tf, conditions, custom }),

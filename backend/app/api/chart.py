@@ -107,10 +107,13 @@ async def chart_with_studies(
             "params": params,
             "outputs": {key: series_points(df, series, visible) for key, series in values.items()},
         }
+    _, session = service.instrument_info(req.symbol)
     return {
         "candles": candle_records(df.iloc[-req.limit :]),
         "studies": results,
         "has_more": len(df) >= req.limit + WARMUP_BARS,
+        # Lets the browser bucket live ticks into bars like the server does.
+        "session": {"start": f"{session.start:%H:%M}", "end": f"{session.end:%H:%M}"},
     }
 
 

@@ -63,6 +63,8 @@ interface Props {
   layoutMenu?: ReactNode
   showScanner: boolean
   onToggleScanner: () => void
+  showWatchlist: boolean
+  onToggleWatchlist: () => void
 }
 
 export function TopBar(p: Props) {
@@ -191,6 +193,17 @@ export function TopBar(p: Props) {
         </svg>
         Scanner
       </button>
+      <button
+        className={`tool-button ${p.showWatchlist ? 'selected' : ''}`}
+        aria-pressed={p.showWatchlist}
+        onClick={p.onToggleWatchlist}
+        title="Watchlists with live prices"
+      >
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+          <path d="M3 4h12M3 9h12M3 14h8" />
+        </svg>
+        Watchlist
+      </button>
 
       <span className="spacer" />
       {p.error && <span className="status err">Backend unreachable</span>}
@@ -272,7 +285,7 @@ const KIND_LABELS: Record<InstrumentKind, string> = {
   COM: 'commodity',
 }
 
-function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) => void; onClose: () => void }) {
+export function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) => void; onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<InstrumentKind | null>(null)
   const [hits, setHits] = useState<InstrumentHit[]>([])

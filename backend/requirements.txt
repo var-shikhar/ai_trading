@@ -5,3 +5,9 @@ duckdb==1.5.6
 pandas==3.0.6
 httpx==0.28.1
 ta-lib==0.8.1
+# Live prices use the Fyers SDK's socket client. Install the SDK itself with
+#   pip install --no-deps fyers-apiv3==3.1.19
+# (its pinned dependencies don't build on Python 3.13); these cover it:
+websocket-client==1.9.2
+aws-lambda-powertools==3.35.0
+setuptools<81

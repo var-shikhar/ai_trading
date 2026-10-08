@@ -7,7 +7,8 @@ export default defineConfig({
   server: {
     // Forward API calls to the FastAPI backend in dev.
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
+      // ws: true also forwards the /api/live WebSocket (live prices).
+      '/api': { target: 'http://127.0.0.1:8000', ws: true },
     },
   },
 })

@@ -24,6 +24,7 @@ import type { Candle, LinePoint, StudyChartData, StudyDef } from '../api/client'
 import { DrawingsPrimitive } from '../drawings/DrawingsPrimitive'
 import type { Drawing, DrawingTool } from '../drawings/types'
 import { Mapper } from '../drawings/mapper'
+import { withLiveBar } from '../live/bars'
 import { useDrawings } from '../drawings/useDrawings'
 import type { ChartPatternResult } from '../patterns/chartPatterns'
 import { PatternOverlayPrimitive } from '../patterns/PatternOverlayPrimitive'
@@ -75,6 +76,9 @@ interface Props {
   chartPatterns?: ChartPatternResult | null
   showZones?: boolean
   highlightPattern?: string | null
+  /** Bar being formed from live ticks (replaces/extends the last bar). */
+  liveBar?: Candle | null
+  isLive?: boolean
 }
 
 interface StudySeries {
@@ -270,6 +274,23 @@ export function PriceChart(props: Props) {
     () => (built ? { chart: built.chart, main: built.main, primitive: built.drawings } : null),
     [built],
   )
+  // Live bar: update just the last bar instead of resetting all data.
+  const merged = useMemo(() => withLiveBar(data.candles, props.liveBar ?? null), [data.candles, props.liveBar])
+  const display = useMemo(() => (chartType === 'heikin' ? heikinAshi(merged) : merged), [merged, chartType])
+  useEffect(() => {
+    const b = builtRef.current
+    const bar = props.liveBar
+    if (!b || !bar || !data.candles.length || bar.time < data.candles[data.candles.length - 1].time) return
+    const shown = display[display.length - 1]
+    if (chartType === 'line' || chartType === 'area') b.main.update({ time: t(shown.time), value: shown.close })
+    else b.main.update({ time: t(shown.time), open: shown.open, high: shown.high, low: shown.low, close: shown.close })
+    b.volume?.update({
+      time: t(bar.time),
+      value: bar.volume,
+      color: bar.close >= bar.open ? theme.upVolume : theme.downVolume,
+    })
+  }, [props.liveBar, display, built, data.candles, chartType, theme])
+
   // Detected chart patterns + zones.
   useEffect(() => {
     if (!built) return
@@ -293,8 +314,8 @@ export function PriceChart(props: Props) {
     onChange: props.onDrawingsChange,
   })
 
-  const index = hoverIndex(data.candles, hover)
-  const barTime = data.candles[index]?.time
+  const index = hoverIndex(merged, hover)
+  const barTime = merged[index]?.time
   const legendProps = { result: data.studies, time: barTime, theme, onAction: onStudyAction }
 
   return (
@@ -303,7 +324,7 @@ export function PriceChart(props: Props) {
       {built && paneTops.length > 0 && (
         <>
           <div className="pane-legend" style={{ top: paneTops[0] + 6 }}>
-            <MainLegend title={title} candles={candles} index={index} />
+            <MainLegend title={title} candles={display} index={index} live={props.isLive ?? false} />
             {studies
               .filter((s) => catalog[s.id]?.overlay)
               .map((s) => (
@@ -314,7 +335,7 @@ export function PriceChart(props: Props) {
             <div className="pane-legend" style={{ top: paneTops[built.volumePane] + 4 }}>
               <div className="legend-row study">
                 <span className="legend-title">Vol</span>
-                <b>{data.candles[index] ? fmtVolume(data.candles[index].volume) : '–'}</b>
+                <b>{merged[index] ? fmtVolume(merged[index].volume) : '–'}</b>
                 <span className="legend-actions">
                   <button title="Remove" onClick={onHideVolume}>
                     <CloseIcon />
@@ -614,7 +635,7 @@ function valueAt(points: LinePoint[] | undefined, time: number | undefined): num
   return undefined
 }
 
-function MainLegend({ title, candles, index }: { title: string; candles: Candle[]; index: number }) {
+function MainLegend({ title, candles, index, live }: { title: string; candles: Candle[]; index: number; live: boolean }) {
   const bar = candles[index]
   if (!bar) return null
   const prev = candles[index - 1]
@@ -624,6 +645,11 @@ function MainLegend({ title, candles, index }: { title: string; candles: Candle[
   return (
     <div className="legend-row main">
       <span className="legend-symbol">{title}</span>
+      {live && (
+        <span className="live-dot" title="Live prices streaming">
+          ● LIVE
+        </span>
+      )}
       <span className={`ohlc ${change >= 0 ? 'up' : 'down'}`}>
         O<b>{fmt(bar.open)}</b> H<b>{fmt(bar.high)}</b> L<b>{fmt(bar.low)}</b> C<b>{fmt(bar.close)}</b>{' '}
         <b>

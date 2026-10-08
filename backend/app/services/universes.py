@@ -27,9 +27,13 @@ OTHER_LISTS = {"fno": "F&O stocks", "mcx": "MCX commodities (continuous)"}
 
 
 def catalog() -> list[dict]:
-    return [{"id": k, "name": v[0]} for k, v in INDEX_LISTS.items()] + [
-        {"id": k, "name": v} for k, v in OTHER_LISTS.items()
-    ] + [{"id": "custom", "name": "Custom list"}]
+    watchlists = get_conn().execute("SELECT id, name FROM watchlists ORDER BY position, name").fetchall()
+    return (
+        [{"id": k, "name": v[0]} for k, v in INDEX_LISTS.items()]
+        + [{"id": k, "name": v} for k, v in OTHER_LISTS.items()]
+        + [{"id": f"watchlist:{wid}", "name": f"Watchlist: {name}"} for wid, name in watchlists]
+        + [{"id": "custom", "name": "Custom list"}]
+    )
 
 
 async def _download_index(universe: str, client: httpx.AsyncClient | None = None) -> list[tuple[str, str]]:
@@ -82,6 +86,16 @@ async def members(universe: str, custom: list[str] | None = None, client: httpx.
         rows = con.execute(
             "SELECT symbol, ticker, name FROM instruments WHERE exchange = 'MCX' AND actual IS NOT NULL"
         ).fetchall()
+    elif universe.startswith("watchlist:"):
+        row = con.execute("SELECT items FROM watchlists WHERE id = ?", [universe.split(":", 1)[1]]).fetchone()
+        if row is None:
+            raise KeyError(universe)
+        import json
+
+        return [
+            {"symbol": i["symbol"], "ticker": i["ticker"], "name": i.get("name", ""), "industry": ""}
+            for i in json.loads(row[0])
+        ]
     elif universe == "custom":
         tickers = [t.strip().upper() for t in (custom or []) if t.strip()]
         if not tickers:

@@ -60,6 +60,14 @@ CREATE TABLE IF NOT EXISTS universe_members (
     PRIMARY KEY (universe, ticker)
 );
 
+CREATE TABLE IF NOT EXISTS watchlists (
+    id       VARCHAR PRIMARY KEY,
+    name     VARCHAR   NOT NULL,
+    items    VARCHAR   NOT NULL,     -- JSON list of {symbol, ticker, name, kind, exchange}
+    position INTEGER   NOT NULL,
+    updated  TIMESTAMP NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS drawings (
     symbol  VARCHAR PRIMARY KEY,
     data    VARCHAR   NOT NULL,      -- JSON list, format owned by the frontend

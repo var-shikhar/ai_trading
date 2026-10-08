@@ -14,6 +14,8 @@ import type { Drawing, DrawingTool } from '../drawings/types'
 import type { ChartPatternResult } from '../patterns/chartPatterns'
 import { chartSettings, patternMode, type PatternSettings } from '../patterns/PatternPanel'
 import { defaultStudies, type StudyInstance } from '../studies/model'
+import { applyTick, type LiveBar } from '../live/bars'
+import { live } from '../live/liveClient'
 import { RANGES } from '../ui/BottomBar'
 
 export const PAGE_BARS = 500
@@ -116,6 +118,9 @@ export function ChartPanel(p: Props) {
   const [pendingRange, setPendingRange] = useState<string | null>(null)
   const [goTo, setGoTo] = useState<number | null>(null)
   const [patterns, setPatterns] = useState<PatternState>(NO_PATTERNS)
+  const [liveBar, setLiveBar] = useState<LiveBar | null>(null)
+  const [lastTickAt, setLastTickAt] = useState(0)
+  const [reloadSeq, setReloadSeq] = useState(0)
   const patternRequestId = useRef(0)
 
   // A new symbol/timeframe starts from the latest page, unless a range
@@ -131,7 +136,7 @@ export function ChartPanel(p: Props) {
 
   // Only inputs that change the numbers trigger a refetch (not colors/visibility).
   const studyRequest = useMemo(() => studies.map((s) => ({ uid: s.uid, id: s.id, params: s.params })), [studies])
-  const requestKey = `${key}|${limit}|${JSON.stringify(studyRequest)}`
+  const requestKey = `${key}|${limit}|${JSON.stringify(studyRequest)}|${reloadSeq}`
 
   useEffect(() => {
     if (!authenticated) return
@@ -154,6 +159,41 @@ export function ChartPanel(p: Props) {
     // requestKey covers symbol/tf/limit/studies
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, requestKey])
+
+  // --- live ticks -> forming bar -------------------------------------------------------
+  const chartRef = useRef(chart)
+  useEffect(() => {
+    chartRef.current = chart
+  })
+  const sessionStart = chart?.session?.start ?? (symbol.symbol.startsWith('MCX:') ? '09:00' : '09:15')
+  const liveRef = useRef<LiveBar | null>(null)
+  useEffect(() => {
+    liveRef.current = null
+    setLiveBar(null)
+    if (!authenticated) return
+    return live.subscribe(symbol.symbol, (tick) => {
+      const data = chartRef.current
+      if (!data) return
+      setLastTickAt(Date.now())
+      const prev = liveRef.current
+      const r = applyTick(prev, data.candles[data.candles.length - 1], tick, tf, sessionStart)
+      if (!r) return
+      liveRef.current = r.state
+      setLiveBar(r.state)
+      // A bar just closed: refresh so indicators include it.
+      if (r.newBar && prev) setReloadSeq((n) => n + 1)
+    })
+  }, [authenticated, symbol.symbol, tf, sessionStart])
+
+  // While ticks flow, refresh once a minute so indicators follow the live bar.
+  const isLive = Date.now() - lastTickAt < 15000
+  useEffect(() => {
+    if (!lastTickAt) return
+    const id = setInterval(() => {
+      if (Date.now() - lastTickAt < 60000) setReloadSeq((n) => n + 1)
+    }, 60000)
+    return () => clearInterval(id)
+  }, [lastTickAt > 0]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = useCallback(() => {
     if (!loading && chart?.has_more && chartKey === key) setLimit((l) => Math.min(l + PAGE_BARS, MAX_BARS))
@@ -340,6 +380,8 @@ export function ChartPanel(p: Props) {
           chartPatterns={chartOn ? patterns.chart : null}
           showZones={showZones}
           highlightPattern={p.highlightPattern}
+          liveBar={liveBar && chartKey === key ? liveBar.bar : null}
+          isLive={isLive}
         />
       )}
     </section>

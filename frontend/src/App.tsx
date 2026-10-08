@@ -16,6 +16,7 @@ import { patternKey } from './patterns/chartPatterns'
 import { PatternPanel, type PatternSettings } from './patterns/PatternPanel'
 import { loadPref, usePref } from './prefs'
 import { ScannerPanel } from './scanner/ScannerPanel'
+import { WatchlistPanel } from './watchlist/WatchlistPanel'
 import { IndicatorDialog } from './studies/IndicatorDialog'
 import { defaultStudies, newStudy } from './studies/model'
 import { StudySettings } from './studies/StudySettings'
@@ -108,6 +109,7 @@ function App() {
   })
   const [highlight, setHighlight] = useState<string | null>(null)
   const [showScanner, setShowScanner] = usePref<boolean>('scanner', false)
+  const [showWatchlist, setShowWatchlist] = usePref<boolean>('watchlist', true)
   const [indicatorsOpen, setIndicatorsOpen] = useState(false)
   const [settingsUid, setSettingsUid] = useState<string | null>(null)
   const [crosshair, setCrosshair] = useState<{ time: number | null; source: number } | null>(null)
@@ -242,6 +244,8 @@ function App() {
         layoutMenu={<LayoutMenu layout={layout} onLayout={setLayoutId} sync={sync} onSync={setSync} />}
         showScanner={showScanner}
         onToggleScanner={() => setShowScanner((v) => !v)}
+        showWatchlist={showWatchlist}
+        onToggleWatchlist={() => setShowWatchlist((v) => !v)}
       />
 
       <div className="workspace">
@@ -320,6 +324,13 @@ function App() {
           />
         )}
         {showScanner && <ScannerPanel onOpen={(symbol) => updateActive({ symbol })} />}
+        {showWatchlist && (
+          <WatchlistPanel
+            current={activeConfig.symbol}
+            activeSymbol={activeConfig.symbol.symbol}
+            onOpen={(symbol) => updateActive({ symbol })}
+          />
+        )}
       </div>
 
       <BottomBar
