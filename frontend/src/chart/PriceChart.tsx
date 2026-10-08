@@ -21,6 +21,9 @@ import {
 } from 'lightweight-charts'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Candle, LinePoint, StudyChartData, StudyDef } from '../api/client'
+import { DrawingsPrimitive } from '../drawings/DrawingsPrimitive'
+import type { Drawing, DrawingTool } from '../drawings/types'
+import { useDrawings } from '../drawings/useDrawings'
 import type { StudyInstance } from '../studies/model'
 import { studyTitle } from '../studies/model'
 import { formatCrosshairTime } from './format'
@@ -56,6 +59,10 @@ interface Props {
   onNeedMore: () => void
   onStudyAction: (uid: string, action: StudyAction) => void
   onHideVolume: () => void
+  tool: DrawingTool
+  onToolDone: () => void
+  drawings: Drawing[]
+  onDrawingsChange: (drawings: Drawing[]) => void
 }
 
 interface StudySeries {
@@ -70,6 +77,7 @@ interface Built {
   volumePane: number | null
   studies: Record<string, StudySeries>
   markers: ISeriesMarkersPluginApi<Time>
+  drawings: DrawingsPrimitive
 }
 
 const t = (time: number) => time as UTCTimestamp
@@ -85,6 +93,7 @@ export function PriceChart(props: Props) {
   const [hover, setHover] = useState<number | null>(null)
   const [paneTops, setPaneTops] = useState<number[]>([])
   const [built, setBuilt] = useState<Built | null>(null)
+  const [container, setContainer] = useState<HTMLDivElement | null>(null)
 
   useLayoutEffect(() => {
     propsRef.current = props
@@ -125,6 +134,7 @@ export function PriceChart(props: Props) {
       setHover(e.time === undefined ? null : (e.time as number)),
     )
     setBuilt(b)
+    setContainer(containerRef.current)
 
     return () => {
       savedRangeRef.current = chart.timeScale().getVisibleLogicalRange()
@@ -195,6 +205,21 @@ export function PriceChart(props: Props) {
     }
   }, [built])
 
+  const live = useMemo(
+    () => (built ? { chart: built.chart, main: built.main, primitive: built.drawings } : null),
+    [built],
+  )
+  const drawing = useDrawings({
+    container,
+    live,
+    candles: data.candles,
+    theme,
+    tool: props.tool,
+    onToolDone: props.onToolDone,
+    drawings: props.drawings,
+    onChange: props.onDrawingsChange,
+  })
+
   const index = hoverIndex(data.candles, hover)
   const barTime = data.candles[index]?.time
   const legendProps = { result: data.studies, time: barTime, theme, onAction: onStudyAction }
@@ -237,6 +262,25 @@ export function PriceChart(props: Props) {
               )
             })}
         </>
+      )}
+      {drawing.selected && (
+        <div className="drawing-floater" role="toolbar" aria-label="Selected drawing">
+          {drawing.selected.type !== 'long' && drawing.selected.type !== 'short' &&
+            theme.series.map((c, n) => (
+              <button
+                key={c}
+                className={`swatch-button ${drawing.selected?.color === `slot:${n}` ? 'active' : ''}`}
+                style={{ background: c }}
+                aria-label={`Color ${n + 1}`}
+                onClick={() => drawing.setColor(`slot:${n}`)}
+              />
+            ))}
+          <button className="icon-button" title="Remove (Delete)" onClick={drawing.remove}>
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+              <path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11" />
+            </svg>
+          </button>
+        </div>
       )}
     </div>
   )
@@ -320,7 +364,16 @@ function buildSeries(chart: IChartApi, p: Props): Built {
   if (volumePane !== null) panes[volumePane]?.setStretchFactor(STRETCH.volume)
   for (const s of Object.values(studies)) if (s.pane > 0) panes[s.pane]?.setStretchFactor(STRETCH.study)
 
-  return { chart, main, volume, volumePane, studies, markers: createSeriesMarkers(main, []) }
+  const drawings = new DrawingsPrimitive({
+    drawings: [],
+    draft: null,
+    selectedId: null,
+    hoverId: null,
+    mapper: null,
+    theme: p.theme,
+  })
+  main.attachPrimitive(drawings)
+  return { chart, main, volume, volumePane, studies, markers: createSeriesMarkers(main, []), drawings }
 }
 
 function addMainSeries(chart: IChartApi, type: ChartType): ISeriesApi<SeriesType> {

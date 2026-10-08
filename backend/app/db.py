@@ -52,6 +52,12 @@ CREATE TABLE IF NOT EXISTS instruments (
     actual        VARCHAR              -- continuous aliases: the contract they point to
 );
 
+CREATE TABLE IF NOT EXISTS drawings (
+    symbol  VARCHAR PRIMARY KEY,
+    data    VARCHAR   NOT NULL,      -- JSON list, format owned by the frontend
+    updated TIMESTAMP NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS tokens (
     provider     VARCHAR PRIMARY KEY,
     access_token VARCHAR   NOT NULL,

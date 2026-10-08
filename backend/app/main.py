@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, candles, chart, instruments, patterns
+from app.api import auth, candles, chart, drawings, instruments, patterns
 from app.config import get_settings
 from app.db import close_conn, get_conn
 from app.deps import get_fyers
@@ -38,6 +38,7 @@ app.include_router(instruments.router)
 app.include_router(candles.router)
 app.include_router(chart.router)
 app.include_router(patterns.router)
+app.include_router(drawings.router)
 
 
 @app.get("/api/health")

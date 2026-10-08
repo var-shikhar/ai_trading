@@ -11,6 +11,8 @@ import {
 } from './api/client'
 import { PriceChart, type ChartType, type ScaleMode, type StudyAction } from './chart/PriceChart'
 import { useChartTheme, type ChartTheme, type ThemeMode } from './chart/theme'
+import { DrawingToolbar } from './drawings/DrawingToolbar'
+import type { Drawing, DrawingTool } from './drawings/types'
 import { PatternPanel, type PatternSettings } from './patterns/PatternPanel'
 import { IndicatorDialog } from './studies/IndicatorDialog'
 import { defaultStudies, newStudy, type StudyInstance } from './studies/model'
@@ -25,6 +27,7 @@ const TF_MINUTES: Record<string, number> = { '1m': 1, '5m': 5, '15m': 15, '30m':
 const SESSION_MINUTES = 375
 const DEFAULT_SYMBOL: InstrumentHit = { symbol: 'NSE:NIFTY50-INDEX', ticker: 'NIFTY50', name: 'NIFTY 50', kind: 'INDEX' }
 const DEFAULT_FAVORITES = ['15m', '1h', '4h', '1D', '1W']
+const EMPTY_DRAWINGS: Drawing[] = []
 
 // Per-browser conveniences only; the app works without them.
 function loadPref<T>(key: string, fallback: T): T {
@@ -98,6 +101,9 @@ function App() {
   const [activeRange, setActiveRange] = useState<string | null>(null)
   const [pendingRange, setPendingRange] = useState<string | null>(null)
   const [goTo, setGoTo] = useState<number | null>(null)
+
+  const [tool, setTool] = useState<DrawingTool>('cursor')
+  const [drawings, setDrawings] = useState<{ symbol: string; items: Drawing[] }>({ symbol: '', items: [] })
 
   const [showPatterns, setShowPatterns] = usePref<boolean>('patterns', false)
   const [patternSettings, setPatternSettings] = usePref<PatternSettings>('patternSettings', {
@@ -226,6 +232,46 @@ function App() {
     setGoTo(null)
   }, [goTo, chart, chartKey, key, loading, limit, tf])
 
+  // --- drawings: per symbol, shown on every timeframe ---------------------------------
+  useEffect(() => {
+    if (!authenticated) return
+    let cancelled = false
+    api
+      .drawings(symbol.symbol)
+      .then((items) => !cancelled && setDrawings({ symbol: symbol.symbol, items }))
+      .catch(() => !cancelled && setDrawings({ symbol: symbol.symbol, items: [] }))
+    return () => {
+      cancelled = true
+    }
+  }, [authenticated, symbol.symbol])
+
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onDrawingsChange = useCallback((items: Drawing[]) => {
+    setDrawings((prev) => {
+      const next = { symbol: prev.symbol, items }
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      saveTimer.current = setTimeout(() => api.saveDrawings(next.symbol, items).catch(() => {}), 400)
+      return next
+    })
+  }, [])
+  const onToolDone = useCallback(() => setTool('cursor'), [])
+
+  // Alt+T trend, Alt+H horizontal, Alt+V vertical, Alt+R rectangle (as TradingView).
+  useEffect(() => {
+    const keys: Record<string, DrawingTool> = { t: 'trend', h: 'hline', v: 'vline', r: 'rect' }
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || (e.target as HTMLElement).closest('input, textarea, select')) return
+      const t = keys[e.key.toLowerCase()]
+      if (t) {
+        e.preventDefault()
+        setTool(t)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  const symbolDrawings = drawings.symbol === symbol.symbol ? drawings.items : EMPTY_DRAWINGS
+
   // --- patterns --------------------------------------------------------------------
   useEffect(() => {
     if (showPatterns && !patternCatalog) api.patternCatalog().then(setPatternCatalog).catch(() => {})
@@ -304,6 +350,12 @@ function App() {
       />
 
       <div className="workspace">
+        <DrawingToolbar
+          tool={tool}
+          onTool={setTool}
+          hasDrawings={symbolDrawings.length > 0}
+          onClearAll={() => onDrawingsChange([])}
+        />
         <main className="chart-area">
           {loadError && <div className="overlay err">{loadError}</div>}
           {auth && !authenticated && <div className="overlay">Connect Fyers to load charts.</div>}
@@ -325,6 +377,10 @@ function App() {
               onNeedMore={loadMore}
               onStudyAction={onStudyAction}
               onHideVolume={() => setShowVolume(false)}
+              tool={tool}
+              onToolDone={onToolDone}
+              drawings={symbolDrawings}
+              onDrawingsChange={onDrawingsChange}
             />
           )}
         </main>

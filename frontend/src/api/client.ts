@@ -1,3 +1,5 @@
+import type { Drawing } from '../drawings/types'
+
 export interface Candle {
   time: number // IST wall time as UTC epoch seconds
   open: number
@@ -151,9 +153,9 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
   return res.json() as Promise<T>
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+async function post<T>(path: string, body: unknown, method = 'POST'): Promise<T> {
   const res = await fetch(`/api${path}`, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -175,6 +177,9 @@ export const api = {
   chart: (symbol: string, tf: string, limit = 500) =>
     get<ChartData>('/chart', { symbol, tf, limit }),
   studiesCatalog: () => get<StudyDef[]>('/studies/catalog'),
+  drawings: (symbol: string) => get<{ drawings: Drawing[] }>('/drawings', { symbol }).then((r) => r.drawings),
+  saveDrawings: (symbol: string, drawings: Drawing[]) =>
+    post<{ count: number }>(`/drawings?symbol=${encodeURIComponent(symbol)}`, { drawings }, 'PUT'),
   chartWithStudies: (
     symbol: string,
     tf: string,

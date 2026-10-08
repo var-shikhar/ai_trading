@@ -909,3 +909,62 @@ select {
 .picker .check {
   padding: 3px 0;
 }
+
+/* --- drawing tools --- */
+
+.drawing-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 46px;
+  flex-shrink: 0;
+  padding: 6px 0;
+  border-right: 4px solid var(--border);
+  background: var(--surface);
+}
+
+.draw-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+.draw-tool:hover:not(:disabled) {
+  background: var(--hover);
+}
+.draw-tool.selected {
+  color: var(--accent);
+  background: var(--selected);
+}
+.draw-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.draw-divider {
+  width: 24px;
+  height: 1px;
+  margin: 6px 0;
+  background: var(--border);
+}
+
+.drawing-floater {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  transform: translateX(-50%);
+  border-radius: 6px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+}
