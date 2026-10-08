@@ -36,15 +36,20 @@ CREATE TABLE IF NOT EXISTS coverage (
 );
 
 CREATE TABLE IF NOT EXISTS instruments (
-    symbol    VARCHAR PRIMARY KEY,   -- provider symbol, e.g. NSE:SBIN-EQ
-    ticker    VARCHAR NOT NULL,      -- e.g. SBIN
-    name      VARCHAR NOT NULL,
-    exchange  VARCHAR NOT NULL,
-    kind      VARCHAR NOT NULL,      -- EQ, ETF, INDEX
-    lot_size  INTEGER NOT NULL,
-    tick_size DOUBLE  NOT NULL,
-    provider  VARCHAR NOT NULL,
-    updated   DATE    NOT NULL
+    symbol        VARCHAR PRIMARY KEY, -- provider symbol, e.g. NSE:SBIN-EQ, or alias NSE:NIFTY1!
+    ticker        VARCHAR NOT NULL,    -- e.g. SBIN, NIFTY26OCTFUT, NIFTY1!
+    name          VARCHAR NOT NULL,
+    exchange      VARCHAR NOT NULL,    -- NSE, BSE, MCX
+    kind          VARCHAR NOT NULL,    -- EQ, ETF, INDEX, FUT (NSE futures), COM (MCX)
+    lot_size      INTEGER NOT NULL,
+    tick_size     DOUBLE  NOT NULL,
+    provider      VARCHAR NOT NULL,
+    updated       DATE    NOT NULL,
+    expiry        DATE,                -- futures only
+    underlying    VARCHAR,
+    session_start VARCHAR NOT NULL,    -- 'HH:MM' IST
+    session_end   VARCHAR NOT NULL,
+    actual        VARCHAR              -- continuous aliases: the contract they point to
 );
 
 CREATE TABLE IF NOT EXISTS tokens (
@@ -66,8 +71,18 @@ def get_conn() -> duckdb.DuckDBPyConnection:
             db_file = get_settings().db_file
             db_file.parent.mkdir(parents=True, exist_ok=True)
             _conn = duckdb.connect(str(db_file))
+            _migrate(_conn)
             _conn.execute(SCHEMA)
         return _conn.cursor()
+
+
+def _migrate(conn: duckdb.DuckDBPyConnection) -> None:
+    """instruments is a daily-refreshed cache: recreate it when its columns change."""
+    cols = {r[0] for r in conn.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'instruments'"
+    ).fetchall()}
+    if cols and "actual" not in cols:
+        conn.execute("DROP TABLE instruments")
 
 
 def close_conn() -> None:

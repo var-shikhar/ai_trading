@@ -147,3 +147,70 @@ async def test_chart_endpoint_trims_warmup_and_reports_history_end(settings, mon
             assert body["has_more"] is False
     finally:
         app.dependency_overrides.clear()
+
+
+class McxProvider(FakeProvider):
+    """15m bars over MCX's 09:00-23:30 session."""
+
+    async def get_history(self, symbol, resolution, start, end):
+        from datetime import time as dtime
+
+        from tests.conftest import aggregate, bar_15m
+
+        self.calls.append((symbol, resolution, start, end))
+        out = []
+        day = start
+        while day <= end:
+            if day.weekday() < 5:
+                bars = [bar_15m(datetime.combine(day, dtime(9, 0)) + timedelta(minutes=15 * i)) for i in range(58)]
+                if resolution == "D":
+                    out.append(aggregate(bars, datetime.combine(day, dtime.min)))
+                else:
+                    per = int(resolution) // 15
+                    out += [aggregate(bars[i : i + per], bars[i].ts) for i in range(0, len(bars), per)]
+            day += timedelta(days=1)
+        return out
+
+
+async def register(*instruments):
+    from app.services.instruments import refresh_instruments
+
+    class Registry(FakeProvider):
+        async def fetch_instruments(self):
+            return list(instruments)
+
+    await refresh_instruments(Registry())
+
+
+async def test_mcx_hourly_bars_align_to_0900_session(settings):
+    from app.providers.base import Instrument
+
+    await register(
+        Instrument("MCX:CRUDEOIL99OCTFUT", "CRUDEOIL99OCTFUT", "CRUDEOIL FUT", "MCX", "COM",
+                   underlying="CRUDEOIL", session_start="09:00", session_end="23:30")
+    )
+    provider = McxProvider()
+    svc = service(settings, provider)
+    bars = await svc.get_candles("MCX:CRUDEOIL99OCTFUT", "1h", 30)
+    hours = [as_dt(b).strftime("%H:%M") for b in bars[-15:]]
+    assert hours == [f"{h:02d}:00" for h in range(9, 24)]  # 09:00 ... 23:00, like the exchange
+
+    native = await provider.get_history("MCX:CRUDEOIL99OCTFUT", "60", NOW.date(), NOW.date())
+    assert [b["close"] for b in bars[-15:]] == [c.close for c in native]
+
+
+async def test_continuous_alias_fetches_front_contract_but_stores_under_alias(settings):
+    from app.db import get_conn
+    from app.providers.base import Instrument
+
+    await register(
+        Instrument("NSE:NIFTY1!", "NIFTY1!", "NIFTY futures · continuous", "NSE", "FUT",
+                   underlying="NIFTY", actual="NSE:NIFTY99OCTFUT")
+    )
+    provider = FakeProvider()
+    svc = service(settings, provider)
+    bars = await svc.get_candles("NSE:NIFTY1!", "1D", 20)
+    assert len(bars) == 20
+    assert {c[0] for c in provider.calls} == {"NSE:NIFTY99OCTFUT"}
+    stored = get_conn().execute("SELECT DISTINCT symbol FROM candles").fetchall()
+    assert stored == [("NSE:NIFTY1!",)]

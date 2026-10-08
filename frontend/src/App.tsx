@@ -311,7 +311,7 @@ function App() {
             <PriceChart
               data={chart}
               datasetKey={chartKey}
-              title={`${symbol.ticker} · ${tf} · NSE`}
+              title={`${symbol.ticker} · ${tf} · ${symbol.exchange ?? symbol.symbol.split(':')[0]}`}
               intraday={intraday}
               theme={theme}
               chartType={chartType}

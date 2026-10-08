@@ -8,8 +8,12 @@ router = APIRouter(prefix="/api/instruments", tags=["instruments"])
 
 
 @router.get("/search")
-def search(q: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=100)):
-    return instruments.search(q, limit)
+def search(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(20, ge=1, le=100),
+    kind: str | None = Query(None, description="EQ, ETF, INDEX, FUT or COM"),
+):
+    return instruments.search(q, limit, kind)
 
 
 @router.post("/refresh")

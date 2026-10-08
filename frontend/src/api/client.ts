@@ -119,11 +119,15 @@ export interface AuthStatus {
   fyers: { configured: boolean; authenticated: boolean; login_url: string }
 }
 
+export type InstrumentKind = 'EQ' | 'ETF' | 'INDEX' | 'FUT' | 'COM'
+
 export interface InstrumentHit {
   symbol: string
   ticker: string
   name: string
-  kind: 'EQ' | 'ETF' | 'INDEX'
+  kind: InstrumentKind
+  exchange?: string
+  expiry?: string | null
 }
 
 export class ApiError extends Error {
@@ -164,7 +168,8 @@ export const api = {
   health: () => get<Health>('/health'),
   authStatus: () => get<AuthStatus>('/auth/status'),
   timeframes: () => get<string[]>('/timeframes'),
-  search: (q: string) => get<InstrumentHit[]>('/instruments/search', { q, limit: 10 }),
+  search: (q: string, kind?: InstrumentKind | null, limit = 30) =>
+    get<InstrumentHit[]>('/instruments/search', { q, limit, ...(kind ? { kind } : {}) }),
   candles: (symbol: string, tf: string, limit = 500) =>
     get<Candle[]>('/candles', { symbol, tf, limit }),
   chart: (symbol: string, tf: string, limit = 500) =>

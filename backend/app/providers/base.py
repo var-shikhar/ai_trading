@@ -30,13 +30,18 @@ class Tick:
 
 @dataclass(frozen=True)
 class Instrument:
-    symbol: str  # provider symbol, e.g. NSE:SBIN-EQ
+    symbol: str  # provider symbol, e.g. NSE:SBIN-EQ (or alias NSE:NIFTY1!)
     ticker: str  # e.g. SBIN
     name: str
-    exchange: str
-    kind: str  # EQ, ETF, INDEX
+    exchange: str  # NSE, BSE, MCX
+    kind: str  # EQ, ETF, INDEX, FUT (NSE futures), COM (MCX commodities)
     lot_size: int = 1
     tick_size: float = 0.05
+    expiry: date | None = None
+    underlying: str = ""
+    session_start: str = "09:15"  # IST
+    session_end: str = "15:30"
+    actual: str | None = None  # continuous alias -> current front contract
 
 
 class ProviderError(Exception):

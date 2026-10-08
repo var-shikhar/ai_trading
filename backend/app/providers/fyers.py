@@ -4,7 +4,10 @@ Endpoints mirror the official fyers-apiv3 SDK; we call them with httpx
 directly so everything stays async.
 """
 
+import asyncio
+import csv
 import hashlib
+import io
 from collections.abc import AsyncIterator
 from datetime import date, datetime, time, timedelta, timezone
 from urllib.parse import urlencode
@@ -25,12 +28,24 @@ from app.services.ratelimit import RateLimiter
 
 API = "https://api-t1.fyers.in/api/v3"
 DATA_API = "https://api-t1.fyers.in/data"
-SYMBOL_MASTER_URL = "https://public.fyers.in/sym_details/NSE_CM_sym_master.json"
+SYMBOL_MASTER_URL = "https://public.fyers.in/sym_details/{segment}.csv"
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
-# Fyers 'exInstType' codes in the NSE_CM symbol master we care about for swing.
-INSTRUMENT_KINDS = {0: "EQ", 9: "ETF", 10: "INDEX"}
+# Symbol master files and the instrument-type codes we keep from each
+# (options are left out: ~100k contracts). Our kinds: EQ, ETF, INDEX,
+# FUT (NSE index/stock futures), COM (MCX commodity futures).
+SYMBOL_MASTERS: dict[str, dict[int, str]] = {
+    "NSE_CM": {0: "EQ", 9: "ETF", 10: "INDEX"},
+    "BSE_CM": {0: "EQ", 4: "ETF", 10: "INDEX"},
+    "NSE_FO": {11: "FUT", 13: "FUT"},
+    "MCX_COM": {30: "COM", 11: "COM"},
+}
+
+# Column positions in the (headerless) symbol master CSVs.
+COL_NAME, COL_TYPE, COL_LOT, COL_TICK, COL_SESSION, COL_EXPIRY, COL_SYMBOL, COL_UNDERLYING = (
+    1, 2, 3, 4, 6, 8, 9, 13,
+)
 
 # Error codes Fyers returns for missing/expired/invalid tokens.
 AUTH_ERROR_CODES = {-8, -15, -16, -17}
@@ -154,25 +169,22 @@ class FyersProvider(MarketDataProvider):
     # --- instruments ----------------------------------------------------------
 
     async def fetch_instruments(self) -> list[Instrument]:
-        resp = await self.client.get(SYMBOL_MASTER_URL, timeout=120)
+        """All instruments from the public symbol masters (no login needed),
+        plus continuous futures aliases like NSE:NIFTY1!."""
+        texts = await asyncio.gather(*(self._download_master(seg) for seg in SYMBOL_MASTERS))
+        today = now_ist().date()
+        out: list[Instrument] = []
+        for (segment, kinds), text in zip(SYMBOL_MASTERS.items(), texts):
+            for row in csv.reader(io.StringIO(text)):
+                inst = parse_master_row(row, kinds, today)
+                if inst:
+                    out.append(inst)
+        return out + continuous_aliases(out)
+
+    async def _download_master(self, segment: str) -> str:
+        resp = await self.client.get(SYMBOL_MASTER_URL.format(segment=segment), timeout=120)
         resp.raise_for_status()
-        out = []
-        for symbol, row in resp.json().items():
-            kind = INSTRUMENT_KINDS.get(row.get("exInstType"))
-            if kind is None or row.get("tradeStatus") != 1:
-                continue
-            out.append(
-                Instrument(
-                    symbol=symbol,
-                    ticker=row.get("exSymbol") or symbol,
-                    name=row.get("exSymName") or row.get("symDetails") or symbol,
-                    exchange=row.get("exchangeName") or "NSE",
-                    kind=kind,
-                    lot_size=int(row.get("minLotSize") or 1),
-                    tick_size=float(row.get("tickSize") or 0.05),
-                )
-            )
-        return out
+        return resp.text
 
     # --- live -----------------------------------------------------------------
 
@@ -180,3 +192,86 @@ class FyersProvider(MarketDataProvider):
         # Swing charts refresh today's candles via history (see candle service);
         # websocket streaming comes later.
         raise NotImplementedError("Fyers live streaming not implemented yet")
+
+
+def _session(raw: str) -> tuple[str, str]:
+    """'0915-1530|1815-1915:' -> ('09:15', '15:30'); the first range is the
+    regular session."""
+    try:
+        start, end = raw.split("|")[0].strip(":").split("-")
+        return f"{start[:2]}:{start[2:4]}", f"{end[:2]}:{end[2:4]}"
+    except ValueError:
+        return "09:15", "15:30"
+
+
+def parse_master_row(row: list[str], kinds: dict[int, str], today: date) -> Instrument | None:
+    try:
+        kind = kinds.get(int(row[COL_TYPE]))
+    except (IndexError, ValueError):
+        return None
+    if kind is None:
+        return None
+    symbol = row[COL_SYMBOL]
+    exchange = symbol.split(":")[0]
+    code = symbol.split(":")[1]
+    expiry = None
+    if kind in ("FUT", "COM"):
+        try:
+            expiry = datetime.fromtimestamp(int(row[COL_EXPIRY]), IST).date()
+        except ValueError:
+            return None
+        if expiry < today:
+            return None
+        ticker = code
+    else:
+        # NSE:SBIN-EQ -> SBIN, BSE:RELIANCE-A -> RELIANCE, NSE:NIFTY50-INDEX -> NIFTY50
+        ticker = code.rsplit("-", 1)[0]
+    name = row[COL_NAME]
+    if kind == "INDEX":
+        name = name.removesuffix("-INDEX")
+    start, end = _session(row[COL_SESSION])
+    return Instrument(
+        symbol=symbol,
+        ticker=ticker,
+        name=name,
+        exchange=exchange,
+        kind=kind,
+        lot_size=int(float(row[COL_LOT] or 1)) or 1,
+        tick_size=float(row[COL_TICK] or 0.05),
+        expiry=expiry,
+        underlying=row[COL_UNDERLYING],
+        session_start=start,
+        session_end=end,
+    )
+
+
+def continuous_aliases(instruments: list[Instrument]) -> list[Instrument]:
+    """One TradingView-style 'X1!' alias per underlying, pointing at its
+    nearest-expiry contract. Fyers returns continuous history for futures
+    (cont_flag=1), so the alias chart spans past expiries."""
+    front: dict[tuple[str, str], Instrument] = {}
+    for inst in instruments:
+        if inst.expiry is None:
+            continue
+        key = (inst.exchange, inst.underlying)
+        if key not in front or inst.expiry < front[key].expiry:
+            front[key] = inst
+    out = []
+    for (exchange, underlying), f in front.items():
+        out.append(
+            Instrument(
+                symbol=f"{exchange}:{underlying}1!",
+                ticker=f"{underlying}1!",
+                name=f"{underlying} futures · continuous",
+                exchange=exchange,
+                kind=f.kind,
+                lot_size=f.lot_size,
+                tick_size=f.tick_size,
+                expiry=f.expiry,
+                underlying=underlying,
+                session_start=f.session_start,
+                session_end=f.session_end,
+                actual=f.symbol,
+            )
+        )
+    return out

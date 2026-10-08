@@ -11,6 +11,11 @@ fetched natively from the provider:
 
 Data is fetched lazily: only for symbols and ranges actually requested, and
 only the part not already covered (see the `coverage` table).
+
+Intraday buckets start at each instrument's session open (NSE/BSE 09:15,
+MCX 09:00), so e.g. MCX hourly bars are 09:00, 10:00, ... like the exchange's.
+Continuous futures aliases (NSE:NIFTY1!) are fetched from the current front
+contract but stored under the alias, so the chart survives expiries.
 """
 
 import asyncio
@@ -25,9 +30,29 @@ from app.config import Settings
 from app.db import get_conn
 from app.providers.base import Candle, MarketDataProvider
 
-SESSION_MINUTES = 375  # NSE 09:15-15:30
-SESSION_ORIGIN = "TIMESTAMP '2000-01-03 09:15:00'"  # a Monday, at session open
-SESSION_CLOSE = time(15, 45)  # a little after 15:30 so the last candle is final
+@dataclass(frozen=True)
+class Session:
+    start: time
+    end: time
+
+    @property
+    def minutes(self) -> int:
+        return (self.end.hour * 60 + self.end.minute) - (self.start.hour * 60 + self.start.minute)
+
+    @property
+    def origin(self) -> str:
+        """time_bucket origin: a Monday at session open."""
+        return f"TIMESTAMP '2000-01-03 {self.start:%H:%M}:00'"
+
+    @property
+    def final_after(self) -> time:
+        """A little after the close, when the day's last candle is final."""
+        minutes = min(self.end.hour * 60 + self.end.minute + 15, 23 * 60 + 59)
+        return time(minutes // 60, minutes % 60)
+
+
+NSE_SESSION = Session(time(9, 15), time(15, 30))
+MCX_SESSION = Session(time(9, 0), time(23, 30))
 
 
 @dataclass(frozen=True)
@@ -35,7 +60,8 @@ class Timeframe:
     native: str  # provider resolution code when fetched directly
     base: str | None  # stored base resolution it is resampled from
     bucket: str | None  # DuckDB time_bucket interval when resampling
-    minutes: int  # bar length in minutes (approx for W/M), for range estimates
+    minutes: int | None  # intraday bar length; None for daily and above
+    days_per_bar: float = 1  # daily+ bars: trading days per bar
 
 
 TIMEFRAMES: dict[str, Timeframe] = {
@@ -46,15 +72,15 @@ TIMEFRAMES: dict[str, Timeframe] = {
     "1h": Timeframe("60", "15", "1 hour", 60),
     "2h": Timeframe("120", "15", "2 hours", 120),
     "4h": Timeframe("240", "15", "4 hours", 240),
-    "1D": Timeframe("D", "D", None, SESSION_MINUTES),
-    "1W": Timeframe("D", "D", "1 week", SESSION_MINUTES * 5),
-    "1M": Timeframe("D", "D", "1 month", SESSION_MINUTES * 21),
+    "1D": Timeframe("D", "D", None, None),
+    "1W": Timeframe("D", "D", "1 week", None, 5),
+    "1M": Timeframe("D", "D", "1 month", None, 21),
 }
 
 
-def estimate_start(tf: Timeframe, limit: int, end: date) -> date:
+def estimate_start(tf: Timeframe, limit: int, end: date, session: Session = NSE_SESSION) -> date:
     """Calendar start date that should yield at least `limit` bars."""
-    bars_per_day = SESSION_MINUTES / tf.minutes
+    bars_per_day = session.minutes / tf.minutes if tf.minutes else 1 / tf.days_per_bar
     trading_days = math.ceil(limit / bars_per_day)
     calendar_days = math.ceil(trading_days * 7 / 5 * 1.1) + 7  # weekends + holidays
     return end - timedelta(days=calendar_days)
@@ -67,13 +93,31 @@ class CandleService:
         self._now = now or datetime.now
         self._locks: dict[tuple[str, str], asyncio.Lock] = {}
 
+    def instrument_info(self, symbol: str) -> tuple[str, Session]:
+        """(symbol to fetch from the provider, trading session) for `symbol`."""
+        row = get_conn().execute(
+            "SELECT actual, session_start, session_end FROM instruments WHERE symbol = ?", [symbol]
+        ).fetchone()
+        default = MCX_SESSION if symbol.startswith("MCX:") else NSE_SESSION
+        if row is None:
+            return symbol, default
+        actual, start, end = row
+        try:
+            session = Session(time.fromisoformat(start), time.fromisoformat(end))
+            if session.minutes <= 0:
+                session = default
+        except (TypeError, ValueError):
+            session = default
+        return actual or symbol, session
+
     async def get_candles(
         self, symbol: str, tf_name: str, limit: int, end: date | None = None
     ) -> list[dict]:
         tf = TIMEFRAMES[tf_name]
+        source, session = self.instrument_info(symbol)
         today = self._now().date()
         end = min(end or today, today)
-        start = estimate_start(tf, limit, end)
+        start = estimate_start(tf, limit, end, session)
         # Start on a bucket boundary so the first weekly/monthly bar is complete.
         if tf.bucket == "1 week":
             start -= timedelta(days=start.weekday())
@@ -82,23 +126,23 @@ class CandleService:
 
         if tf.base is None or (tf.base == tf.native and tf.bucket is None):
             # Native-only (1m, 5m) or the base itself (15m, 1D).
-            await self.ensure(symbol, tf.native, start, end)
-            rows = self._query(symbol, tf.native, None, start, end)
+            await self.ensure(symbol, tf.native, start, end, source, session)
+            rows = self._query(symbol, tf.native, None, start, end, session)
         elif tf.base == "D":
-            await self.ensure(symbol, "D", start, end)
-            rows = self._query(symbol, "D", tf.bucket, start, end)
+            await self.ensure(symbol, "D", start, end, source, session)
+            rows = self._query(symbol, "D", tf.bucket, start, end, session)
         else:
             # Intraday derived from 15m: base inside the window, native before it.
             window_start = today - timedelta(days=self.settings.intraday_base_days)
             rows = []
             if start < window_start:
                 older_end = min(window_start - timedelta(days=1), end)
-                await self.ensure(symbol, tf.native, start, older_end)
-                rows += self._query(symbol, tf.native, None, start, older_end)
+                await self.ensure(symbol, tf.native, start, older_end, source, session)
+                rows += self._query(symbol, tf.native, None, start, older_end, session)
             base_start = max(start, window_start)
             if base_start <= end:
-                await self.ensure(symbol, tf.base, base_start, end)
-                rows += self._query(symbol, tf.base, tf.bucket, base_start, end)
+                await self.ensure(symbol, tf.base, base_start, end, source, session)
+                rows += self._query(symbol, tf.base, tf.bucket, base_start, end, session)
 
         return [
             # IST wall time sent as UTC epoch so the chart labels show IST.
@@ -106,8 +150,18 @@ class CandleService:
             for ts, o, h, l, c, v in rows[-limit:]
         ]
 
-    async def ensure(self, symbol: str, resolution: str, start: date, end: date) -> None:
-        """Fetch whatever part of [start, end] isn't stored yet."""
+    async def ensure(
+        self,
+        symbol: str,
+        resolution: str,
+        start: date,
+        end: date,
+        source: str | None = None,
+        session: Session = NSE_SESSION,
+    ) -> None:
+        """Fetch whatever part of [start, end] isn't stored yet. `source` is
+        the provider symbol to fetch (differs from `symbol` for aliases)."""
+        source = source or symbol
         lock = self._locks.setdefault((symbol, resolution), asyncio.Lock())
         async with lock:
             con = get_conn()
@@ -130,14 +184,14 @@ class CandleService:
                 last_day_final = (
                     fetched_at.date() > cov_to
                     or cov_to.weekday() >= 5
-                    or (fetched_at.date() == cov_to and fetched_at.time() >= SESSION_CLOSE)
+                    or (fetched_at.date() == cov_to and fetched_at.time() >= session.final_after)
                 )
                 stale = (now - fetched_at).total_seconds() >= self.settings.refresh_seconds
                 if end > cov_to or (end == cov_to and not last_day_final and stale):
                     ranges.append((cov_to, end))
 
             for r_start, r_end in ranges:
-                candles = await self.provider.get_history(symbol, resolution, r_start, r_end)
+                candles = await self.provider.get_history(source, resolution, r_start, r_end)
                 self._store(symbol, resolution, candles)
 
             if ranges:
@@ -171,7 +225,13 @@ class CandleService:
         con.unregister("new_candles")
 
     def _query(
-        self, symbol: str, resolution: str, bucket: str | None, start: date, end: date
+        self,
+        symbol: str,
+        resolution: str,
+        bucket: str | None,
+        start: date,
+        end: date,
+        session: Session = NSE_SESSION,
     ) -> list[tuple]:
         params = [symbol, resolution, start, end + timedelta(days=1)]
         where = "symbol = ? AND resolution = ? AND ts >= ? AND ts < ?"
@@ -186,7 +246,7 @@ class CandleService:
         elif bucket == "1 week":
             key = "date_trunc('week', ts)"  # ISO weeks start Monday
         else:
-            key = f"time_bucket(INTERVAL '{bucket}', ts, {SESSION_ORIGIN})"
+            key = f"time_bucket(INTERVAL '{bucket}', ts, {session.origin})"
         return con.execute(
             f"""
             SELECT {key} AS b, arg_min(open, ts), max(high), min(low), arg_max(close, ts), sum(volume)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, type AuthStatus, type InstrumentHit } from '../api/client'
+import { api, type AuthStatus, type InstrumentHit, type InstrumentKind } from '../api/client'
 import type { ChartType } from '../chart/PriceChart'
 import type { ThemeMode } from '../chart/theme'
 import { Dropdown } from './Dropdown'
@@ -212,16 +212,26 @@ export function TopBar(p: Props) {
   )
 }
 
-const KIND_FILTERS = [
+const KIND_FILTERS: { kind: InstrumentKind | null; label: string }[] = [
   { kind: null, label: 'All' },
   { kind: 'EQ', label: 'Stocks' },
   { kind: 'INDEX', label: 'Indices' },
+  { kind: 'FUT', label: 'Futures' },
+  { kind: 'COM', label: 'Commodities' },
   { kind: 'ETF', label: 'ETFs' },
-] as const
+]
+
+const KIND_LABELS: Record<InstrumentKind, string> = {
+  EQ: 'stock',
+  ETF: 'fund',
+  INDEX: 'index',
+  FUT: 'futures',
+  COM: 'commodity',
+}
 
 function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) => void; onClose: () => void }) {
   const [query, setQuery] = useState('')
-  const [kind, setKind] = useState<string | null>(null)
+  const [kind, setKind] = useState<InstrumentKind | null>(null)
   const [hits, setHits] = useState<InstrumentHit[]>([])
   const [active, setActive] = useState(0)
 
@@ -233,7 +243,7 @@ function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) => void;
     const id = setTimeout(
       () =>
         api
-          .search(query)
+          .search(query, kind)
           .then((h) => {
             setHits(h)
             setActive(0)
@@ -242,15 +252,15 @@ function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) => void;
       120,
     )
     return () => clearTimeout(id)
-  }, [query])
+  }, [query, kind])
 
-  const shown = kind ? hits.filter((h) => h.kind === kind) : hits
+  const shown = hits
 
   return (
     <Modal title="Symbol Search" onClose={onClose} width={560}>
       <input
         className="dialog-search"
-        placeholder="Symbol, e.g. RELIANCE or NIFTY"
+        placeholder="Symbol, e.g. RELIANCE, NIFTY1!, CRUDEOIL"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => {
@@ -272,8 +282,10 @@ function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) => void;
             <button className={i === active ? 'active' : ''} onClick={() => onPick(h)} onMouseEnter={() => setActive(i)}>
               <b>{h.ticker}</b>
               <span className="name">{h.name}</span>
-              <span className="kind">{h.kind === 'EQ' ? 'stock' : h.kind.toLowerCase()}</span>
-              <span className="exchange">NSE</span>
+              <span className="kind">
+                {h.symbol.endsWith('1!') ? 'continuous' : KIND_LABELS[h.kind] ?? h.kind}
+              </span>
+              <span className="exchange">{h.exchange ?? h.symbol.split(':')[0]}</span>
             </button>
           </li>
         ))}
