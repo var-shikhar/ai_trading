@@ -61,6 +61,8 @@ interface Props {
   auth: AuthStatus | null
   error: string | null
   layoutMenu?: ReactNode
+  showScanner: boolean
+  onToggleScanner: () => void
 }
 
 export function TopBar(p: Props) {
@@ -177,6 +179,17 @@ export function TopBar(p: Props) {
         title="Candlestick patterns"
       >
         Patterns{p.showPatterns && p.patternCount !== null ? ` · ${p.patternCount}` : ''}
+      </button>
+      <button
+        className={`tool-button ${p.showScanner ? 'selected' : ''}`}
+        aria-pressed={p.showScanner}
+        onClick={p.onToggleScanner}
+        title="Scan a list of stocks for setups"
+      >
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+          <path d="M2 4h14M4 9h10M7 14h4" />
+        </svg>
+        Scanner
       </button>
 
       <span className="spacer" />

@@ -1076,3 +1076,124 @@ select {
   margin: 14px 0 6px;
   font-weight: 600;
 }
+
+/* --- scanner --- */
+
+.scanner-panel {
+  width: 400px;
+}
+.scan-row {
+  display: flex;
+  gap: 8px;
+}
+.scanner-panel select,
+.scanner-panel textarea {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+}
+.scan-row select {
+  flex: 1;
+  min-width: 0;
+}
+.scan-custom {
+  width: 100%;
+  resize: vertical;
+}
+.conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px;
+}
+.condition-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.condition-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.condition-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+}
+.condition-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.condition-fields input[type='number'],
+.condition-fields select {
+  font: inherit;
+  color: var(--fg);
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+}
+.condition-fields input[type='checkbox'] {
+  align-self: flex-start;
+}
+.add-condition {
+  color: var(--accent);
+}
+.scan-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+}
+.scan-actions .primary-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.progress {
+  height: 4px;
+  margin: 0 12px 8px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.scan-results tbody tr {
+  cursor: pointer;
+}
+.scan-results tbody tr:hover,
+.scan-results tbody tr.picked {
+  background: var(--hover);
+}
+.scan-results td {
+  vertical-align: top;
+}
+.scan-details {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.scan-results .pos {
+  color: var(--ok);
+}
+.scan-results .neg {
+  color: var(--err);
+}
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+details.note {
+  padding: 8px 12px;
+}

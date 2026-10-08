@@ -15,6 +15,7 @@ import { LAYOUTS, LayoutMenu, MAX_PANELS, type SyncSettings } from './layout/lay
 import { patternKey } from './patterns/chartPatterns'
 import { PatternPanel, type PatternSettings } from './patterns/PatternPanel'
 import { loadPref, usePref } from './prefs'
+import { ScannerPanel } from './scanner/ScannerPanel'
 import { IndicatorDialog } from './studies/IndicatorDialog'
 import { defaultStudies, newStudy } from './studies/model'
 import { StudySettings } from './studies/StudySettings'
@@ -106,6 +107,7 @@ function App() {
     chartError: null,
   })
   const [highlight, setHighlight] = useState<string | null>(null)
+  const [showScanner, setShowScanner] = usePref<boolean>('scanner', false)
   const [indicatorsOpen, setIndicatorsOpen] = useState(false)
   const [settingsUid, setSettingsUid] = useState<string | null>(null)
   const [crosshair, setCrosshair] = useState<{ time: number | null; source: number } | null>(null)
@@ -238,6 +240,8 @@ function App() {
         auth={auth}
         error={error}
         layoutMenu={<LayoutMenu layout={layout} onLayout={setLayoutId} sync={sync} onSync={setSync} />}
+        showScanner={showScanner}
+        onToggleScanner={() => setShowScanner((v) => !v)}
       />
 
       <div className="workspace">
@@ -315,6 +319,7 @@ function App() {
             }}
           />
         )}
+        {showScanner && <ScannerPanel onOpen={(symbol) => updateActive({ symbol })} />}
       </div>
 
       <BottomBar

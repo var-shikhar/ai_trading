@@ -47,6 +47,10 @@ COL_NAME, COL_TYPE, COL_LOT, COL_TICK, COL_SESSION, COL_EXPIRY, COL_SYMBOL, COL_
     1, 2, 3, 4, 6, 8, 9, 13,
 )
 
+# Retries for "request limit reached" (HTTP 429), with exponential backoff.
+RETRIES = 4
+RETRY_BASE_SECONDS = 1.0
+
 # Error codes Fyers returns for missing/expired/invalid tokens.
 AUTH_ERROR_CODES = {-8, -15, -16, -17}
 
@@ -67,8 +71,9 @@ class FyersProvider(MarketDataProvider):
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None):
         self.settings = settings
         self.client = client or httpx.AsyncClient(timeout=30)
-        # Fyers allows 10/s and 200/min; stay a little under.
-        self.limiter = RateLimiter((8, 1.0), (180, 60.0))
+        # Fyers documents 10/s and 200/min, but its history endpoint answers
+        # 429 below that in practice; stay well under and retry 429s.
+        self.limiter = RateLimiter((5, 1.0), (150, 60.0))
 
     # --- auth ---------------------------------------------------------------
 
@@ -151,14 +156,19 @@ class FyersProvider(MarketDataProvider):
 
     async def _get(self, url: str, params: dict) -> dict:
         header = self._auth_header()
-        await self.limiter.acquire()
-        resp = await self.client.get(
-            url, params=params, headers={"Authorization": header, "version": "3"}
-        )
-        try:
-            body = resp.json()
-        except ValueError:
-            raise ProviderError(f"Fyers HTTP {resp.status_code}: {resp.text[:200]}") from None
+        for attempt in range(RETRIES + 1):
+            await self.limiter.acquire()
+            resp = await self.client.get(
+                url, params=params, headers={"Authorization": header, "version": "3"}
+            )
+            try:
+                body = resp.json()
+            except ValueError:
+                raise ProviderError(f"Fyers HTTP {resp.status_code}: {resp.text[:200]}") from None
+            if (resp.status_code == 429 or body.get("code") == 429) and attempt < RETRIES:
+                await asyncio.sleep(RETRY_BASE_SECONDS * 2**attempt)  # 1, 2, 4, 8 s
+                continue
+            break
         if resp.status_code == 401 or body.get("code") in AUTH_ERROR_CODES:
             tokens.clear_token(self.name)
             raise AuthRequired(body.get("message", "Fyers token expired"))

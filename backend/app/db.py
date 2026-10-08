@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS instruments (
     actual        VARCHAR              -- continuous aliases: the contract they point to
 );
 
+CREATE TABLE IF NOT EXISTS universe_members (
+    universe VARCHAR NOT NULL,   -- e.g. nifty500
+    ticker   VARCHAR NOT NULL,   -- NSE symbol, e.g. RELIANCE
+    industry VARCHAR,
+    updated  DATE    NOT NULL,
+    PRIMARY KEY (universe, ticker)
+);
+
 CREATE TABLE IF NOT EXISTS drawings (
     symbol  VARCHAR PRIMARY KEY,
     data    VARCHAR   NOT NULL,      -- JSON list, format owned by the frontend

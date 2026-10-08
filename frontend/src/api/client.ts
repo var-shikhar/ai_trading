@@ -1,5 +1,6 @@
 import type { Drawing } from '../drawings/types'
 import type { ChartPatternResult, Sensitivity } from '../patterns/chartPatterns'
+import type { ScanCatalog, ScanCondition, ScanJob } from '../scanner/types'
 
 export interface Candle {
   time: number // IST wall time as UTC epoch seconds
@@ -189,6 +190,11 @@ export const api = {
   ) => post<StudyChartData>('/chart', { symbol, tf, limit, studies }),
   chartPatterns: (symbol: string, tf: string, limit: number, sensitivity: Sensitivity) =>
     get<ChartPatternResult>('/patterns/chart', { symbol, tf, limit, sensitivity }),
+  scannerCatalog: () => get<ScanCatalog>('/scanner/catalog'),
+  runScan: (universe: string, tf: string, conditions: ScanCondition[], custom: string[]) =>
+    post<ScanJob>('/scanner/run', { universe, tf, conditions, custom }),
+  scanJob: (id: string) => get<ScanJob>(`/scanner/jobs/${id}`),
+  cancelScan: (id: string) => post<{ cancelled: boolean }>(`/scanner/jobs/${id}/cancel`, {}),
   patternCatalog: () => get<PatternCatalog>('/patterns/candlestick/catalog'),
   patterns: (symbol: string, tf: string, limit: number, q: PatternQuery) =>
     get<PatternResult>('/patterns/candlestick', {

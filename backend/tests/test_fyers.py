@@ -214,3 +214,20 @@ async def test_refresh_if_stale_reloads_incomplete_list():
     assert full.fetched == 1
     await instruments.refresh_if_stale(full)  # complete now: no refetch
     assert full.fetched == 1
+
+
+async def test_rate_limited_requests_are_retried(monkeypatch):
+    import app.providers.fyers as fy
+
+    monkeypatch.setattr(fy, "RETRY_BASE_SECONDS", 0)
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        if len(calls) < 3:
+            return httpx.Response(429, json={"s": "error", "code": 429, "message": "request limit reached"})
+        return httpx.Response(200, json={"s": "ok", "candles": [[epoch(2026, 1, 5, 0, 0), 1, 2, 0.5, 1.5, 10]]})
+
+    login()
+    candles = await provider(handler).get_history("NSE:SBIN-EQ", "D", date(2026, 1, 1), date(2026, 1, 10))
+    assert len(calls) == 3 and len(candles) == 1
