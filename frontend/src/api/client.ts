@@ -1,4 +1,5 @@
 import type { Drawing } from '../drawings/types'
+import type { ChartPatternResult, Sensitivity } from '../patterns/chartPatterns'
 
 export interface Candle {
   time: number // IST wall time as UTC epoch seconds
@@ -186,6 +187,8 @@ export const api = {
     limit: number,
     studies: { uid: string; id: string; params: StudyParams }[],
   ) => post<StudyChartData>('/chart', { symbol, tf, limit, studies }),
+  chartPatterns: (symbol: string, tf: string, limit: number, sensitivity: Sensitivity) =>
+    get<ChartPatternResult>('/patterns/chart', { symbol, tf, limit, sensitivity }),
   patternCatalog: () => get<PatternCatalog>('/patterns/candlestick/catalog'),
   patterns: (symbol: string, tf: string, limit: number, q: PatternQuery) =>
     get<PatternResult>('/patterns/candlestick', {

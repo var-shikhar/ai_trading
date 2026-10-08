@@ -1041,3 +1041,38 @@ select {
 .menu-check:hover {
   background: var(--hover);
 }
+
+/* --- chart patterns --- */
+
+.mode-tabs button {
+  font-size: 13px;
+  padding: 10px 4px;
+}
+.hit-list button.picked {
+  background: var(--selected);
+}
+.badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.badge.confirmed {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.badge.forming {
+  border-color: var(--star);
+  color: var(--star);
+}
+.section-title {
+  margin: 14px 0 6px;
+  font-weight: 600;
+}

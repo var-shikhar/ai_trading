@@ -12,6 +12,7 @@ import {
   type PatternState,
 } from './layout/ChartPanel'
 import { LAYOUTS, LayoutMenu, MAX_PANELS, type SyncSettings } from './layout/layouts'
+import { patternKey } from './patterns/chartPatterns'
 import { PatternPanel, type PatternSettings } from './patterns/PatternPanel'
 import { loadPref, usePref } from './prefs'
 import { IndicatorDialog } from './studies/IndicatorDialog'
@@ -96,7 +97,15 @@ function App() {
   const [commands, setCommands] = useState<Record<number, PanelCommand>>({})
   const commandSeq = useRef(0)
   const [status, setStatus] = useState({ text: '', activeRange: null as string | null })
-  const [patterns, setPatterns] = useState<PatternState>({ result: null, loading: false, error: null })
+  const [patterns, setPatterns] = useState<PatternState>({
+    result: null,
+    loading: false,
+    error: null,
+    chart: null,
+    chartLoading: false,
+    chartError: null,
+  })
+  const [highlight, setHighlight] = useState<string | null>(null)
   const [indicatorsOpen, setIndicatorsOpen] = useState(false)
   const [settingsUid, setSettingsUid] = useState<string | null>(null)
   const [crosshair, setCrosshair] = useState<{ time: number | null; source: number } | null>(null)
@@ -280,6 +289,7 @@ function App() {
                   onCrosshairTime={(time) => setCrosshair({ time, source: i })}
                   syncRange={sync.time && layout.count > 1 && i !== active ? timeRange : null}
                   onVisibleTimeRange={sync.time && i === active ? onVisibleTimeRange : undefined}
+                  highlightPattern={i === active ? highlight : null}
                 />
               </div>
             ))}
@@ -294,6 +304,15 @@ function App() {
             error={patterns.error}
             intraday={!DAILY_TIMEFRAMES.has(activeConfig.tf)}
             onFocus={(time) => sendCommand({ kind: 'focus', time })}
+            chartResult={patterns.chart}
+            chartLoading={patterns.chartLoading}
+            chartError={patterns.chartError}
+            highlight={highlight}
+            onPickPattern={(pat) => {
+              const k = patternKey(pat)
+              setHighlight((h) => (h === k ? null : k))
+              sendCommand({ kind: 'focus', time: pat.points[Math.floor(pat.points.length / 2)].time })
+            }}
           />
         )}
       </div>

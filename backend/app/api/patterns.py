@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.analysis import candlestick
+from app.analysis import candlestick, chart_patterns
 from app.api.chart import load_frame
 from app.deps import get_candle_service
 from app.services.candles import CandleService
@@ -53,3 +53,22 @@ async def candlestick_patterns(
     for h in hits:
         del h["index"]
     return {"hits": hits, "stats": candlestick.outcome_stats(hits)}
+
+
+@router.get("/chart")
+async def chart_pattern_scan(
+    symbol: str = Query(..., examples=["NSE:SBIN-EQ"]),
+    tf: str = Query("1D"),
+    limit: int = Query(500, ge=1, le=20000),
+    sensitivity: str = Query("medium", pattern="^(low|medium|high)$"),
+    service: CandleService = Depends(get_candle_service),
+):
+    """Chart patterns (double tops, H&S, triangles, flags) ending on the
+    bars /api/chart shows, plus support/resistance zones."""
+    df = await load_frame(service, symbol, tf, limit)
+    result = chart_patterns.detect(df, sensitivity)
+    if len(df):
+        first_visible = int(df["time"].iloc[-min(limit, len(df))])
+        result["patterns"] = [p for p in result["patterns"] if p["end_time"] >= first_visible]
+        result["swings"] = [s for s in result["swings"] if s["time"] >= first_visible]
+    return result

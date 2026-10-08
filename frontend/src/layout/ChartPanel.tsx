@@ -11,7 +11,8 @@ import {
 import { PriceChart, type ChartType, type ScaleMode, type StudyAction } from '../chart/PriceChart'
 import type { ChartTheme } from '../chart/theme'
 import type { Drawing, DrawingTool } from '../drawings/types'
-import type { PatternSettings } from '../patterns/PatternPanel'
+import type { ChartPatternResult } from '../patterns/chartPatterns'
+import { chartSettings, patternMode, type PatternSettings } from '../patterns/PatternPanel'
 import { defaultStudies, type StudyInstance } from '../studies/model'
 import { RANGES } from '../ui/BottomBar'
 
@@ -43,6 +44,18 @@ export interface PatternState {
   result: PatternResult | null
   loading: boolean
   error: string | null
+  chart: ChartPatternResult | null
+  chartLoading: boolean
+  chartError: string | null
+}
+
+const NO_PATTERNS: PatternState = {
+  result: null,
+  loading: false,
+  error: null,
+  chart: null,
+  chartLoading: false,
+  chartError: null,
 }
 
 /** Rough number of bars covering `days` calendar days on a timeframe. */
@@ -76,6 +89,7 @@ interface Props {
   onCrosshairTime: (time: number | null) => void
   syncRange: { from: number; to: number } | null
   onVisibleTimeRange?: (range: { from: number; to: number }) => void
+  highlightPattern: string | null
 }
 
 export function ChartPanel(p: Props) {
@@ -101,7 +115,7 @@ export function ChartPanel(p: Props) {
   const [activeRange, setActiveRange] = useState<string | null>(null)
   const [pendingRange, setPendingRange] = useState<string | null>(null)
   const [goTo, setGoTo] = useState<number | null>(null)
-  const [patterns, setPatterns] = useState<PatternState>({ result: null, loading: false, error: null })
+  const [patterns, setPatterns] = useState<PatternState>(NO_PATTERNS)
   const patternRequestId = useRef(0)
 
   // A new symbol/timeframe starts from the latest page, unless a range
@@ -204,16 +218,39 @@ export function ChartPanel(p: Props) {
   }, [goTo, chart, chartKey, key, loading, limit, tf])
 
   // --- patterns --------------------------------------------------------------------
+  const mode = patternMode(config.patternSettings)
+  const { sensitivity, showZones } = chartSettings(config.patternSettings)
+  const candleOn = config.showPatterns && mode === 'candles'
+  const chartOn = config.showPatterns && mode === 'chart'
+
+  const chartPatternKey = `${key}|${limit}|${sensitivity}`
+  const chartRequestId = useRef(0)
+  useEffect(() => {
+    if (!authenticated || !chartOn) return
+    const id = ++chartRequestId.current
+    setPatterns((s) => ({ ...s, chartLoading: true, chartError: null }))
+    api
+      .chartPatterns(symbol.symbol, tf, limit, sensitivity)
+      .then((r) => id === chartRequestId.current && setPatterns((s) => ({ ...s, chart: r, chartLoading: false })))
+      .catch(
+        (e: Error) =>
+          id === chartRequestId.current &&
+          setPatterns((s) => ({ ...s, chart: null, chartLoading: false, chartError: e.message })),
+      )
+    // chartPatternKey covers symbol/tf/limit/sensitivity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated, chartOn, chartPatternKey])
+
   const patternKey = `${key}|${limit}|${JSON.stringify(config.patternSettings)}`
   useEffect(() => {
-    if (!authenticated || !config.showPatterns) {
-      setPatterns({ result: null, loading: false, error: null })
+    if (!authenticated || !candleOn) {
+      setPatterns((s) => ({ ...s, result: null, loading: false, error: null }))
       return
     }
     const { preset, custom, inContext } = config.patternSettings
     const id = ++patternRequestId.current
     if (preset === 'custom' && custom.length === 0) {
-      setPatterns({ result: { hits: [], stats: [] }, loading: false, error: null })
+      setPatterns((s) => ({ ...s, result: { hits: [], stats: [] }, loading: false, error: null }))
       return
     }
     setPatterns((s) => ({ ...s, loading: true, error: null }))
@@ -223,20 +260,18 @@ export function ChartPanel(p: Props) {
         ...(preset === 'custom' ? { patterns: custom } : {}),
         ...(preset === 'all' ? { allPatterns: true } : {}),
       })
-      .then((r) => id === patternRequestId.current && setPatterns({ result: r, loading: false, error: null }))
+      .then((r) => id === patternRequestId.current && setPatterns((s) => ({ ...s, result: r, loading: false })))
       .catch(
-        (e: Error) => id === patternRequestId.current && setPatterns({ result: null, loading: false, error: e.message }),
+        (e: Error) =>
+          id === patternRequestId.current && setPatterns((s) => ({ ...s, result: null, loading: false, error: e.message })),
       )
     // patternKey covers symbol/tf/limit/settings
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, config.showPatterns, patternKey])
+  }, [authenticated, candleOn, patternKey])
 
   const markers = useMemo(
-    () =>
-      config.showPatterns && patterns.result && p.patternCatalog
-        ? toMarkers(patterns.result, p.patternCatalog, theme)
-        : [],
-    [config.showPatterns, patterns.result, p.patternCatalog, theme],
+    () => (candleOn && patterns.result && p.patternCatalog ? toMarkers(patterns.result, p.patternCatalog, theme) : []),
+    [candleOn, patterns.result, p.patternCatalog, theme],
   )
 
   // --- report up to the app (only the active chart drives the bars) ---------------
@@ -302,6 +337,9 @@ export function ChartPanel(p: Props) {
           onCrosshairTime={p.onCrosshairTime}
           syncRange={p.syncRange}
           onVisibleTimeRange={p.onVisibleTimeRange}
+          chartPatterns={chartOn ? patterns.chart : null}
+          showZones={showZones}
+          highlightPattern={p.highlightPattern}
         />
       )}
     </section>

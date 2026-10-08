@@ -1,5 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { Direction, PatternCatalog, PatternHit, PatternInfo, PatternResult } from '../api/client'
+import { ChartPatternSection } from './ChartPatternSection'
+import {
+  DEFAULT_CHART_PATTERN_SETTINGS,
+  type ChartPattern,
+  type ChartPatternResult,
+  type ChartPatternSettings,
+} from './chartPatterns'
 
 export type PatternPreset = 'common' | 'all' | 'custom'
 
@@ -7,7 +14,12 @@ export interface PatternSettings {
   preset: PatternPreset
   custom: string[] // pattern ids used when preset is 'custom'
   inContext: boolean
+  mode?: 'candles' | 'chart' // older saved settings lack these
+  chart?: ChartPatternSettings
 }
+
+export const patternMode = (s: PatternSettings) => s.mode ?? 'candles'
+export const chartSettings = (s: PatternSettings) => ({ ...DEFAULT_CHART_PATTERN_SETTINGS, ...s.chart })
 
 interface Props {
   catalog: PatternCatalog
@@ -18,6 +30,11 @@ interface Props {
   error: string | null
   intraday: boolean
   onFocus: (time: number) => void
+  chartResult: ChartPatternResult | null
+  chartLoading: boolean
+  chartError: string | null
+  highlight: string | null
+  onPickPattern: (p: ChartPattern) => void
 }
 
 const KIND_LABELS: Record<PatternInfo['kind'], string> = {
@@ -46,7 +63,56 @@ export function PatternPanel({
   error,
   intraday,
   onFocus,
+  chartResult,
+  chartLoading,
+  chartError,
+  highlight,
+  onPickPattern,
 }: Props) {
+  const mode = patternMode(settings)
+  const modeTabs = (
+    <div className="tabs mode-tabs" role="tablist" aria-label="Pattern type">
+      <button role="tab" className={mode === 'candles' ? 'active' : ''} onClick={() => onSettings({ ...settings, mode: 'candles' })}>
+        Candlestick
+      </button>
+      <button role="tab" className={mode === 'chart' ? 'active' : ''} onClick={() => onSettings({ ...settings, mode: 'chart' })}>
+        Chart patterns
+      </button>
+    </div>
+  )
+  if (mode === 'chart') {
+    return (
+      <aside className="pattern-panel">
+        {modeTabs}
+        <ChartPatternSection
+          settings={chartSettings(settings)}
+          onSettings={(chart) => onSettings({ ...settings, chart })}
+          result={chartResult}
+          loading={chartLoading}
+          error={chartError}
+          intraday={intraday}
+          highlight={highlight}
+          onPick={onPickPattern}
+        />
+      </aside>
+    )
+  }
+  return <CandlestickSection {...{ catalog, settings, onSettings, result, loading, error, intraday, onFocus, modeTabs }} />
+}
+
+function CandlestickSection({
+  catalog,
+  settings,
+  onSettings,
+  result,
+  loading,
+  error,
+  intraday,
+  onFocus,
+  modeTabs,
+}: Pick<Props, 'catalog' | 'settings' | 'onSettings' | 'result' | 'loading' | 'error' | 'intraday' | 'onFocus'> & {
+  modeTabs: React.ReactNode
+}) {
   const [tab, setTab] = useState<'hits' | 'stats' | 'pick'>('hits')
   const byId = useMemo(() => Object.fromEntries(catalog.patterns.map((p) => [p.id, p])), [catalog])
   const hits = useMemo(() => [...(result?.hits ?? [])].reverse(), [result])
@@ -55,6 +121,7 @@ export function PatternPanel({
 
   return (
     <aside className="pattern-panel">
+      {modeTabs}
       <div className="panel-head">
         <div className="segmented small" role="group" aria-label="Pattern set">
           {(['common', 'all', 'custom'] as const).map((p) => (

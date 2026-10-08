@@ -23,7 +23,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Candle, LinePoint, StudyChartData, StudyDef } from '../api/client'
 import { DrawingsPrimitive } from '../drawings/DrawingsPrimitive'
 import type { Drawing, DrawingTool } from '../drawings/types'
+import { Mapper } from '../drawings/mapper'
 import { useDrawings } from '../drawings/useDrawings'
+import type { ChartPatternResult } from '../patterns/chartPatterns'
+import { PatternOverlayPrimitive } from '../patterns/PatternOverlayPrimitive'
 import type { StudyInstance } from '../studies/model'
 import { studyTitle } from '../studies/model'
 import { formatCrosshairTime } from './format'
@@ -69,6 +72,9 @@ interface Props {
   /** Visible time range from another chart in the layout. */
   syncRange?: { from: number; to: number } | null
   onVisibleTimeRange?: (range: { from: number; to: number }) => void
+  chartPatterns?: ChartPatternResult | null
+  showZones?: boolean
+  highlightPattern?: string | null
 }
 
 interface StudySeries {
@@ -84,6 +90,7 @@ interface Built {
   studies: Record<string, StudySeries>
   markers: ISeriesMarkersPluginApi<Time>
   drawings: DrawingsPrimitive
+  overlay: PatternOverlayPrimitive
 }
 
 const t = (time: number) => time as UTCTimestamp
@@ -263,6 +270,18 @@ export function PriceChart(props: Props) {
     () => (built ? { chart: built.chart, main: built.main, primitive: built.drawings } : null),
     [built],
   )
+  // Detected chart patterns + zones.
+  useEffect(() => {
+    if (!built) return
+    built.overlay.setState({
+      result: props.chartPatterns ?? null,
+      mapper: new Mapper(built.chart, built.main, data.candles),
+      theme,
+      showZones: props.showZones ?? false,
+      highlight: props.highlightPattern ?? null,
+    })
+  }, [built, data.candles, theme, props.chartPatterns, props.showZones, props.highlightPattern])
+
   const drawing = useDrawings({
     container,
     live,
@@ -426,8 +445,16 @@ function buildSeries(chart: IChartApi, p: Props): Built {
     mapper: null,
     theme: p.theme,
   })
+  const overlay = new PatternOverlayPrimitive({
+    result: null,
+    mapper: null,
+    theme: p.theme,
+    showZones: false,
+    highlight: null,
+  })
+  main.attachPrimitive(overlay)
   main.attachPrimitive(drawings)
-  return { chart, main, volume, volumePane, studies, markers: createSeriesMarkers(main, []), drawings }
+  return { chart, main, volume, volumePane, studies, markers: createSeriesMarkers(main, []), drawings, overlay }
 }
 
 function addMainSeries(chart: IChartApi, type: ChartType): ISeriesApi<SeriesType> {
