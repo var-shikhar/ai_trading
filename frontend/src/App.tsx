@@ -1,75 +1,73 @@
-import type { SeriesMarker, Time, UTCTimestamp } from 'lightweight-charts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  api,
-  type AuthStatus,
-  type InstrumentHit,
-  type PatternCatalog,
-  type PatternResult,
-  type StudyChartData,
-  type StudyDef,
-} from './api/client'
-import { PriceChart, type ChartType, type ScaleMode, type StudyAction } from './chart/PriceChart'
-import { useChartTheme, type ChartTheme, type ThemeMode } from './chart/theme'
+import { api, type AuthStatus, type InstrumentHit, type PatternCatalog, type StudyDef } from './api/client'
+import type { ChartType, ScaleMode } from './chart/PriceChart'
+import { useChartTheme, type ThemeMode } from './chart/theme'
 import { DrawingToolbar } from './drawings/DrawingToolbar'
 import type { Drawing, DrawingTool } from './drawings/types'
+import {
+  ChartPanel,
+  DAILY_TIMEFRAMES,
+  type PanelCommand,
+  type PanelConfig,
+  type PatternState,
+} from './layout/ChartPanel'
+import { LAYOUTS, LayoutMenu, MAX_PANELS, type SyncSettings } from './layout/layouts'
 import { PatternPanel, type PatternSettings } from './patterns/PatternPanel'
+import { loadPref, usePref } from './prefs'
 import { IndicatorDialog } from './studies/IndicatorDialog'
-import { defaultStudies, newStudy, type StudyInstance } from './studies/model'
+import { defaultStudies, newStudy } from './studies/model'
 import { StudySettings } from './studies/StudySettings'
-import { BottomBar, RANGES } from './ui/BottomBar'
+import { BottomBar } from './ui/BottomBar'
 import { TopBar } from './ui/TopBar'
 
-const PAGE_BARS = 500
-const MAX_BARS = 20000
-const DAILY_TIMEFRAMES = new Set(['1D', '1W', '1M'])
-const TF_MINUTES: Record<string, number> = { '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '2h': 120, '4h': 240 }
-const SESSION_MINUTES = 375
-const DEFAULT_SYMBOL: InstrumentHit = { symbol: 'NSE:NIFTY50-INDEX', ticker: 'NIFTY50', name: 'NIFTY 50', kind: 'INDEX' }
 const DEFAULT_FAVORITES = ['15m', '1h', '4h', '1D', '1W']
 const EMPTY_DRAWINGS: Drawing[] = []
-
-// Per-browser conveniences only; the app works without them.
-function loadPref<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as T) : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function usePref<T>(key: string, fallback: T | (() => T)) {
-  const [value, setValue] = useState<T>(() =>
-    loadPref(key, typeof fallback === 'function' ? (fallback as () => T)() : fallback),
-  )
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value))
-    } catch {
-      // storage unavailable (private mode etc.)
-    }
-  }, [key, value])
-  return [value, setValue] as const
-}
-
-/** Rough number of bars covering `days` calendar days on a timeframe. */
-function barsForDays(tf: string, days: number): number {
-  const tradingDays = (days * 5) / 7
-  if (TF_MINUTES[tf]) return Math.ceil(tradingDays * (SESSION_MINUTES / TF_MINUTES[tf]))
-  if (tf === '1W') return Math.ceil(days / 7)
-  if (tf === '1M') return Math.ceil(days / 30)
-  return Math.ceil(tradingDays)
-}
+const DEFAULT_PATTERN_SETTINGS: PatternSettings = { preset: 'common', custom: [], inContext: true }
+const sym = (symbol: string, ticker: string, name: string, kind: InstrumentHit['kind']): InstrumentHit => ({
+  symbol,
+  ticker,
+  name,
+  kind,
+})
+// Charts 2-4 start on other common symbols the first time a layout is used.
+const STARTER_SYMBOLS = [
+  sym('NSE:NIFTY50-INDEX', 'NIFTY50', 'NIFTY 50', 'INDEX'),
+  sym('NSE:NIFTYBANK-INDEX', 'NIFTYBANK', 'NIFTY BANK', 'INDEX'),
+  sym('NSE:RELIANCE-EQ', 'RELIANCE', 'RELIANCE INDUSTRIES LTD', 'EQ'),
+  sym('NSE:HDFCBANK-EQ', 'HDFCBANK', 'HDFC BANK LTD', 'EQ'),
+]
+const LETTERS = 'abcd'
+// Omit applied to each member of the union separately.
+type CommandInput = PanelCommand extends infer C ? (C extends unknown ? Omit<C, 'seq'> : never) : never
 
 // ?symbol=NSE:SBIN-EQ&tf=1h opens a specific chart (bookmarkable).
 const urlParams = new URLSearchParams(window.location.search)
 
-function symbolFromUrl(): InstrumentHit | null {
+function initialPanels(): PanelConfig[] {
   const s = urlParams.get('symbol')
-  if (!s) return null
-  const ticker = s.split(':')[1]?.split('-')[0] ?? s
-  return { symbol: s, ticker, name: '', kind: s.endsWith('-INDEX') ? 'INDEX' : 'EQ' }
+  const fromUrl = s
+    ? sym(s, s.split(':')[1]?.replace(/-[A-Z]+$/, '') ?? s, '', s.endsWith('-INDEX') ? 'INDEX' : 'EQ')
+    : null
+  // The first chart picks up settings saved before multi-chart layouts existed.
+  const first: PanelConfig = {
+    symbol: fromUrl ?? loadPref('symbol', STARTER_SYMBOLS[0]),
+    tf: urlParams.get('tf') ?? loadPref('tf', '1D'),
+    chartType: loadPref<ChartType>('chartType', 'candles'),
+    scaleMode: loadPref<ScaleMode>('scaleMode', 'normal'),
+    showVolume: loadPref('volume', true),
+    studies: loadPref('studies', null),
+    showPatterns: loadPref('patterns', false),
+    patternSettings: loadPref('patternSettings', DEFAULT_PATTERN_SETTINGS),
+  }
+  return [
+    first,
+    ...STARTER_SYMBOLS.slice(1).map((symbol) => ({
+      ...first,
+      symbol,
+      studies: null,
+      showPatterns: false,
+    })),
+  ].slice(0, MAX_PANELS)
 }
 
 function App() {
@@ -77,45 +75,32 @@ function App() {
   const theme = useChartTheme(themeMode)
   const [auth, setAuth] = useState<AuthStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  const [symbol, setSymbol] = usePref<InstrumentHit>('symbol', () => symbolFromUrl() ?? DEFAULT_SYMBOL)
-  const [tf, setTf] = usePref<string>('tf', () => urlParams.get('tf') ?? '1D')
-  const [favorites, setFavorites] = usePref<string[]>('tfFavorites', DEFAULT_FAVORITES)
-  const [chartType, setChartType] = usePref<ChartType>('chartType', 'candles')
-  const [scaleMode, setScaleMode] = usePref<ScaleMode>('scaleMode', 'normal')
-  const [showVolume, setShowVolume] = usePref<boolean>('volume', true)
-  const [savedStudies, setSavedStudies] = usePref<StudyInstance[] | null>('studies', null)
   const [catalog, setCatalog] = useState<StudyDef[] | null>(null)
+  const [patternCatalog, setPatternCatalog] = useState<PatternCatalog | null>(null)
 
-  const [limit, setLimit] = useState(PAGE_BARS)
-  const [chart, setChart] = useState<StudyChartData | null>(null)
-  const [chartKey, setChartKey] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const requestId = useRef(0)
-
-  const [indicatorsOpen, setIndicatorsOpen] = useState(false)
-  const [settingsUid, setSettingsUid] = useState<string | null>(null)
-  const [focus, setFocus] = useState<{ time: number; seq: number } | null>(null)
-  const [range, setRange] = useState<{ from: number; to: number; seq: number } | null>(null)
-  const [activeRange, setActiveRange] = useState<string | null>(null)
-  const [pendingRange, setPendingRange] = useState<string | null>(null)
-  const [goTo, setGoTo] = useState<number | null>(null)
+  const [favorites, setFavorites] = usePref<string[]>('tfFavorites', DEFAULT_FAVORITES)
+  const [layoutId, setLayoutId] = usePref<string>('layout', '1')
+  const [sync, setSync] = usePref<SyncSettings>('layoutSync', {
+    symbol: false,
+    interval: false,
+    crosshair: true,
+    time: false,
+  })
+  const [panels, setPanels] = usePref<PanelConfig[]>('panels', initialPanels)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const layout = LAYOUTS.find((l) => l.id === layoutId) ?? LAYOUTS[0]
+  const active = Math.min(activeIndex, layout.count - 1)
+  const activeConfig = panels[active]
 
   const [tool, setTool] = useState<DrawingTool>('cursor')
-  const [drawings, setDrawings] = useState<{ symbol: string; items: Drawing[] }>({ symbol: '', items: [] })
-
-  const [showPatterns, setShowPatterns] = usePref<boolean>('patterns', false)
-  const [patternSettings, setPatternSettings] = usePref<PatternSettings>('patternSettings', {
-    preset: 'common',
-    custom: [],
-    inContext: true,
-  })
-  const [patternCatalog, setPatternCatalog] = useState<PatternCatalog | null>(null)
-  const [patterns, setPatterns] = useState<PatternResult | null>(null)
-  const [patternsLoading, setPatternsLoading] = useState(false)
-  const [patternsError, setPatternsError] = useState<string | null>(null)
-  const patternRequestId = useRef(0)
+  const [commands, setCommands] = useState<Record<number, PanelCommand>>({})
+  const commandSeq = useRef(0)
+  const [status, setStatus] = useState({ text: '', activeRange: null as string | null })
+  const [patterns, setPatterns] = useState<PatternState>({ result: null, loading: false, error: null })
+  const [indicatorsOpen, setIndicatorsOpen] = useState(false)
+  const [settingsUid, setSettingsUid] = useState<string | null>(null)
+  const [crosshair, setCrosshair] = useState<{ time: number | null; source: number } | null>(null)
+  const [timeRange, setTimeRange] = useState<{ from: number; to: number } | null>(null)
 
   useEffect(() => {
     Promise.all([api.authStatus(), api.studiesCatalog()])
@@ -125,134 +110,71 @@ function App() {
       })
       .catch((e: Error) => setError(e.message))
   }, [])
+  const authenticated = auth?.fyers.authenticated ?? false
+
+  // Give every chart concrete indicator instances (with stable ids) once the
+  // catalog is known, so settings/remove always find the instance clicked.
+  useEffect(() => {
+    if (!catalog) return
+    setPanels((list) =>
+      list.some((p) => p.studies === null)
+        ? list.map((p) => (p.studies === null ? { ...p, studies: defaultStudies(catalog) } : p))
+        : list,
+    )
+  }, [catalog, setPanels])
+
+  const anyPatterns = panels.slice(0, layout.count).some((p) => p.showPatterns)
+  useEffect(() => {
+    if (anyPatterns && !patternCatalog) api.patternCatalog().then(setPatternCatalog).catch(() => {})
+  }, [anyPatterns, patternCatalog])
 
   const catalogById = useMemo(
     () => Object.fromEntries((catalog ?? []).map((d) => [d.id, d])) as Record<string, StudyDef>,
     [catalog],
   )
-  // First run starts with EMA 20/50/200 + RSI 14, like the earlier fixed setup.
-  const studies = useMemo(
-    () => (savedStudies ?? (catalog ? defaultStudies(catalog) : [])).filter((s) => catalogById[s.id]),
-    [savedStudies, catalog, catalogById],
+
+  /** Update one chart; symbol/interval changes spread to all charts when synced. */
+  const updatePanel = useCallback(
+    (index: number, patch: Partial<PanelConfig>) =>
+      setPanels((list) =>
+        list.map((p, i) => {
+          if (i === index) return { ...p, ...patch }
+          const shared: Partial<PanelConfig> = {}
+          if (sync.symbol && patch.symbol) shared.symbol = patch.symbol
+          if (sync.interval && patch.tf) shared.tf = patch.tf
+          return { ...p, ...shared }
+        }),
+      ),
+    [setPanels, sync.symbol, sync.interval],
   )
+  const updateActive = (patch: Partial<PanelConfig>) => updatePanel(active, patch)
 
-  const authenticated = auth?.fyers.authenticated ?? false
-  const isIndex = symbol.kind === 'INDEX'
-  const intraday = !DAILY_TIMEFRAMES.has(tf)
-  const key = `${symbol.symbol}|${tf}`
-
-  const changeTf = (next: string, bars = PAGE_BARS) => {
-    setTf(next)
-    setLimit(bars)
-    setActiveRange(null)
-  }
-  const changeSymbol = (next: InstrumentHit) => {
-    setSymbol(next)
-    setLimit(PAGE_BARS)
+  const sendCommand = (command: CommandInput) => {
+    commandSeq.current += 1
+    setCommands((c) => ({ ...c, [active]: { ...command, seq: commandSeq.current } as PanelCommand }))
   }
 
-  // Only inputs that change the numbers trigger a refetch (not colors/visibility).
-  const studyRequest = useMemo(() => studies.map((s) => ({ uid: s.uid, id: s.id, params: s.params })), [studies])
-  const requestKey = `${key}|${limit}|${JSON.stringify(studyRequest)}`
-
-  useEffect(() => {
-    if (!authenticated || !catalog) return
-    const id = ++requestId.current
-    setLoading(true)
-    setLoadError(null)
-    api
-      .chartWithStudies(symbol.symbol, tf, limit, studyRequest)
-      .then((data) => {
-        if (id !== requestId.current) return
-        setChart(data)
-        setChartKey(key)
-      })
-      .catch((e: Error) => {
-        if (id === requestId.current) setLoadError(e.message)
-      })
-      .finally(() => {
-        if (id === requestId.current) setLoading(false)
-      })
-    // requestKey covers symbol/tf/limit/studies
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, catalog, requestKey])
-
-  const loadMore = useCallback(() => {
-    if (!loading && chart?.has_more && chartKey === key) setLimit((l) => Math.min(l + PAGE_BARS, MAX_BARS))
-  }, [loading, chart, chartKey, key])
-
-  // Bottom range bar: once the data for the range's timeframe has arrived,
-  // show the requested span ending at the latest bar.
-  useEffect(() => {
-    if (!pendingRange || !chart || chartKey !== key || loading || !chart.candles.length) return
-    const r = RANGES.find((x) => x.label === pendingRange)
-    if (!r) return
-    const candles = chart.candles
-    const last = candles[candles.length - 1].time
-    let from: number
-    if (r.days === 'all') {
-      from = candles[0].time
-    } else if (r.days === 'ytd') {
-      from = Date.UTC(new Date(last * 1000).getUTCFullYear(), 0, 1) / 1000
-    } else if (TF_MINUTES[r.tf]) {
-      // Intraday spans count trading sessions back from the last bar
-      // (1D = the last session, 5D = the last five).
-      const sessions = r.days <= 5 ? r.days : Math.round((r.days * 5) / 7)
-      const days = [...new Set(candles.map((c) => Math.floor(c.time / 86400)))]
-      from = days[Math.max(0, days.length - sessions)] * 86400
-    } else {
-      from = last - r.days * 86400
-    }
-    setRange((prev) => ({ from, to: last, seq: (prev?.seq ?? 0) + 1 }))
-    setPendingRange(null)
-  }, [pendingRange, chart, chartKey, key, loading])
-
-  const pickRange = (label: string) => {
-    const r = RANGES.find((x) => x.label === label)
-    if (!r) return
-    const days = r.days === 'all' ? 9000 : r.days === 'ytd' ? 366 : r.days
-    const bars = Math.min(MAX_BARS, Math.max(PAGE_BARS, Math.ceil(barsForDays(r.tf, days) * 1.3)))
-    changeTf(r.tf, bars)
-    setActiveRange(label)
-    setPendingRange(label)
-  }
-
-  // Go to date: load older history until the date is on the chart (or the
-  // start of history is reached), then focus the first bar at/after it.
-  useEffect(() => {
-    if (goTo === null || !chart || chartKey !== key || loading || !chart.candles.length) return
-    const first = chart.candles[0].time
-    if (goTo < first && chart.has_more && limit < MAX_BARS) {
-      const missingDays = (first - goTo) / 86400
-      setLimit((l) => Math.min(MAX_BARS, l + Math.max(PAGE_BARS, Math.ceil(barsForDays(tf, missingDays) * 1.2))))
-      return
-    }
-    const bar = chart.candles.find((c) => c.time >= goTo) ?? chart.candles[chart.candles.length - 1]
-    setFocus((f) => ({ time: bar.time, seq: (f?.seq ?? 0) + 1 }))
-    setGoTo(null)
-  }, [goTo, chart, chartKey, key, loading, limit, tf])
-
-  // --- drawings: per symbol, shown on every timeframe ---------------------------------
+  // --- drawings: shared per symbol across charts, saved shortly after edits -------
+  const [drawings, setDrawings] = useState<Record<string, Drawing[]>>({})
+  const requested = useRef(new Set<string>())
+  const visibleSymbols = panels.slice(0, layout.count).map((p) => p.symbol.symbol)
   useEffect(() => {
     if (!authenticated) return
-    let cancelled = false
-    api
-      .drawings(symbol.symbol)
-      .then((items) => !cancelled && setDrawings({ symbol: symbol.symbol, items }))
-      .catch(() => !cancelled && setDrawings({ symbol: symbol.symbol, items: [] }))
-    return () => {
-      cancelled = true
+    for (const s of visibleSymbols) {
+      if (requested.current.has(s)) continue
+      requested.current.add(s)
+      api
+        .drawings(s)
+        .then((items) => setDrawings((d) => ({ ...d, [s]: items })))
+        .catch(() => requested.current.delete(s))
     }
-  }, [authenticated, symbol.symbol])
+  }, [authenticated, visibleSymbols.join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const onDrawingsChange = useCallback((items: Drawing[]) => {
-    setDrawings((prev) => {
-      const next = { symbol: prev.symbol, items }
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(() => api.saveDrawings(next.symbol, items).catch(() => {}), 400)
-      return next
-    })
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const onDrawingsChange = useCallback((symbol: string, items: Drawing[]) => {
+    setDrawings((d) => ({ ...d, [symbol]: items }))
+    clearTimeout(saveTimers.current[symbol])
+    saveTimers.current[symbol] = setTimeout(() => api.saveDrawings(symbol, items).catch(() => {}), 400)
   }, [])
   const onToolDone = useCallback(() => setTool('cursor'), [])
 
@@ -270,151 +192,129 @@ function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-  const symbolDrawings = drawings.symbol === symbol.symbol ? drawings.items : EMPTY_DRAWINGS
 
-  // --- patterns --------------------------------------------------------------------
-  useEffect(() => {
-    if (showPatterns && !patternCatalog) api.patternCatalog().then(setPatternCatalog).catch(() => {})
-  }, [showPatterns, patternCatalog])
+  const onStatus = useCallback((text: string, activeRange: string | null) => setStatus({ text, activeRange }), [])
+  const onPatterns = useCallback((s: PatternState) => setPatterns(s), [])
 
-  const patternKey = `${key}|${limit}|${JSON.stringify(patternSettings)}`
-  useEffect(() => {
-    if (!authenticated || !showPatterns) return
-    const { preset, custom, inContext } = patternSettings
-    const id = ++patternRequestId.current
-    if (preset === 'custom' && custom.length === 0) {
-      setPatterns({ hits: [], stats: [] })
-      return
-    }
-    setPatternsLoading(true)
-    setPatternsError(null)
-    api
-      .patterns(symbol.symbol, tf, limit, {
-        inContext,
-        ...(preset === 'custom' ? { patterns: custom } : {}),
-        ...(preset === 'all' ? { allPatterns: true } : {}),
-      })
-      .then((r) => {
-        if (id === patternRequestId.current) setPatterns(r)
-      })
-      .catch((e: Error) => {
-        if (id === patternRequestId.current) setPatternsError(e.message)
-      })
-      .finally(() => {
-        if (id === patternRequestId.current) setPatternsLoading(false)
-      })
-    // patternKey covers symbol/tf/limit/settings
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, showPatterns, patternKey])
+  // Date-range sync: the active chart leads; updates batched per frame.
+  const rangeFrame = useRef(0)
+  const onVisibleTimeRange = useCallback((r: { from: number; to: number }) => {
+    cancelAnimationFrame(rangeFrame.current)
+    rangeFrame.current = requestAnimationFrame(() => setTimeRange(r))
+  }, [])
 
-  const markers = useMemo(
-    () => (showPatterns && patterns && patternCatalog ? toMarkers(patterns, patternCatalog, theme) : []),
-    [showPatterns, patterns, patternCatalog, theme],
-  )
-
-  // --- studies -------------------------------------------------------------------------
-  const updateStudies = (fn: (list: StudyInstance[]) => StudyInstance[]) => setSavedStudies(fn(studies))
-
-  const onStudyAction = (uid: string, action: StudyAction) => {
-    if (action === 'toggle') updateStudies((list) => list.map((s) => (s.uid === uid ? { ...s, visible: !s.visible } : s)))
-    else if (action === 'remove') updateStudies((list) => list.filter((s) => s.uid !== uid))
-    else setSettingsUid(uid)
-  }
-  const settingsStudy = studies.find((s) => s.uid === settingsUid)
-
-  const status = loading
-    ? 'Loading…'
-    : chart && chartKey === key
-      ? `${chart.candles.length.toLocaleString()} bars${chart.has_more ? '' : ' · start of history'}`
-      : ''
+  const activeStudies = activeConfig.studies ?? []
+  const settingsStudy = activeStudies.find((s) => s.uid === settingsUid)
+  const isIndex = activeConfig.symbol.kind === 'INDEX'
+  const fyersReady = authenticated && catalog
 
   return (
     <div className="app">
       <TopBar
-        symbol={symbol}
-        onSymbol={changeSymbol}
-        tf={tf}
-        onTf={(next) => changeTf(next)}
+        symbol={activeConfig.symbol}
+        onSymbol={(symbol) => updateActive({ symbol })}
+        tf={activeConfig.tf}
+        onTf={(tf) => updateActive({ tf })}
         favorites={favorites}
         onFavorites={setFavorites}
-        chartType={chartType}
-        onChartType={setChartType}
+        chartType={activeConfig.chartType}
+        onChartType={(chartType) => updateActive({ chartType })}
         onIndicators={() => setIndicatorsOpen(true)}
-        showPatterns={showPatterns}
-        onTogglePatterns={() => setShowPatterns((v) => !v)}
-        patternCount={patterns ? patterns.hits.length : null}
+        showPatterns={activeConfig.showPatterns}
+        onTogglePatterns={() => updateActive({ showPatterns: !activeConfig.showPatterns })}
+        patternCount={activeConfig.showPatterns && patterns.result ? patterns.result.hits.length : null}
         themeMode={themeMode}
         onThemeMode={setThemeMode}
+        dark={theme.dark}
         auth={auth}
         error={error}
+        layoutMenu={<LayoutMenu layout={layout} onLayout={setLayoutId} sync={sync} onSync={setSync} />}
       />
 
       <div className="workspace">
         <DrawingToolbar
           tool={tool}
           onTool={setTool}
-          hasDrawings={symbolDrawings.length > 0}
-          onClearAll={() => onDrawingsChange([])}
+          hasDrawings={(drawings[activeConfig.symbol.symbol] ?? []).length > 0}
+          onClearAll={() => onDrawingsChange(activeConfig.symbol.symbol, [])}
         />
-        <main className="chart-area">
-          {loadError && <div className="overlay err">{loadError}</div>}
-          {auth && !authenticated && <div className="overlay">Connect Fyers to load charts.</div>}
-          {chart && catalog && (
-            <PriceChart
-              data={chart}
-              datasetKey={chartKey}
-              title={`${symbol.ticker} · ${tf} · ${symbol.exchange ?? symbol.symbol.split(':')[0]}`}
-              intraday={intraday}
-              theme={theme}
-              chartType={chartType}
-              scaleMode={scaleMode}
-              showVolume={showVolume && !isIndex}
-              studies={studies}
-              catalog={catalogById}
-              markers={markers}
-              focus={focus}
-              range={range}
-              onNeedMore={loadMore}
-              onStudyAction={onStudyAction}
-              onHideVolume={() => setShowVolume(false)}
-              tool={tool}
-              onToolDone={onToolDone}
-              drawings={symbolDrawings}
-              onDrawingsChange={onDrawingsChange}
-            />
-          )}
+        <main
+          className={`chart-grid ${layout.count > 1 ? 'multi' : ''}`}
+          style={{
+            gridTemplateAreas: layout.areas,
+            gridTemplateColumns: layout.columns,
+            gridTemplateRows: layout.rows,
+          }}
+        >
+          {!fyersReady && auth && !authenticated && <div className="overlay">Connect Fyers to load charts.</div>}
+          {catalog &&
+            panels.slice(0, layout.count).map((config, i) => (
+              <div key={i} className="chart-cell" style={{ gridArea: LETTERS[i] }}>
+                <ChartPanel
+                  config={config}
+                  onConfig={(patch) => updatePanel(i, patch)}
+                  active={i === active}
+                  onActivate={() => setActiveIndex(i)}
+                  command={commands[i] ?? null}
+                  theme={theme}
+                  catalog={catalog}
+                  catalogById={catalogById}
+                  patternCatalog={patternCatalog}
+                  authenticated={authenticated}
+                  tool={tool}
+                  onToolDone={onToolDone}
+                  drawings={drawings[config.symbol.symbol] ?? EMPTY_DRAWINGS}
+                  onDrawingsChange={onDrawingsChange}
+                  onStudySettings={(uid) => {
+                    setActiveIndex(i)
+                    setSettingsUid(uid)
+                  }}
+                  onStatus={onStatus}
+                  onPatterns={onPatterns}
+                  // undefined = this chart isn't following another chart's crosshair
+                  syncCrosshair={
+                    sync.crosshair && layout.count > 1 && crosshair && crosshair.source !== i
+                      ? crosshair.time
+                      : undefined
+                  }
+                  onCrosshairTime={(time) => setCrosshair({ time, source: i })}
+                  syncRange={sync.time && layout.count > 1 && i !== active ? timeRange : null}
+                  onVisibleTimeRange={sync.time && i === active ? onVisibleTimeRange : undefined}
+                />
+              </div>
+            ))}
         </main>
-        {showPatterns && patternCatalog && (
+        {activeConfig.showPatterns && patternCatalog && (
           <PatternPanel
             catalog={patternCatalog}
-            settings={patternSettings}
-            onSettings={setPatternSettings}
-            result={patterns}
-            loading={patternsLoading}
-            error={patternsError}
-            intraday={intraday}
-            onFocus={(time) => setFocus((f) => ({ time, seq: (f?.seq ?? 0) + 1 }))}
+            settings={activeConfig.patternSettings}
+            onSettings={(patternSettings) => updateActive({ patternSettings })}
+            result={patterns.result}
+            loading={patterns.loading}
+            error={patterns.error}
+            intraday={!DAILY_TIMEFRAMES.has(activeConfig.tf)}
+            onFocus={(time) => sendCommand({ kind: 'focus', time })}
           />
         )}
       </div>
 
       <BottomBar
-        activeRange={activeRange}
-        onRange={pickRange}
-        onGoTo={setGoTo}
-        intraday={intraday}
-        scaleMode={scaleMode}
-        onScaleMode={setScaleMode}
-        status={status}
+        activeRange={status.activeRange}
+        onRange={(label) => sendCommand({ kind: 'range', label })}
+        onGoTo={(epoch) => sendCommand({ kind: 'goto', epoch })}
+        intraday={!DAILY_TIMEFRAMES.has(activeConfig.tf)}
+        scaleMode={activeConfig.scaleMode}
+        onScaleMode={(scaleMode) => updateActive({ scaleMode })}
+        status={layout.count > 1 ? `Chart ${active + 1} · ${status.text}` : status.text}
       />
 
       {indicatorsOpen && catalog && (
         <IndicatorDialog
           catalog={catalog}
           hasVolume={!isIndex}
-          volumeHidden={!showVolume && !isIndex}
-          onAddVolume={() => setShowVolume(true)}
-          onAdd={(def) => updateStudies((list) => [...list, newStudy(def, list)])}
+          volumeHidden={!activeConfig.showVolume && !isIndex}
+          onAddVolume={() => updateActive({ showVolume: true })}
+          onAdd={(def) => updateActive({ studies: [...activeStudies, newStudy(def, activeStudies)] })}
           onClose={() => setIndicatorsOpen(false)}
         />
       )}
@@ -423,37 +323,12 @@ function App() {
           def={catalogById[settingsStudy.id]}
           inst={settingsStudy}
           theme={theme}
-          onSave={(inst) => updateStudies((list) => list.map((s) => (s.uid === inst.uid ? inst : s)))}
+          onSave={(inst) => updateActive({ studies: activeStudies.map((s) => (s.uid === inst.uid ? inst : s)) })}
           onClose={() => setSettingsUid(null)}
         />
       )}
     </div>
   )
-}
-
-function toMarkers(result: PatternResult, catalog: PatternCatalog, theme: ChartTheme): SeriesMarker<Time>[] {
-  const labels = Object.fromEntries(catalog.patterns.map((p) => [p.id, p.label]))
-  // One marker per bar and side; several patterns on the same bar share it.
-  const byBar = new Map<string, SeriesMarker<Time>>()
-  for (const h of result.hits) {
-    const above = h.direction !== 'bullish'
-    const id = `${h.time}|${above}`
-    const label = labels[h.pattern] ?? h.pattern
-    const existing = byBar.get(id)
-    if (existing) {
-      existing.text = `${existing.text}, ${label}`
-      continue
-    }
-    byBar.set(id, {
-      time: h.time as UTCTimestamp,
-      position: above ? 'aboveBar' : 'belowBar',
-      shape: h.direction === 'bullish' ? 'arrowUp' : h.direction === 'bearish' ? 'arrowDown' : 'circle',
-      color: h.direction === 'bullish' ? theme.up : h.direction === 'bearish' ? theme.down : theme.muted,
-      text: label,
-      size: 1,
-    })
-  }
-  return [...byBar.values()].sort((a, b) => (a.time as number) - (b.time as number))
 }
 
 export default App

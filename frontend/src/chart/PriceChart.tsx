@@ -63,6 +63,12 @@ interface Props {
   onToolDone: () => void
   drawings: Drawing[]
   onDrawingsChange: (drawings: Drawing[]) => void
+  /** Crosshair time from another chart in the layout (null = clear). */
+  syncCrosshair?: number | null
+  onCrosshairTime?: (time: number | null) => void
+  /** Visible time range from another chart in the layout. */
+  syncRange?: { from: number; to: number } | null
+  onVisibleTimeRange?: (range: { from: number; to: number }) => void
 }
 
 interface StudySeries {
@@ -130,9 +136,16 @@ export function PriceChart(props: Props) {
     chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
       if (r && r.from < LOAD_MORE_THRESHOLD && propsRef.current.data.has_more) propsRef.current.onNeedMore()
     })
-    chart.subscribeCrosshairMove((e: MouseEventParams<Time>) =>
-      setHover(e.time === undefined ? null : (e.time as number)),
-    )
+    chart.subscribeCrosshairMove((e: MouseEventParams<Time>) => {
+      const time = e.time === undefined ? null : (e.time as number)
+      setHover(time)
+      // Only user moves are shared, not crosshairs set from another chart.
+      if (e.sourceEvent) propsRef.current.onCrosshairTime?.(time)
+    })
+    chart.timeScale().subscribeVisibleTimeRangeChange((r) => {
+      if (r) propsRef.current.onVisibleTimeRange?.({ from: r.from as number, to: r.to as number })
+    })
+
     setBuilt(b)
     setContainer(containerRef.current)
 
@@ -181,6 +194,47 @@ export function PriceChart(props: Props) {
     if (!b || !range) return
     b.chart.timeScale().setVisibleRange({ from: t(range.from), to: t(range.to) })
   }, [range])
+
+  // Clear the shared crosshair when the pointer leaves this chart.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onLeave = () => propsRef.current.onCrosshairTime?.(null)
+    el.addEventListener('mouseleave', onLeave)
+    return () => el.removeEventListener('mouseleave', onLeave)
+  }, [])
+
+  // Crosshair from another chart: show it on the bar containing that time.
+  useEffect(() => {
+    const b = builtRef.current
+    if (!b || props.syncCrosshair === undefined) return
+    const t0 = props.syncCrosshair
+    const list = propsRef.current.data.candles
+    if (t0 === null || !list.length) {
+      b.chart.clearCrosshairPosition()
+      return
+    }
+    let lo = 0
+    let hi = list.length - 1
+    if (t0 < list[0].time) return b.chart.clearCrosshairPosition()
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1
+      if (list[mid].time <= t0) lo = mid
+      else hi = mid - 1
+    }
+    b.chart.setCrosshairPosition(list[lo].close, t(list[lo].time), b.main)
+  }, [props.syncCrosshair])
+
+  useEffect(() => {
+    const b = builtRef.current
+    const r = props.syncRange
+    if (!b || !r) return
+    try {
+      b.chart.timeScale().setVisibleRange({ from: t(r.from), to: t(r.to) })
+    } catch {
+      // range outside the loaded data
+    }
+  }, [props.syncRange])
 
   // Where each pane starts, so legends sit at the top-left of their pane.
   useEffect(() => {

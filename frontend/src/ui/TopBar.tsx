@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { api, type AuthStatus, type InstrumentHit, type InstrumentKind } from '../api/client'
 import type { ChartType } from '../chart/PriceChart'
 import type { ThemeMode } from '../chart/theme'
@@ -57,8 +57,10 @@ interface Props {
   patternCount: number | null
   themeMode: ThemeMode
   onThemeMode: (m: ThemeMode) => void
+  dark: boolean
   auth: AuthStatus | null
   error: string | null
+  layoutMenu?: ReactNode
 }
 
 export function TopBar(p: Props) {
@@ -191,13 +193,41 @@ export function TopBar(p: Props) {
         ) : (
           <span className="status err">Add Fyers keys to backend/.env</span>
         ))}
-      <button
-        className="tool-button"
-        title={`Theme: ${p.themeMode}`}
-        onClick={() => p.onThemeMode(p.themeMode === 'system' ? 'dark' : p.themeMode === 'dark' ? 'light' : 'system')}
+      {p.layoutMenu}
+      <Dropdown
+        align="right"
+        title="Theme"
+        label={
+          <>
+            <ThemeIcon dark={p.dark} /> {p.dark ? 'Dark' : 'Light'}
+          </>
+        }
       >
-        {p.themeMode === 'dark' ? '☾' : p.themeMode === 'light' ? '☀' : '◐'}
-      </button>
+        {(close) => (
+          <div className="menu-list">
+            <div className="menu-heading">Theme</div>
+            {(
+              [
+                ['dark', 'Dark'],
+                ['light', 'Light'],
+                ['system', 'Same as Windows'],
+              ] as const
+            ).map(([mode, name]) => (
+              <div key={mode} className={`menu-item ${p.themeMode === mode ? 'selected' : ''}`}>
+                <button
+                  className="menu-main"
+                  onClick={() => {
+                    p.onThemeMode(mode)
+                    close()
+                  }}
+                >
+                  {name}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Dropdown>
 
       {searchOpen && (
         <SymbolDialog
@@ -292,6 +322,19 @@ function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) => void;
         {query.trim() && shown.length === 0 && <li className="empty">No symbols match.</li>}
       </ul>
     </Modal>
+  )
+}
+
+function ThemeIcon({ dark }: { dark: boolean }) {
+  return dark ? (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M14.5 11.5A6 6 0 0 1 6.5 3.5a6 6 0 1 0 8 8z" />
+    </svg>
+  ) : (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <circle cx="9" cy="9" r="3.2" />
+      <path d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.7 3.7l1.4 1.4M12.9 12.9l1.4 1.4M3.7 14.3l1.4-1.4M12.9 5.1l1.4-1.4" />
+    </svg>
   )
 }
 
