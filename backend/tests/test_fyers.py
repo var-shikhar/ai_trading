@@ -183,3 +183,34 @@ async def test_search_kind_filter_and_continuous_first():
     futs = [r["symbol"] for r in instruments.search("nifty", kind="FUT")]
     assert futs == ["NSE:NIFTY1!", "NSE:NIFTY99OCTFUT", "NSE:NIFTY99NOVFUT"]
     assert instruments.search("nifty", kind="INDEX")[0]["symbol"] == "NSE:NIFTY50-INDEX"
+
+
+async def test_refresh_if_stale_reloads_incomplete_list():
+    from app.providers.base import Instrument
+
+    class Partial(FakeProvider):  # only stocks, as after a failed refresh
+        async def fetch_instruments(self):
+            return [Instrument("NSE:SBIN-EQ", "SBIN", "SBI", "NSE", "EQ")]
+
+    class Full(FakeProvider):
+        def __init__(self):
+            super().__init__()
+            self.fetched = 0
+
+        async def fetch_instruments(self):
+            self.fetched += 1
+            return [
+                Instrument("NSE:SBIN-EQ", "SBIN", "SBI", "NSE", "EQ"),
+                Instrument("NSE:NIFTYBEES-EQ", "NIFTYBEES", "NIFTY ETF", "NSE", "ETF"),
+                Instrument("NSE:NIFTY50-INDEX", "NIFTY50", "NIFTY 50", "NSE", "INDEX"),
+                Instrument("NSE:NIFTY99OCTFUT", "NIFTY99OCTFUT", "NIFTY FUT", "NSE", "FUT", expiry=date(2099, 10, 30)),
+                Instrument("MCX:CRUDEOIL99OCTFUT", "CRUDEOIL99OCTFUT", "CRUDE", "MCX", "COM", expiry=date(2099, 10, 19)),
+            ]
+
+    full = Full()
+    full.name = Partial.name
+    await instruments.refresh_instruments(Partial())
+    await instruments.refresh_if_stale(full)  # refreshed today, but incomplete
+    assert full.fetched == 1
+    await instruments.refresh_if_stale(full)  # complete now: no refetch
+    assert full.fetched == 1

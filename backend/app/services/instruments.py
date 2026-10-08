@@ -53,9 +53,19 @@ async def refresh_instruments(provider: MarketDataProvider) -> int:
     return len(df)
 
 
+# Every kind a complete refresh produces; a list missing one is reloaded even
+# if it was refreshed today (e.g. an earlier refresh failed part-way).
+EXPECTED_KINDS = {"EQ", "ETF", "INDEX", "FUT", "COM"}
+
+
+def loaded_kinds(provider: str) -> set[str]:
+    rows = get_conn().execute("SELECT DISTINCT kind FROM instruments WHERE provider = ?", [provider]).fetchall()
+    return {r[0] for r in rows}
+
+
 async def refresh_if_stale(provider: MarketDataProvider) -> None:
-    """Symbol masters change daily (listings, delistings, ticker changes)."""
-    if last_refresh(provider.name) == date.today():
+    """Symbol masters change daily (listings, delistings, expiries, rolls)."""
+    if last_refresh(provider.name) == date.today() and EXPECTED_KINDS <= loaded_kinds(provider.name):
         return
     try:
         await refresh_instruments(provider)
