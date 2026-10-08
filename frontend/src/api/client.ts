@@ -66,6 +66,49 @@ export interface PatternQuery {
   inContext: boolean
 }
 
+export interface StudyInputDef {
+  key: string
+  name: string
+  type: 'int' | 'float' | 'source'
+  default: number | string
+  min?: number
+  max?: number
+  step?: number
+  options?: string[]
+}
+
+export interface StudyOutputDef {
+  key: string
+  name: string
+  style: 'line' | 'histogram' | 'dots'
+  signed: boolean
+}
+
+export interface StudyDef {
+  id: string
+  name: string
+  short: string
+  category: string
+  overlay: boolean
+  levels: number[]
+  needs_volume: boolean
+  inputs: StudyInputDef[]
+  outputs: StudyOutputDef[]
+}
+
+export type StudyParams = Record<string, number | string>
+
+export interface StudyResult {
+  params: StudyParams
+  outputs: Record<string, LinePoint[]>
+}
+
+export interface StudyChartData {
+  candles: Candle[]
+  studies: Record<string, StudyResult>
+  has_more: boolean
+}
+
 export interface Health {
   status: string
   candles: number
@@ -104,6 +147,19 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
   return res.json() as Promise<T>
 }
 
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`/api${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, typeof data.detail === 'string' ? data.detail : res.statusText)
+  }
+  return res.json() as Promise<T>
+}
+
 export const api = {
   health: () => get<Health>('/health'),
   authStatus: () => get<AuthStatus>('/auth/status'),
@@ -113,6 +169,13 @@ export const api = {
     get<Candle[]>('/candles', { symbol, tf, limit }),
   chart: (symbol: string, tf: string, limit = 500) =>
     get<ChartData>('/chart', { symbol, tf, limit }),
+  studiesCatalog: () => get<StudyDef[]>('/studies/catalog'),
+  chartWithStudies: (
+    symbol: string,
+    tf: string,
+    limit: number,
+    studies: { uid: string; id: string; params: StudyParams }[],
+  ) => post<StudyChartData>('/chart', { symbol, tf, limit, studies }),
   patternCatalog: () => get<PatternCatalog>('/patterns/candlestick/catalog'),
   patterns: (symbol: string, tf: string, limit: number, q: PatternQuery) =>
     get<PatternResult>('/patterns/candlestick', {

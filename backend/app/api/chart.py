@@ -2,7 +2,9 @@ import math
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
+from app.analysis import studies
 from app.analysis.indicators import CHART_INDICATORS, WARMUP_BARS
 from app.deps import get_candle_service
 from app.providers.base import AuthRequired, ProviderError
@@ -61,3 +63,57 @@ async def chart(
         # Fewer bars than asked for means we reached the start of available history.
         "has_more": len(df) >= limit + WARMUP_BARS,
     }
+
+
+class StudyRequest(BaseModel):
+    uid: str = Field(..., max_length=64, description="Client id for this instance, echoed back")
+    id: str
+    params: dict = Field(default_factory=dict)
+
+
+class ChartRequest(BaseModel):
+    symbol: str
+    tf: str = "1D"
+    limit: int = Field(500, ge=1, le=20000)
+    studies: list[StudyRequest] = Field(default_factory=list, max_length=30)
+
+
+def series_points(df: pd.DataFrame, values: pd.Series, visible: pd.Index) -> list[dict]:
+    out = []
+    for i in visible:
+        v = float(values[i])
+        if math.isfinite(v):  # skips warm-up NaNs and divide-by-zero infs
+            out.append({"time": int(df.at[i, "time"]), "value": round(v, 4)})
+    return out
+
+
+@router.post("/chart")
+async def chart_with_studies(
+    req: ChartRequest, service: CandleService = Depends(get_candle_service)
+):
+    """Candles plus any configured studies (see /api/studies/catalog)."""
+    unknown = [s.id for s in req.studies if s.id not in studies.STUDIES_BY_ID]
+    if unknown:
+        raise HTTPException(400, f"Unknown studies: {unknown}")
+
+    df = await load_frame(service, req.symbol, req.tf, req.limit)
+    visible = df.index[-req.limit :]
+    results = {}
+    for s in req.studies:
+        study = studies.STUDIES_BY_ID[s.id]
+        params = studies.resolve_params(study, s.params)
+        values = studies.compute(study, df, params)
+        results[s.uid] = {
+            "params": params,
+            "outputs": {key: series_points(df, series, visible) for key, series in values.items()},
+        }
+    return {
+        "candles": candle_records(df.iloc[-req.limit :]),
+        "studies": results,
+        "has_more": len(df) >= req.limit + WARMUP_BARS,
+    }
+
+
+@router.get("/studies/catalog")
+def studies_catalog():
+    return studies.catalog()

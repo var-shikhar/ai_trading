@@ -1,304 +1,474 @@
 import {
+  AreaSeries,
+  BarSeries,
   CandlestickSeries,
   createChart,
   createSeriesMarkers,
+  CrosshairMode,
   HistogramSeries,
   LineSeries,
   LineStyle,
-  type CandlestickData,
+  PriceScaleMode,
   type IChartApi,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
-  type LineData,
+  type LogicalRange,
   type MouseEventParams,
   type SeriesMarker,
+  type SeriesType,
   type Time,
   type UTCTimestamp,
 } from 'lightweight-charts'
-import { useEffect, useRef, useState } from 'react'
-import type { Candle, ChartData, IndicatorKey } from '../api/client'
-import type { ChartTheme } from './theme'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { Candle, LinePoint, StudyChartData, StudyDef } from '../api/client'
+import type { StudyInstance } from '../studies/model'
+import { studyTitle } from '../studies/model'
+import { formatCrosshairTime } from './format'
+import { resolveColor, type ChartTheme } from './theme'
 
-export const EMA_KEYS = ['ema20', 'ema50', 'ema200'] as const
-export type EmaKey = (typeof EMA_KEYS)[number]
-
-const EMA_LABELS: Record<EmaKey, string> = { ema20: 'EMA 20', ema50: 'EMA 50', ema200: 'EMA 200' }
+export type ChartType = 'candles' | 'hollow' | 'bars' | 'line' | 'area' | 'heikin'
+export type ScaleMode = 'normal' | 'log' | 'percent'
+export type StudyAction = 'toggle' | 'settings' | 'remove'
 
 // Bars shown when a symbol/timeframe is first opened.
 const INITIAL_VISIBLE_BARS = 150
 // Ask for more history when the left edge is within this many bars.
 const LOAD_MORE_THRESHOLD = 20
+const STRETCH = { price: 6, volume: 1.4, study: 1.8 }
 
 interface Props {
-  data: ChartData
+  data: StudyChartData
   /** Changes when symbol/timeframe change; the view resets on a new key. */
   datasetKey: string
+  title: string
   intraday: boolean
   theme: ChartTheme
-  visibleEmas: Record<EmaKey, boolean>
+  chartType: ChartType
+  scaleMode: ScaleMode
   showVolume: boolean
-  showRsi: boolean
+  studies: StudyInstance[]
+  catalog: Record<string, StudyDef>
   markers: SeriesMarker<Time>[]
   /** Scrolls the chart to this bar; `seq` lets the same bar be focused twice. */
   focus: { time: number; seq: number } | null
+  /** Shows this time range (e.g. from the bottom range bar). */
+  range: { from: number; to: number; seq: number } | null
   onNeedMore: () => void
+  onStudyAction: (uid: string, action: StudyAction) => void
+  onHideVolume: () => void
 }
 
-interface Series {
-  candles: ISeriesApi<'Candlestick'>
-  emas: Record<EmaKey, ISeriesApi<'Line'>>
-  // Volume and RSI each get their own pane below price (never a second axis
-  // on the price pane). They're removed when hidden so the pane goes away.
+interface StudySeries {
+  pane: number
+  outputs: Record<string, ISeriesApi<SeriesType>>
+}
+
+interface Built {
+  chart: IChartApi
+  main: ISeriesApi<SeriesType>
   volume: ISeriesApi<'Histogram'> | null
-  rsi: ISeriesApi<'Line'> | null
+  volumePane: number | null
+  studies: Record<string, StudySeries>
+  markers: ISeriesMarkersPluginApi<Time>
 }
 
-const PANE_STRETCH = { price: 6, volume: 1.4, rsi: 1.8 }
+const t = (time: number) => time as UTCTimestamp
 
-/** Add/remove the volume and RSI panes so they sit in order below price. */
-function syncPanes(
-  chart: IChartApi,
-  s: Series,
-  showVolume: boolean,
-  showRsi: boolean,
-  theme: ChartTheme,
-  data: ChartData,
-) {
-  if (!showRsi && s.rsi) {
-    chart.removeSeries(s.rsi)
-    s.rsi = null
+export function PriceChart(props: Props) {
+  const { data, datasetKey, title, intraday, theme, chartType, scaleMode, showVolume, studies, catalog } = props
+  const { markers, focus, range, onStudyAction, onHideVolume } = props
+  const containerRef = useRef<HTMLDivElement>(null)
+  const builtRef = useRef<Built | null>(null)
+  const loadedKeyRef = useRef<string | null>(null)
+  const savedRangeRef = useRef<LogicalRange | null>(null)
+  const propsRef = useRef(props)
+  const [hover, setHover] = useState<number | null>(null)
+  const [paneTops, setPaneTops] = useState<number[]>([])
+  const [built, setBuilt] = useState<Built | null>(null)
+
+  useLayoutEffect(() => {
+    propsRef.current = props
+  })
+
+  const candles = useMemo(
+    () => (chartType === 'heikin' ? heikinAshi(data.candles) : data.candles),
+    [data.candles, chartType],
+  )
+  const candlesRef = useRef(candles)
+  useLayoutEffect(() => {
+    candlesRef.current = candles
+  })
+
+  // Rebuild the chart when its series/pane layout changes. Visibility, colors
+  // and data are applied separately without a rebuild.
+  const structureKey = `${chartType}|${showVolume}|${studies.map((s) => `${s.uid}:${s.id}`).join(',')}`
+
+  useLayoutEffect(() => {
+    const p = propsRef.current
+    const chart = createChart(containerRef.current!, { autoSize: true, ...chartOptions(p.theme, p.intraday) })
+    const b = buildSeries(chart, p)
+    builtRef.current = b
+    applyData(b, p, candlesRef.current)
+    applyStyles(b, p)
+
+    if (savedRangeRef.current && loadedKeyRef.current === p.datasetKey) {
+      chart.timeScale().setVisibleLogicalRange(savedRangeRef.current)
+    } else {
+      showLatest(chart, candlesRef.current.length)
+    }
+    loadedKeyRef.current = p.datasetKey
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
+      if (r && r.from < LOAD_MORE_THRESHOLD && propsRef.current.data.has_more) propsRef.current.onNeedMore()
+    })
+    chart.subscribeCrosshairMove((e: MouseEventParams<Time>) =>
+      setHover(e.time === undefined ? null : (e.time as number)),
+    )
+    setBuilt(b)
+
+    return () => {
+      savedRangeRef.current = chart.timeScale().getVisibleLogicalRange()
+      builtRef.current = null
+      chart.remove()
+    }
+  }, [structureKey])
+
+  // New data (load more / refresh / theme-dependent bar colors). Keep the
+  // visible window when older history is prepended to the same dataset.
+  useEffect(() => {
+    const b = builtRef.current
+    if (!b) return
+    const same = loadedKeyRef.current === datasetKey
+    const previous = same ? b.chart.timeScale().getVisibleRange() : null
+    applyData(b, propsRef.current, candles)
+    if (previous) b.chart.timeScale().setVisibleRange(previous)
+    else showLatest(b.chart, candles.length)
+    loadedKeyRef.current = datasetKey
+  }, [candles, data.studies, datasetKey, theme])
+
+  // Colors, visibility, scale mode, time-axis format. Effects read the live
+  // chart from builtRef: in a render where the layout changed, `built` state
+  // still points at the chart that was just destroyed.
+  useEffect(() => {
+    const b = builtRef.current
+    if (b) applyStyles(b, propsRef.current)
+  }, [built, theme, studies, scaleMode, intraday, chartType])
+
+  useEffect(() => {
+    builtRef.current?.markers.setMarkers(markers)
+  }, [built, markers, candles])
+
+  // Jump to a bar, e.g. a pattern hit picked from the list.
+  useEffect(() => {
+    const b = builtRef.current
+    if (!b || !focus) return
+    const index = propsRef.current.data.candles.findIndex((c) => c.time === focus.time)
+    if (index >= 0) b.chart.timeScale().setVisibleLogicalRange({ from: index - 60, to: index + 30 })
+  }, [focus])
+
+  useEffect(() => {
+    const b = builtRef.current
+    if (!b || !range) return
+    b.chart.timeScale().setVisibleRange({ from: t(range.from), to: t(range.to) })
+  }, [range])
+
+  // Where each pane starts, so legends sit at the top-left of their pane.
+  useEffect(() => {
+    const container = containerRef.current
+    const b = builtRef.current
+    if (!b || !container) return
+    const measure = () => {
+      if (builtRef.current !== b) return
+      const top = container.getBoundingClientRect().top
+      setPaneTops(b.chart.panes().map((pane) => (pane.getHTMLElement()?.getBoundingClientRect().top ?? top) - top))
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    for (const pane of b.chart.panes()) {
+      const el = pane.getHTMLElement()
+      if (el) observer.observe(el)
+    }
+    const frame = requestAnimationFrame(measure)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [built])
+
+  const index = hoverIndex(data.candles, hover)
+  const barTime = data.candles[index]?.time
+  const legendProps = { result: data.studies, time: barTime, theme, onAction: onStudyAction }
+
+  return (
+    <div className="chart-wrap">
+      <div ref={containerRef} className="chart" />
+      {built && paneTops.length > 0 && (
+        <>
+          <div className="pane-legend" style={{ top: paneTops[0] + 6 }}>
+            <MainLegend title={title} candles={candles} index={index} />
+            {studies
+              .filter((s) => catalog[s.id]?.overlay)
+              .map((s) => (
+                <StudyLegend key={s.uid} inst={s} def={catalog[s.id]} {...legendProps} />
+              ))}
+          </div>
+          {built.volumePane !== null && paneTops[built.volumePane] !== undefined && (
+            <div className="pane-legend" style={{ top: paneTops[built.volumePane] + 4 }}>
+              <div className="legend-row study">
+                <span className="legend-title">Vol</span>
+                <b>{data.candles[index] ? fmtVolume(data.candles[index].volume) : '–'}</b>
+                <span className="legend-actions">
+                  <button title="Remove" onClick={onHideVolume}>
+                    <CloseIcon />
+                  </button>
+                </span>
+              </div>
+            </div>
+          )}
+          {studies
+            .filter((s) => catalog[s.id] && !catalog[s.id].overlay)
+            .map((s) => {
+              const pane = built.studies[s.uid]?.pane
+              if (pane === undefined || paneTops[pane] === undefined) return null
+              return (
+                <div key={s.uid} className="pane-legend" style={{ top: paneTops[pane] + 4 }}>
+                  <StudyLegend inst={s} def={catalog[s.id]} {...legendProps} />
+                </div>
+              )
+            })}
+        </>
+      )}
+    </div>
+  )
+}
+
+// --- chart construction -----------------------------------------------------------
+
+function chartOptions(theme: ChartTheme, intraday: boolean) {
+  const label = theme.dark ? '#363a45' : '#131722'
+  return {
+    layout: {
+      background: { color: theme.surface },
+      textColor: theme.muted,
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif",
+      fontSize: 12,
+      panes: { separatorColor: theme.border, separatorHoverColor: theme.grid, enableResize: true },
+    },
+    grid: { vertLines: { color: theme.grid }, horzLines: { color: theme.grid } },
+    rightPriceScale: { borderColor: theme.border },
+    timeScale: { borderColor: theme.border, timeVisible: intraday, secondsVisible: false, rightOffset: 8 },
+    crosshair: {
+      mode: CrosshairMode.Normal,
+      vertLine: { color: theme.crosshair, labelBackgroundColor: label },
+      horzLine: { color: theme.crosshair, labelBackgroundColor: label },
+    },
+    localization: {
+      timeFormatter: (time: Time) => formatCrosshairTime(time as number, intraday),
+    },
   }
-  if (!showVolume && s.volume) {
-    chart.removeSeries(s.volume)
-    s.volume = null
-  }
-  if (showVolume && !s.volume) {
-    s.volume = chart.addSeries(
+}
+
+function buildSeries(chart: IChartApi, p: Props): Built {
+  const main = addMainSeries(chart, p.chartType)
+  let pane = 1
+  let volume: ISeriesApi<'Histogram'> | null = null
+  let volumePane: number | null = null
+  if (p.showVolume) {
+    volume = chart.addSeries(
       HistogramSeries,
       { priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false },
-      1,
+      pane,
     )
-    s.volume.setData(volumeData(data.candles, theme))
+    volumePane = pane++
   }
-  const rsiPane = showVolume ? 2 : 1
-  if (showRsi && !s.rsi) {
-    s.rsi = chart.addSeries(
-      LineSeries,
-      { color: theme.rsi, lineWidth: 2, priceLineVisible: false, crosshairMarkerVisible: false },
-      rsiPane,
-    )
-    for (const level of [70, 30]) {
-      s.rsi.createPriceLine({
+
+  const studies: Record<string, StudySeries> = {}
+  for (const inst of p.studies) {
+    const def = p.catalog[inst.id]
+    if (!def) continue
+    const target = def.overlay ? 0 : pane++
+    const outputs: Record<string, ISeriesApi<SeriesType>> = {}
+    for (const out of def.outputs) {
+      const common = { priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false }
+      if (out.style === 'histogram') {
+        outputs[out.key] = chart.addSeries(HistogramSeries, { ...common, lastValueVisible: false }, target)
+      } else if (out.style === 'dots') {
+        outputs[out.key] = chart.addSeries(
+          LineSeries,
+          { ...common, lineVisible: false, pointMarkersVisible: true, pointMarkersRadius: 1.5 },
+          target,
+        )
+      } else {
+        outputs[out.key] = chart.addSeries(LineSeries, common, target)
+      }
+    }
+    const first = outputs[def.outputs[0]?.key]
+    for (const level of def.levels) {
+      first?.createPriceLine({
         price: level,
-        color: theme.guide,
+        color: '#9598a1',
         lineStyle: LineStyle.Dashed,
         lineWidth: 1,
         axisLabelVisible: false,
       })
     }
-    s.rsi.setData(data.indicators.rsi14.map(toLine))
-  } else if (s.rsi && s.rsi.getPane().paneIndex() !== rsiPane) {
-    s.rsi.moveToPane(rsiPane)
+    studies[inst.uid] = { pane: target, outputs }
   }
+
   const panes = chart.panes()
-  panes[0].setStretchFactor(PANE_STRETCH.price)
-  if (s.volume) s.volume.getPane().setStretchFactor(PANE_STRETCH.volume)
-  if (s.rsi) s.rsi.getPane().setStretchFactor(PANE_STRETCH.rsi)
+  panes[0]?.setStretchFactor(STRETCH.price)
+  if (volumePane !== null) panes[volumePane]?.setStretchFactor(STRETCH.volume)
+  for (const s of Object.values(studies)) if (s.pane > 0) panes[s.pane]?.setStretchFactor(STRETCH.study)
+
+  return { chart, main, volume, volumePane, studies, markers: createSeriesMarkers(main, []) }
 }
 
-const t = (time: number) => time as UTCTimestamp
-
-function chartOptions(theme: ChartTheme, intraday: boolean) {
-  return {
-    layout: {
-      background: { color: theme.surface },
-      textColor: theme.muted,
-      fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-      panes: { separatorColor: theme.border, separatorHoverColor: theme.grid },
-    },
-    grid: { vertLines: { color: theme.grid }, horzLines: { color: theme.grid } },
-    rightPriceScale: { borderColor: theme.border },
-    timeScale: { borderColor: theme.border, timeVisible: intraday, secondsVisible: false },
-    crosshair: { mode: 0 }, // free-moving crosshair, not snapped to closes
+function addMainSeries(chart: IChartApi, type: ChartType): ISeriesApi<SeriesType> {
+  switch (type) {
+    case 'bars':
+      return chart.addSeries(BarSeries, { thinBars: false })
+    case 'line':
+      return chart.addSeries(LineSeries, { lineWidth: 2 })
+    case 'area':
+      return chart.addSeries(AreaSeries, { lineWidth: 2 })
+    default:
+      return chart.addSeries(CandlestickSeries, {})
   }
 }
 
-export function PriceChart({
-  data,
-  datasetKey,
-  intraday,
-  theme,
-  visibleEmas,
-  showVolume,
-  showRsi,
-  markers,
-  focus,
-  onNeedMore,
-}: Props) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<IChartApi | null>(null)
-  const seriesRef = useRef<Series | null>(null)
-  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
-  const loadedKeyRef = useRef<string | null>(null)
-  const dataRef = useRef(data)
-  const hasMoreRef = useRef(data.has_more)
-  const onNeedMoreRef = useRef(onNeedMore)
-  const [hover, setHover] = useState<number | null>(null)
-
-  dataRef.current = data
-  hasMoreRef.current = data.has_more
-  onNeedMoreRef.current = onNeedMore
-
-  // Create the chart once.
-  useEffect(() => {
-    const chart = createChart(containerRef.current!, { autoSize: true, ...chartOptions(theme, intraday) })
-    const candles = chart.addSeries(CandlestickSeries, {
-      upColor: theme.up,
-      downColor: theme.down,
-      wickUpColor: theme.up,
-      wickDownColor: theme.down,
-      borderVisible: false,
-    })
-    const emas = Object.fromEntries(
-      EMA_KEYS.map((k) => [
-        k,
-        chart.addSeries(LineSeries, {
-          color: theme[k],
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: true,
-          crosshairMarkerVisible: false,
-        }),
-      ]),
-    ) as Record<EmaKey, ISeriesApi<'Line'>>
-    const series: Series = { candles, emas, volume: null, rsi: null }
-    syncPanes(chart, series, showVolume, showRsi, theme, data)
-
-    chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-      if (range && range.from < LOAD_MORE_THRESHOLD && hasMoreRef.current) onNeedMoreRef.current()
-    })
-    const onCrosshair = (p: MouseEventParams<Time>) =>
-      setHover(p.time === undefined ? null : (p.time as number))
-    chart.subscribeCrosshairMove(onCrosshair)
-
-    chartRef.current = chart
-    seriesRef.current = series
-    markersRef.current = createSeriesMarkers(candles, [])
-    return () => {
-      markersRef.current = null
-      chart.remove()
-      chartRef.current = null
-      seriesRef.current = null
-    }
-    // Theme/intraday changes are applied below without recreating the chart.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Theme and time-axis format.
-  useEffect(() => {
-    const chart = chartRef.current
-    const s = seriesRef.current
-    if (!chart || !s) return
-    chart.applyOptions(chartOptions(theme, intraday))
-    s.candles.applyOptions({
-      upColor: theme.up,
-      downColor: theme.down,
-      wickUpColor: theme.up,
-      wickDownColor: theme.down,
-    })
-    for (const k of EMA_KEYS) s.emas[k].applyOptions({ color: theme[k] })
-    s.rsi?.applyOptions({ color: theme.rsi })
-    s.volume?.setData(volumeData(data.candles, theme))
-  }, [theme, intraday, data.candles])
-
-  // Data. Keep the visible window when older history is prepended.
-  useEffect(() => {
-    const chart = chartRef.current
-    const s = seriesRef.current
-    if (!chart || !s) return
-    const sameDataset = loadedKeyRef.current === datasetKey
-    const previous = sameDataset ? chart.timeScale().getVisibleRange() : null
-
-    s.candles.setData(data.candles.map(toCandle))
-    s.volume?.setData(volumeData(data.candles, theme))
-    for (const k of EMA_KEYS) s.emas[k].setData(data.indicators[k].map(toLine))
-    s.rsi?.setData(data.indicators.rsi14.map(toLine))
-
-    if (previous) {
-      chart.timeScale().setVisibleRange(previous)
-    } else {
-      const n = data.candles.length
-      chart.timeScale().setVisibleLogicalRange({ from: n - INITIAL_VISIBLE_BARS, to: n + 3 })
-    }
-    loadedKeyRef.current = datasetKey
-    // theme is handled by the effect above
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, datasetKey])
-
-  // Pattern markers (re-applied after data so they attach to the new bars).
-  useEffect(() => {
-    markersRef.current?.setMarkers(markers)
-  }, [markers, data])
-
-  // Jump to a bar, e.g. a pattern hit picked from the list.
-  useEffect(() => {
-    const chart = chartRef.current
-    if (!chart || !focus) return
-    const index = dataRef.current.candles.findIndex((c) => c.time === focus.time)
-    if (index < 0) return
-    chart.timeScale().setVisibleLogicalRange({ from: index - 60, to: index + 30 })
-  }, [focus])
-
-  // Indicator visibility.
-  useEffect(() => {
-    const s = seriesRef.current
-    const chart = chartRef.current
-    if (!s || !chart) return
-    for (const k of EMA_KEYS) s.emas[k].applyOptions({ visible: visibleEmas[k] })
-    syncPanes(chart, s, showVolume, showRsi, theme, dataRef.current)
-    // theme is applied by its own effect
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleEmas, showVolume, showRsi])
-
-  return (
-    <div className="chart-wrap">
-      <div ref={containerRef} className="chart" />
-      <Legend
-        data={data}
-        time={hover}
-        theme={theme}
-        visibleEmas={visibleEmas}
-        showVolume={showVolume}
-        showRsi={showRsi}
-      />
-    </div>
+function applyData(b: Built, p: Props, candles: Candle[]) {
+  const { theme } = p
+  if (p.chartType === 'line' || p.chartType === 'area') {
+    b.main.setData(candles.map((c) => ({ time: t(c.time), value: c.close })))
+  } else {
+    b.main.setData(candles.map((c) => ({ time: t(c.time), open: c.open, high: c.high, low: c.low, close: c.close })))
+  }
+  b.volume?.setData(
+    p.data.candles.map((c) => ({
+      time: t(c.time),
+      value: c.volume,
+      color: c.close >= c.open ? theme.upVolume : theme.downVolume,
+    })),
   )
+  for (const inst of p.studies) {
+    const series = b.studies[inst.uid]
+    const def = p.catalog[inst.id]
+    if (!series || !def) continue
+    const outputs = p.data.studies[inst.uid]?.outputs
+    for (const out of def.outputs) {
+      const points = outputs?.[out.key] ?? []
+      series.outputs[out.key]?.setData(
+        out.signed
+          ? points.map((pt) => ({
+              time: t(pt.time),
+              value: pt.value,
+              color: pt.value >= 0 ? theme.upHist : theme.downHist,
+            }))
+          : points.map((pt) => ({ time: t(pt.time), value: pt.value })),
+      )
+    }
+  }
 }
 
-function toCandle(c: Candle): CandlestickData<Time> {
-  return { time: t(c.time), open: c.open, high: c.high, low: c.low, close: c.close }
+function applyStyles(b: Built, p: Props) {
+  const { theme } = p
+  const { up, down } = theme
+  b.chart.applyOptions(chartOptions(theme, p.intraday))
+  switch (p.chartType) {
+    case 'hollow':
+      b.main.applyOptions({
+        upColor: 'rgba(0, 0, 0, 0)',
+        downColor: down,
+        borderVisible: true,
+        borderUpColor: up,
+        borderDownColor: down,
+        wickUpColor: up,
+        wickDownColor: down,
+      })
+      break
+    case 'candles':
+    case 'heikin':
+      b.main.applyOptions({ upColor: up, downColor: down, borderVisible: false, wickUpColor: up, wickDownColor: down })
+      break
+    case 'bars':
+      b.main.applyOptions({ upColor: up, downColor: down })
+      break
+    case 'line':
+      b.main.applyOptions({ color: theme.series[0] })
+      break
+    case 'area':
+      b.main.applyOptions({
+        lineColor: theme.series[0],
+        topColor: theme.dark ? 'rgba(57, 135, 229, 0.35)' : 'rgba(42, 120, 214, 0.28)',
+        bottomColor: 'rgba(42, 120, 214, 0)',
+      })
+      break
+  }
+  const mode =
+    p.scaleMode === 'log'
+      ? PriceScaleMode.Logarithmic
+      : p.scaleMode === 'percent'
+        ? PriceScaleMode.Percentage
+        : PriceScaleMode.Normal
+  b.main.priceScale().applyOptions({ mode })
+
+  for (const inst of p.studies) {
+    const series = b.studies[inst.uid]
+    const def = p.catalog[inst.id]
+    if (!series || !def) continue
+    for (const out of def.outputs) {
+      const s = series.outputs[out.key]
+      if (!s) continue
+      const color = resolveColor(inst.colors[out.key] ?? 'slot:0', theme)
+      if (out.style === 'histogram') {
+        s.applyOptions(out.signed ? { visible: inst.visible } : { visible: inst.visible, color })
+      } else {
+        s.applyOptions({ visible: inst.visible, color, lineWidth: inst.lineWidth as 1 | 2 | 3 | 4 })
+      }
+    }
+  }
 }
 
-function toLine(p: { time: number; value: number }): LineData<Time> {
-  return { time: t(p.time), value: p.value }
+function showLatest(chart: IChartApi, n: number) {
+  if (n > 0) chart.timeScale().setVisibleLogicalRange({ from: n - INITIAL_VISIBLE_BARS, to: n + 8 })
 }
 
-function volumeData(candles: Candle[], theme: ChartTheme) {
-  return candles.map((c) => ({
-    time: t(c.time),
-    value: c.volume,
-    color: c.close >= c.open ? theme.upVolume : theme.downVolume,
-  }))
+function heikinAshi(candles: Candle[]): Candle[] {
+  const out: Candle[] = []
+  for (const c of candles) {
+    const prev = out[out.length - 1]
+    const close = (c.open + c.high + c.low + c.close) / 4
+    const open = prev ? (prev.open + prev.close) / 2 : (c.open + c.close) / 2
+    out.push({
+      time: c.time,
+      open,
+      close,
+      high: Math.max(c.high, open, close),
+      low: Math.min(c.low, open, close),
+      volume: c.volume,
+    })
+  }
+  return out
 }
 
-// --- Legend: OHLC + indicator values at the crosshair (or the latest bar) ---
+// --- legends ------------------------------------------------------------------------
 
 const fmt = (v: number) => v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtVolume = (v: number) =>
-  v >= 1e7 ? `${(v / 1e7).toFixed(2)} Cr` : v >= 1e5 ? `${(v / 1e5).toFixed(2)} L` : v.toLocaleString('en-IN')
+  Math.abs(v) >= 1e7
+    ? `${(v / 1e7).toFixed(2)} Cr`
+    : Math.abs(v) >= 1e5
+      ? `${(v / 1e5).toFixed(2)} L`
+      : v.toLocaleString('en-IN', { maximumFractionDigits: 0 })
 
-function valueAt(points: { time: number; value: number }[], time: number): number | undefined {
-  // Points are sorted; binary search for the exact time.
+function hoverIndex(candles: Candle[], time: number | null): number {
+  if (time === null) return candles.length - 1
+  const i = candles.findIndex((c) => c.time === time)
+  return i >= 0 ? i : candles.length - 1
+}
+
+function valueAt(points: LinePoint[] | undefined, time: number | undefined): number | undefined {
+  if (!points || time === undefined) return undefined
   let lo = 0
   let hi = points.length - 1
   while (lo <= hi) {
@@ -310,73 +480,103 @@ function valueAt(points: { time: number; value: number }[], time: number): numbe
   return undefined
 }
 
-function Legend({
-  data,
-  time,
-  theme,
-  visibleEmas,
-  showVolume,
-  showRsi,
-}: {
-  data: ChartData
-  time: number | null
-  theme: ChartTheme
-  visibleEmas: Record<EmaKey, boolean>
-  showVolume: boolean
-  showRsi: boolean
-}) {
-  const candles = data.candles
-  if (!candles.length) return null
-  let index = candles.length - 1
-  if (time !== null) {
-    const found = candles.findIndex((c) => c.time === time)
-    if (found >= 0) index = found
-  }
+function MainLegend({ title, candles, index }: { title: string; candles: Candle[]; index: number }) {
   const bar = candles[index]
+  if (!bar) return null
   const prev = candles[index - 1]
   const change = prev ? bar.close - prev.close : 0
-  const changePct = prev ? (change / prev.close) * 100 : 0
-  const dir = change >= 0 ? 'up' : 'down'
-  const indicator = (k: IndicatorKey) => valueAt(data.indicators[k], bar.time)
-  const rsiValue = indicator('rsi14')
-
+  const pct = prev ? (change / prev.close) * 100 : 0
+  const sign = change >= 0 ? '+' : ''
   return (
-    <div className="legend">
-      <div className="legend-row">
-        <span>O <b>{fmt(bar.open)}</b></span>
-        <span>H <b>{fmt(bar.high)}</b></span>
-        <span>L <b>{fmt(bar.low)}</b></span>
-        <span>C <b>{fmt(bar.close)}</b></span>
-        {prev && (
-          <span className={`chg ${dir}`}>
-            {change >= 0 ? '+' : ''}
-            {fmt(change)} ({change >= 0 ? '+' : ''}
-            {changePct.toFixed(2)}%)
-          </span>
-        )}
-        {showVolume && (
-          <span>
-            Vol <b>{fmtVolume(bar.volume)}</b>
-          </span>
-        )}
-      </div>
-      <div className="legend-row">
-        {EMA_KEYS.filter((k) => visibleEmas[k]).map((k) => {
-          const v = indicator(k)
-          return (
-            <span key={k}>
-              <i className="swatch" style={{ background: theme[k] }} />
-              {EMA_LABELS[k]} <b>{v === undefined ? '–' : fmt(v)}</b>
-            </span>
-          )
-        })}
-        {showRsi && (
-          <span>
-            <i className="swatch" style={{ background: theme.rsi }} />
-            RSI 14 <b>{rsiValue === undefined ? '–' : rsiValue.toFixed(2)}</b>
-          </span>
-        )}
-      </div>
+    <div className="legend-row main">
+      <span className="legend-symbol">{title}</span>
+      <span className={`ohlc ${change >= 0 ? 'up' : 'down'}`}>
+        O<b>{fmt(bar.open)}</b> H<b>{fmt(bar.high)}</b> L<b>{fmt(bar.low)}</b> C<b>{fmt(bar.close)}</b>{' '}
+        <b>
+          {sign}
+          {fmt(change)} ({sign}
+          {pct.toFixed(2)}%)
+        </b>
+      </span>
     </div>
   )
 }
+
+function StudyLegend({
+  inst,
+  def,
+  result,
+  time,
+  theme,
+  onAction,
+}: {
+  inst: StudyInstance
+  def: StudyDef
+  result: StudyChartData['studies']
+  time: number | undefined
+  theme: ChartTheme
+  onAction: (uid: string, action: StudyAction) => void
+}) {
+  const outputs = result[inst.uid]?.outputs
+  return (
+    <div className={`legend-row study ${inst.visible ? '' : 'is-hidden'}`}>
+      <span className="legend-title">{studyTitle(def, inst)}</span>
+      {inst.visible &&
+        def.outputs.map((o) => {
+          const v = valueAt(outputs?.[o.key], time)
+          const token = inst.colors[o.key] ?? 'slot:0'
+          const color =
+            token === 'signed' ? (v !== undefined && v < 0 ? theme.down : theme.up) : resolveColor(token, theme)
+          return (
+            <b key={o.key} style={{ color }} title={o.name}>
+              {v === undefined ? '∅' : Math.abs(v) >= 1e5 ? fmtVolume(v) : fmt(v)}
+            </b>
+          )
+        })}
+      <span className="legend-actions">
+        <button title={inst.visible ? 'Hide' : 'Show'} onClick={() => onAction(inst.uid, 'toggle')}>
+          {inst.visible ? <EyeIcon /> : <EyeOffIcon />}
+        </button>
+        <button title="Settings" onClick={() => onAction(inst.uid, 'settings')}>
+          <GearIcon />
+        </button>
+        <button title="Remove" onClick={() => onAction(inst.uid, 'remove')}>
+          <CloseIcon />
+        </button>
+      </span>
+    </div>
+  )
+}
+
+const icon = {
+  width: 14,
+  height: 14,
+  viewBox: '0 0 18 18',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.4,
+  'aria-hidden': true,
+}
+const EyeIcon = () => (
+  <svg {...icon}>
+    <path d="M1.5 9s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" />
+    <circle cx="9" cy="9" r="2.2" />
+  </svg>
+)
+const EyeOffIcon = () => (
+  <svg {...icon}>
+    <path d="M1.5 9s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" />
+    <path d="M3 15L15 3" />
+  </svg>
+)
+const GearIcon = () => (
+  <svg {...icon}>
+    <circle cx="9" cy="9" r="2.4" />
+    <path d="M9 1.8v2M9 14.2v2M1.8 9h2M14.2 9h2M3.9 3.9l1.4 1.4M12.7 12.7l1.4 1.4M3.9 14.1l1.4-1.4M12.7 5.3l1.4-1.4" />
+  </svg>
+)
+const CloseIcon = () => (
+  <svg {...icon}>
+    <path d="M4.5 4.5l9 9M13.5 4.5l-9 9" />
+  </svg>
+)
