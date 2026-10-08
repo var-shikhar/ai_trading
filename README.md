@@ -27,11 +27,17 @@ frontend/           React + TypeScript + Vite + lightweight-charts
 cd backend
 python -m venv .venv
 .\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\pip install --no-deps fyers-apiv3==3.1.19   # live prices (see requirements.txt)
 copy .env.example .env      # then fill in API keys
 
 cd ..\frontend
 npm install
+copy .env.example .env      # optional: backend address / dev port
 ```
+
+`frontend/.env` only configures the dev server (where `/api` is forwarded,
+which port to use). It holds no secrets and nothing in it reaches the
+browser; Fyers keys stay in `backend/.env`.
 
 ## Connect Fyers
 
