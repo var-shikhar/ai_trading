@@ -7,6 +7,19 @@ export interface Candle {
   volume: number
 }
 
+export interface LinePoint {
+  time: number
+  value: number
+}
+
+export type IndicatorKey = 'ema20' | 'ema50' | 'ema200' | 'rsi14'
+
+export interface ChartData {
+  candles: Candle[]
+  indicators: Record<IndicatorKey, LinePoint[]>
+  has_more: boolean
+}
+
 export interface Health {
   status: string
   candles: number
@@ -52,4 +65,6 @@ export const api = {
   search: (q: string) => get<InstrumentHit[]>('/instruments/search', { q, limit: 10 }),
   candles: (symbol: string, tf: string, limit = 500) =>
     get<Candle[]>('/candles', { symbol, tf, limit }),
+  chart: (symbol: string, tf: string, limit = 500) =>
+    get<ChartData>('/chart', { symbol, tf, limit }),
 }

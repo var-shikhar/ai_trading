@@ -30,8 +30,11 @@ def bar_15m(ts: datetime) -> Candle:
     return Candle(ts, base, base + 2 + n % 3, base - 1 - n % 2, base + (n % 5) - 2, 1000 + n % 97)
 
 
+HISTORY_START = date(2000, 1, 3)  # fake market has no data before this
+
+
 def session_bars(day: date) -> list[Candle]:
-    if day.weekday() >= 5:
+    if day.weekday() >= 5 or day < HISTORY_START:
         return []
     start = datetime.combine(day, time(9, 15))
     return [bar_15m(start + timedelta(minutes=15 * i)) for i in range(25)]  # 09:15..15:15

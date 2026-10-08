@@ -122,3 +122,28 @@ async def test_scrolling_back_fetches_only_missing_range(settings):
     assert older[-1]["time"] < recent[0]["time"]
     _, _, start, end = provider.calls[-1]
     assert end <= first_day + timedelta(days=7)  # didn't re-download the recent range
+
+
+async def test_chart_endpoint_trims_warmup_and_reports_history_end(settings, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app import deps
+    from app.main import app
+
+    svc = service(settings)
+    app.dependency_overrides[deps.get_candle_service] = lambda: svc
+    try:
+        with TestClient(app) as client:
+            body = client.get("/api/chart", params={"symbol": "NSE:SBIN-EQ", "tf": "1D", "limit": 100}).json()
+            assert len(body["candles"]) == 100
+            assert body["has_more"] is True
+            for key in ("ema20", "ema50", "ema200", "rsi14"):
+                series = body["indicators"][key]
+                assert len(series) == 100  # warm-up bars cover even EMA 200
+                assert series[0]["time"] == body["candles"][0]["time"]
+
+            # Fake history starts in 2000; 1300 months back reaches past it.
+            body = client.get("/api/chart", params={"symbol": "NSE:SBIN-EQ", "tf": "1M", "limit": 900}).json()
+            assert body["has_more"] is False
+    finally:
+        app.dependency_overrides.clear()
