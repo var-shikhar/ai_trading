@@ -1,5 +1,7 @@
-# Secrets
+﻿# Secrets
 .env
+.env.*
+!.env.example
 *.token
 backend/data/*
 !backend/data/.gitkeep
