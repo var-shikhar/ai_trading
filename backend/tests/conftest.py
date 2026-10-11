@@ -11,6 +11,8 @@ from app.providers.base import Candle, Instrument, MarketDataProvider, Tick
 @pytest.fixture(autouse=True)
 def temp_db(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "test.duckdb"))
+    # Feature tests call the API directly; test_session.py turns login back on.
+    monkeypatch.setenv("AUTH_REQUIRED", "false")
     get_settings.cache_clear()
     db.close_conn()
     yield

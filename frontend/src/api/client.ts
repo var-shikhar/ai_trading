@@ -171,6 +171,19 @@ export class ApiError extends Error {
   }
 }
 
+// The app session ended (expired or signed out): the AuthGate shows the login
+// page. Distinct from "Fyers login required", which is also a 401.
+const signedOutListeners = new Set<() => void>()
+export function onSignedOut(fn: () => void): () => void {
+  signedOutListeners.add(fn)
+  return () => {
+    signedOutListeners.delete(fn)
+  }
+}
+function checkSession(status: number, detail: unknown) {
+  if (status === 401 && detail === 'Not signed in') signedOutListeners.forEach((fn) => fn())
+}
+
 async function get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
   const query = params
     ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
@@ -178,6 +191,7 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
   const res = await fetch(`/api${path}${query}`)
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
+    checkSession(res.status, body.detail)
     throw new ApiError(res.status, body.detail ?? res.statusText)
   }
   return res.json() as Promise<T>
@@ -191,12 +205,16 @@ async function post<T>(path: string, body: unknown, method = 'POST'): Promise<T>
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
+    checkSession(res.status, data.detail)
     throw new ApiError(res.status, typeof data.detail === 'string' ? data.detail : res.statusText)
   }
   return res.json() as Promise<T>
 }
 
 export const api = {
+  login: (username: string, password: string) => post<{ username: string }>('/session/login', { username, password }),
+  logout: () => post<{ ok: boolean }>('/session/logout', {}),
+  me: () => get<{ username: string }>('/session/me'),
   health: () => get<Health>('/health'),
   authStatus: () => get<AuthStatus>('/auth/status'),
   timeframes: () => get<string[]>('/timeframes'),

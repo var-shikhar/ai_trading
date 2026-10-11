@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     kotak_consumer_key: str = ""
     kotak_consumer_secret: str = ""
 
+    # App login. Every /api route needs a signed-in user unless this is off
+    # (only for tests). Accounts are created with `python -m app.cli create-user`;
+    # if ADMIN_USERNAME/ADMIN_PASSWORD are set and no user exists yet, that
+    # account is created on startup.
+    auth_required: bool = True
+    admin_username: str = ""
+    admin_password: str = ""
+    # Send the session cookie only over HTTPS (turn on when hosted).
+    cookie_secure: bool = False
+    # Trust X-Forwarded-For from a reverse proxy for login throttling.
+    trust_proxy: bool = False
+
     @property
     def db_file(self) -> Path:
         path = Path(self.db_path)

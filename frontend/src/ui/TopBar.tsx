@@ -65,6 +65,8 @@ interface Props {
   onToggleScanner: () => void
   showWatchlist: boolean
   onToggleWatchlist: () => void
+  user: string
+  onSignOut: () => void
 }
 
 export function TopBar(p: Props) {
@@ -251,6 +253,25 @@ export function TopBar(p: Props) {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+      </Dropdown>
+
+      <Dropdown align="right" title="Account" label={<span className="user-chip">{p.user.slice(0, 1).toUpperCase()}</span>}>
+        {(close) => (
+          <div className="menu-list">
+            <div className="menu-heading">Signed in as {p.user}</div>
+            <div className="menu-item">
+              <button
+                className="menu-main"
+                onClick={() => {
+                  close()
+                  p.onSignOut()
+                }}
+              >
+                Sign out
+              </button>
+            </div>
           </div>
         )}
       </Dropdown>

@@ -39,6 +39,20 @@ copy .env.example .env      # optional: backend address / dev port
 which port to use). It holds no secrets and nothing in it reaches the
 browser; Fyers keys stay in `backend/.env`.
 
+## Accounts
+
+The app needs a login; there's no public sign-up. Create accounts (and
+change passwords) from `backend`:
+
+```powershell
+.\.venv\Scripts\python -m app.cli create-user <name>
+.\.venv\Scripts\python -m app.cli set-password <name>
+```
+
+Or set `ADMIN_USERNAME` / `ADMIN_PASSWORD` in `backend/.env`: that account
+is created on startup if no user exists yet. When hosted over HTTPS set
+`COOKIE_SECURE=true` (and `TRUST_PROXY=true` behind Caddy/Nginx).
+
 ## Connect Fyers
 
 1. Create an app at https://myapi.fyers.in with redirect URL

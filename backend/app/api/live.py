@@ -106,6 +106,13 @@ def delete_watchlist(wid: str):
 async def live(ws: WebSocket):
     """Send {"subscribe": [symbols]} (the full set, replaces the previous one);
     receive {"type": "tick", ...} and {"type": "status", ...} messages."""
+    from app.config import get_settings
+    from app.services import accounts
+
+    # HTTP middleware doesn't run for WebSockets: check the session here.
+    if get_settings().auth_required and not accounts.session_user(ws.cookies.get(accounts.SESSION_COOKIE)):
+        await ws.close(code=4401, reason="Not signed in")
+        return
     await ws.accept()
     hub = get_hub()
     client = hub.add()

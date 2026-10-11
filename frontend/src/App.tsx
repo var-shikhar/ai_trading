@@ -73,7 +73,7 @@ function initialPanels(): PanelConfig[] {
   ].slice(0, MAX_PANELS)
 }
 
-function App() {
+function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
   const [themeMode, setThemeMode] = usePref<ThemeMode>('themeMode', 'system')
   const theme = useChartTheme(themeMode)
   const [auth, setAuth] = useState<AuthStatus | null>(null)
@@ -246,6 +246,8 @@ function App() {
         onToggleScanner={() => setShowScanner((v) => !v)}
         showWatchlist={showWatchlist}
         onToggleWatchlist={() => setShowWatchlist((v) => !v)}
+        user={user}
+        onSignOut={onSignOut}
       />
 
       <div className="workspace">

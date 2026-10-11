@@ -83,8 +83,9 @@ class LiveClient {
       if (this.status !== 'connected') this.setStatus('connected')
       for (const fn of this.listeners.get(tick.symbol) ?? []) fn(tick)
     }
-    ws.onclose = () => {
+    ws.onclose = (e) => {
       this.ws = null
+      if (e.code === 4401) return this.setStatus('error', 'Not signed in') // no retry without a session
       this.setStatus('closed')
       if (!this.listeners.size) return
       // Reconnect: 1s, 2s, 4s ... up to 30s.

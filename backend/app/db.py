@@ -74,6 +74,19 @@ CREATE TABLE IF NOT EXISTS drawings (
     updated TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    username      VARCHAR PRIMARY KEY,
+    password_hash VARCHAR   NOT NULL,   -- scrypt$salt$digest
+    created       TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash VARCHAR PRIMARY KEY,     -- sha256 of the cookie value
+    username   VARCHAR   NOT NULL,
+    created    TIMESTAMP NOT NULL,
+    expires    TIMESTAMP NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS tokens (
     provider     VARCHAR PRIMARY KEY,
     access_token VARCHAR   NOT NULL,
