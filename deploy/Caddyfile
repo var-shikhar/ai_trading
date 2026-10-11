@@ -1,0 +1,44 @@
+# Site block for the whole app on one domain. Add it to your existing
+# /etc/caddy/Caddyfile (replace trade.example.in with your domain), then:
+#   sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+#
+#   https://trade.example.in/api/*  -> backend on 127.0.0.1:8000 (incl. the
+#                                      /api/live WebSocket; Caddy proxies it as-is)
+#   everything else                 -> the built frontend in /var/www/indicator
+#
+# Only /api is forwarded, so the backend's /docs page isn't public.
+
+trade.example.in {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle {
+		root * /var/www/indicator
+		# Single-page app: unknown paths load index.html.
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Built assets have hashed names: cache for a year. index.html must not be
+	# cached, so a new deploy shows up immediately.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@html path / /index.html
+	header @html Cache-Control "no-cache"
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# The separate API-only site is no longer needed. Point old links to the app:
+# tradeapi.example.in {
+# 	redir https://trade.example.in{uri} permanent
+# }

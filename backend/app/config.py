@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     port: int = 8000
 
     db_path: str = "data/market.duckdb"
+    # DuckDB caps (it may otherwise use up to 80% of RAM on big queries; on a
+    # 1 GB server keep it small; larger work spills to disk instead).
+    db_memory_limit: str = "256MB"
+    db_threads: int = 2
     cors_origins: list[str] = ["http://localhost:5173"]
     frontend_url: str = "http://localhost:5173"
 

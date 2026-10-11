@@ -1,0 +1,34 @@
+# systemd unit for the backend. Install:
+#   sudo cp deploy/indicator.service /etc/systemd/system/indicator.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now indicator
+# Logs:   journalctl -u indicator -f
+#
+# One process only (no workers): the DuckDB file, the live Fyers socket and the
+# alert engine must not run twice. Memory limits keep a runaway query from
+# taking down a 1 GB server (the service restarts instead).
+
+[Unit]
+Description=Indicator trading app backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=indicator
+Group=indicator
+WorkingDirectory=/opt/indicator/backend
+ExecStart=/opt/indicator/backend/.venv/bin/python -m app.serve
+Restart=always
+RestartSec=5
+# Settings come from /opt/indicator/backend/.env
+Environment=PYTHONUNBUFFERED=1
+MemoryHigh=550M
+MemoryMax=750M
+# Hardening: the service can only write its own data folder.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/indicator/backend/data
+
+[Install]
+WantedBy=multi-user.target

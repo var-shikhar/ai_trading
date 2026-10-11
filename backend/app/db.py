@@ -148,7 +148,11 @@ def get_conn() -> duckdb.DuckDBPyConnection:
         if _conn is None:
             db_file = get_settings().db_file
             db_file.parent.mkdir(parents=True, exist_ok=True)
-            _conn = duckdb.connect(str(db_file))
+            settings = get_settings()
+            _conn = duckdb.connect(
+                str(db_file),
+                config={"memory_limit": settings.db_memory_limit, "threads": settings.db_threads},
+            )
             _migrate(_conn)
             _conn.execute(SCHEMA)
             _migrate_users(_conn)
