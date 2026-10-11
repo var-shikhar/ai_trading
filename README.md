@@ -83,6 +83,23 @@ every `REFRESH_SECONDS`.
 Opens two windows: backend at http://127.0.0.1:8000 (docs at /docs) and the
 frontend at http://localhost:5173.
 
+Or start them separately:
+
+```powershell
+cd backend
+.\.venv\Scripts\python -m app.serve --dev    # auto-reload while developing
+.\.venv\Scripts\python -m app.serve          # production: one process, no reload
+
+cd frontend
+npm run dev
+```
+
+`app.serve` listens on `HOST`/`PORT` from `backend/.env` (default
+`127.0.0.1:8000`). It always runs a single process (the database, live
+price socket and alert engine must not run twice). Keep `HOST=127.0.0.1`
+behind Caddy/Nginx; if you change `PORT`, also set `BACKEND_URL` in
+`frontend/.env`.
+
 Tests: `cd backend; .\.venv\Scripts\python -m pytest`
 
 ## Roadmap

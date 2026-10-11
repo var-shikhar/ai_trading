@@ -9,6 +9,11 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BACKEND_DIR / ".env", extra="ignore")
 
+    # Where `python -m app.serve` listens. Keep 127.0.0.1 behind a reverse
+    # proxy (Caddy/Nginx); 0.0.0.0 exposes it on every network interface.
+    host: str = "127.0.0.1"
+    port: int = 8000
+
     db_path: str = "data/market.duckdb"
     cors_origins: list[str] = ["http://localhost:5173"]
     frontend_url: str = "http://localhost:5173"
