@@ -67,6 +67,8 @@ interface Props {
   onToggleWatchlist: () => void
   user: string
   onSignOut: () => void
+  showTester: boolean
+  onToggleTester: () => void
 }
 
 export function TopBar(p: Props) {
@@ -205,6 +207,17 @@ export function TopBar(p: Props) {
           <path d="M3 4h12M3 9h12M3 14h8" />
         </svg>
         Watchlist
+      </button>
+      <button
+        className={`tool-button ${p.showTester ? 'selected' : ''}`}
+        aria-pressed={p.showTester}
+        onClick={p.onToggleTester}
+        title="Backtest a strategy (Strategy Tester)"
+      >
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+          <path d="M2 15h14M4 12l3-4 3 2 5-6" />
+        </svg>
+        Backtest
       </button>
 
       <span className="spacer" />

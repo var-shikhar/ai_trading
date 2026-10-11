@@ -74,6 +74,15 @@ CREATE TABLE IF NOT EXISTS drawings (
     updated TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS backtests (
+    id      VARCHAR PRIMARY KEY,
+    name    VARCHAR   NOT NULL,
+    created TIMESTAMP NOT NULL,
+    request VARCHAR   NOT NULL,      -- JSON strategy definition
+    summary VARCHAR   NOT NULL,      -- JSON headline stats (for the history list)
+    result  VARCHAR   NOT NULL       -- JSON full result (equity, trades, ...)
+);
+
 CREATE TABLE IF NOT EXISTS users (
     username      VARCHAR PRIMARY KEY,
     password_hash VARCHAR   NOT NULL,   -- scrypt$salt$digest

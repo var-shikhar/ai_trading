@@ -1,6 +1,13 @@
 import type { Drawing } from '../drawings/types'
 import type { ChartPatternResult, Sensitivity } from '../patterns/chartPatterns'
 import type { ScanCatalog, ScanCondition, ScanJob } from '../scanner/types'
+import type {
+  BacktestCatalog,
+  BacktestHistoryItem,
+  BacktestJob,
+  BacktestRequest,
+  BacktestResult,
+} from '../backtest/types'
 
 export interface Candle {
   time: number // IST wall time as UTC epoch seconds
@@ -243,6 +250,13 @@ export const api = {
   updateWatchlist: (id: string, patch: { name?: string; items?: WatchItem[] }) =>
     post<Watchlist>(`/watchlists/${id}`, patch, 'PUT'),
   deleteWatchlist: (id: string) => post<{ ok: boolean }>(`/watchlists/${id}`, {}, 'DELETE'),
+  backtestCatalog: () => get<BacktestCatalog>('/backtests/catalog'),
+  runBacktest: (req: BacktestRequest) => post<BacktestJob>('/backtests', req),
+  backtestJob: (id: string) => get<BacktestJob>(`/backtests/jobs/${id}`),
+  cancelBacktest: (id: string) => post<{ cancelled: boolean }>(`/backtests/jobs/${id}/cancel`, {}),
+  backtests: () => get<BacktestHistoryItem[]>('/backtests'),
+  backtestResult: (id: string) => get<BacktestResult>(`/backtests/${id}`),
+  deleteBacktest: (id: string) => post<{ ok: boolean }>(`/backtests/${id}`, {}, 'DELETE'),
   scannerCatalog: () => get<ScanCatalog>('/scanner/catalog'),
   runScan: (universe: string, tf: string, conditions: ScanCondition[], custom: string[]) =>
     post<ScanJob>('/scanner/run', { universe, tf, conditions, custom }),

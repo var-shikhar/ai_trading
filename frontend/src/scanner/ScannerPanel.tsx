@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, type InstrumentHit, type InstrumentKind, type Watchlist } from '../api/client'
 import { Dropdown } from '../ui/Dropdown'
 import { usePref } from '../prefs'
@@ -92,14 +92,14 @@ export function ScannerPanel({ onOpen }: { onOpen: (s: InstrumentHit) => void })
       onClick={() => setSort((s) => ({ key, desc: s.key === key ? !s.desc : key !== 'ticker' }))}
     >
       {label}
-      {sort.key === key ? (sort.desc ? ' ▾' : ' ▴') : ''}
+      {sort.key === key ? (sort.desc ? ' â–¾' : ' â–´') : ''}
     </th>
   )
 
   if (!catalog) {
     return (
       <aside className="pattern-panel scanner-panel">
-        <div className="panel-body">{error ? <p className="status err">{error}</p> : <p className="status">Loading…</p>}</div>
+        <div className="panel-body">{error ? <p className="status err">{error}</p> : <p className="status">Loadingâ€¦</p>}</div>
       </aside>
     )
   }
@@ -196,9 +196,9 @@ export function ScannerPanel({ onOpen }: { onOpen: (s: InstrumentHit) => void })
           {job && (
             <span className="status small">
               {job.status === 'running'
-                ? `${job.done}/${job.total}${job.eta_seconds !== null ? ` · ~${formatEta(job.eta_seconds)} left` : ''}`
+                ? `${job.done}/${job.total}${job.eta_seconds !== null ? ` Â· ~${formatEta(job.eta_seconds)} left` : ''}`
                 : job.status === 'done'
-                  ? `${job.matches.length} of ${job.total} matched · ${job.elapsed_seconds}s`
+                  ? `${job.matches.length} of ${job.total} matched Â· ${job.elapsed_seconds}s`
                   : job.message || job.status}
             </span>
           )}
@@ -227,8 +227,8 @@ export function ScannerPanel({ onOpen }: { onOpen: (s: InstrumentHit) => void })
                 <tr key={m.symbol} className={picked === m.symbol ? 'picked' : ''} onClick={() => open(m)}>
                   <td>
                     <b>{m.ticker}</b>
-                    {m.industry && <span className="muted"> · {m.industry}</span>}
-                    <div className="scan-details">{m.details.join(' · ')}</div>
+                    {m.industry && <span className="muted"> Â· {m.industry}</span>}
+                    <div className="scan-details">{m.details.join(' Â· ')}</div>
                   </td>
                   <td className="num">{m.close.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                   <td className={`num ${m.change_pct >= 0 ? 'pos' : 'neg'}`}>
@@ -257,7 +257,7 @@ export function ScannerPanel({ onOpen }: { onOpen: (s: InstrumentHit) => void })
   )
 }
 
-function ConditionCard({
+export function ConditionCard({
   condition,
   onChange,
   onRemove,
@@ -356,7 +356,7 @@ function AddToWatchlist({ matches }: { matches: ScanMatch[] }) {
                   if (name) addTo(await api.createWatchlist(name))
                 }}
               >
-                New list…
+                New listâ€¦
               </button>
             </div>
           </div>

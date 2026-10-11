@@ -92,6 +92,8 @@ interface Props {
   syncRange: { from: number; to: number } | null
   onVisibleTimeRange?: (range: { from: number; to: number }) => void
   highlightPattern: string | null
+  /** Extra markers for this chart's symbol (e.g. backtest entries/exits). */
+  extraMarkers?: SeriesMarker<Time>[]
 }
 
 export function ChartPanel(p: Props) {
@@ -309,10 +311,11 @@ export function ChartPanel(p: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, candleOn, patternKey])
 
-  const markers = useMemo(
-    () => (candleOn && patterns.result && p.patternCatalog ? toMarkers(patterns.result, p.patternCatalog, theme) : []),
-    [candleOn, patterns.result, p.patternCatalog, theme],
-  )
+  const markers = useMemo(() => {
+    const own = candleOn && patterns.result && p.patternCatalog ? toMarkers(patterns.result, p.patternCatalog, theme) : []
+    const extra = p.extraMarkers ?? []
+    return extra.length ? [...own, ...extra].sort((a, b) => (a.time as number) - (b.time as number)) : own
+  }, [candleOn, patterns.result, p.patternCatalog, theme, p.extraMarkers])
 
   // --- report up to the app (only the active chart drives the bars) ---------------
   const status = loading

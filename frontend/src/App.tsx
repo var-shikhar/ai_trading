@@ -17,6 +17,9 @@ import { PatternPanel, type PatternSettings } from './patterns/PatternPanel'
 import { loadPref, usePref } from './prefs'
 import { ScannerPanel } from './scanner/ScannerPanel'
 import { WatchlistPanel } from './watchlist/WatchlistPanel'
+import { StrategyTester } from './backtest/StrategyTester'
+import type { BacktestTrade } from './backtest/types'
+import type { SeriesMarker, Time, UTCTimestamp } from 'lightweight-charts'
 import { IndicatorDialog } from './studies/IndicatorDialog'
 import { defaultStudies, newStudy } from './studies/model'
 import { StudySettings } from './studies/StudySettings'
@@ -110,6 +113,9 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
   const [highlight, setHighlight] = useState<string | null>(null)
   const [showScanner, setShowScanner] = usePref<boolean>('scanner', false)
   const [showWatchlist, setShowWatchlist] = usePref<boolean>('watchlist', true)
+  const [showTester, setShowTester] = usePref<boolean>('tester', false)
+  // Backtest trades shown on the chart for the symbol last opened from the tester.
+  const [tradeMarks, setTradeMarks] = useState<{ symbol: string; markers: SeriesMarker<Time>[] } | null>(null)
   const [indicatorsOpen, setIndicatorsOpen] = useState(false)
   const [settingsUid, setSettingsUid] = useState<string | null>(null)
   const [crosshair, setCrosshair] = useState<{ time: number | null; source: number } | null>(null)
@@ -248,6 +254,8 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
         onToggleWatchlist={() => setShowWatchlist((v) => !v)}
         user={user}
         onSignOut={onSignOut}
+        showTester={showTester}
+        onToggleTester={() => setShowTester((v) => !v)}
       />
 
       <div className="workspace">
@@ -300,6 +308,7 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
                   syncRange={sync.time && layout.count > 1 && i !== active ? timeRange : null}
                   onVisibleTimeRange={sync.time && i === active ? onVisibleTimeRange : undefined}
                   highlightPattern={i === active ? highlight : null}
+                  extraMarkers={tradeMarks && tradeMarks.symbol === config.symbol.symbol ? tradeMarks.markers : undefined}
                 />
               </div>
             ))}
@@ -335,6 +344,23 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
         )}
       </div>
 
+      {showTester && (
+        <StrategyTester
+          chartSymbol={activeConfig.symbol}
+          theme={theme}
+          onClose={() => setShowTester(false)}
+          onOpenTrade={(trade, all) => {
+            const symbol = trade.symbol
+            const kind = symbol.startsWith('MCX:') ? 'COM' : symbol.endsWith('-INDEX') ? 'INDEX' : 'EQ'
+            if (symbol !== activeConfig.symbol.symbol)
+              updateActive({ symbol: { symbol, ticker: trade.ticker, name: trade.ticker, kind } })
+            setTradeMarks({ symbol, markers: tradeMarkers(all.filter((t) => t.symbol === symbol), theme) })
+            // goto waits for the symbol's data (and loads older history if needed).
+            sendCommand({ kind: 'goto', epoch: trade.entry_time })
+          }}
+        />
+      )}
+
       <BottomBar
         activeRange={status.activeRange}
         onRange={(label) => sendCommand({ kind: 'range', label })}
@@ -369,3 +395,27 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
 }
 
 export default App
+
+/** Entry/exit arrows for backtest trades: entries below (long) or above
+ * (short) the bar, exits on the other side, colored by the trade's result. */
+function tradeMarkers(trades: BacktestTrade[], theme: { up: string; down: string; muted: string }): SeriesMarker<Time>[] {
+  const out: SeriesMarker<Time>[] = []
+  for (const t of trades) {
+    const long = t.side === 'long'
+    out.push({
+      time: t.entry_time as UTCTimestamp,
+      position: long ? 'belowBar' : 'aboveBar',
+      shape: long ? 'arrowUp' : 'arrowDown',
+      color: theme.muted,
+      text: `${long ? 'Buy' : 'Sell'} ${t.entry_price.toFixed(2)}`,
+    })
+    out.push({
+      time: t.exit_time as UTCTimestamp,
+      position: long ? 'aboveBar' : 'belowBar',
+      shape: long ? 'arrowDown' : 'arrowUp',
+      color: t.pnl >= 0 ? theme.up : theme.down,
+      text: `${t.reason} ${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct.toFixed(1)}%`,
+    })
+  }
+  return out.sort((a, b) => (a.time as number) - (b.time as number))
+}

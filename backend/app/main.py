@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import auth, candles, chart, drawings, instruments, live, patterns, scanner, session
+from app.api import auth, backtests, candles, chart, drawings, instruments, live, patterns, scanner, session
 from app.config import get_settings
 from app.db import close_conn, get_conn
 from app.deps import get_fyers
@@ -76,6 +76,7 @@ app.include_router(patterns.router)
 app.include_router(drawings.router)
 app.include_router(scanner.router)
 app.include_router(live.router)
+app.include_router(backtests.router)
 
 
 @app.get("/api/health")
