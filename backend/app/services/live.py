@@ -25,6 +25,7 @@ IST_OFFSET = 5 * 3600 + 1800
 class Client:
     queue: asyncio.Queue
     symbols: set[str] = field(default_factory=set)
+    internal: bool = False  # e.g. the alert engine; doesn't receive broadcasts
 
 
 def tick_from_message(msg: dict) -> dict | None:
@@ -88,6 +89,12 @@ class LiveHub:
             client.queue.put_nowait(message)
         except asyncio.QueueFull:
             pass  # a stalled tab drops ticks rather than growing memory
+
+    def broadcast(self, message: dict) -> None:
+        """Send to every browser tab (e.g. an alert that fired)."""
+        for c in self.clients:
+            if not c.internal:
+                self._put(c, message)
 
     def _broadcast_status(self) -> None:
         for c in self.clients:

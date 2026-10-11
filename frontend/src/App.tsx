@@ -18,6 +18,9 @@ import { loadPref, usePref } from './prefs'
 import { ScannerPanel } from './scanner/ScannerPanel'
 import { WatchlistPanel } from './watchlist/WatchlistPanel'
 import { StrategyTester } from './backtest/StrategyTester'
+import { AlertsPanel } from './alerts/AlertsPanel'
+import { AlertToasts } from './alerts/AlertToasts'
+import type { AlertIn } from './alerts/types'
 import type { BacktestTrade } from './backtest/types'
 import type { SeriesMarker, Time, UTCTimestamp } from 'lightweight-charts'
 import { IndicatorDialog } from './studies/IndicatorDialog'
@@ -114,6 +117,9 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
   const [showScanner, setShowScanner] = usePref<boolean>('scanner', false)
   const [showWatchlist, setShowWatchlist] = usePref<boolean>('watchlist', true)
   const [showTester, setShowTester] = usePref<boolean>('tester', false)
+  const [showAlerts, setShowAlerts] = usePref<boolean>('alertsPanel', false)
+  const [alertRequest, setAlertRequest] = useState<Partial<AlertIn> | null>(null)
+  const clearAlertRequest = useCallback(() => setAlertRequest(null), [])
   // Backtest trades shown on the chart for the symbol last opened from the tester.
   const [tradeMarks, setTradeMarks] = useState<{ symbol: string; markers: SeriesMarker<Time>[] } | null>(null)
   const [indicatorsOpen, setIndicatorsOpen] = useState(false)
@@ -256,6 +262,8 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
         onSignOut={onSignOut}
         showTester={showTester}
         onToggleTester={() => setShowTester((v) => !v)}
+        showAlerts={showAlerts}
+        onToggleAlerts={() => setShowAlerts((v) => !v)}
       />
 
       <div className="workspace">
@@ -309,6 +317,19 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
                   onVisibleTimeRange={sync.time && i === active ? onVisibleTimeRange : undefined}
                   highlightPattern={i === active ? highlight : null}
                   extraMarkers={tradeMarks && tradeMarks.symbol === config.symbol.symbol ? tradeMarks.markers : undefined}
+                  onDrawingAlert={(d, sym) => {
+                    const points =
+                      d.type === 'hline' ? [{ time: 0, price: d.price }] : d.type === 'trend' ? [d.a, d.b] : null
+                    if (!points) return
+                    setAlertRequest({
+                      kind: 'drawing',
+                      symbol: sym.symbol,
+                      ticker: sym.ticker,
+                      config: { op: 'crosses', points },
+                      frequency: 'once',
+                    })
+                    setShowAlerts(true)
+                  }}
                 />
               </div>
             ))}
@@ -335,6 +356,14 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
           />
         )}
         {showScanner && <ScannerPanel onOpen={(symbol) => updateActive({ symbol })} />}
+        {showAlerts && (
+          <AlertsPanel
+            symbol={activeConfig.symbol}
+            createRequest={alertRequest}
+            onCreateHandled={clearAlertRequest}
+            onOpen={(symbol) => updateActive({ symbol })}
+          />
+        )}
         {showWatchlist && (
           <WatchlistPanel
             current={activeConfig.symbol}
@@ -360,6 +389,8 @@ function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
           }}
         />
       )}
+
+      <AlertToasts />
 
       <BottomBar
         activeRange={status.activeRange}

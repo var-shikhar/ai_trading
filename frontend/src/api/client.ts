@@ -1,6 +1,7 @@
 import type { Drawing } from '../drawings/types'
 import type { ChartPatternResult, Sensitivity } from '../patterns/chartPatterns'
 import type { ScanCatalog, ScanCondition, ScanJob } from '../scanner/types'
+import type { Alert, AlertEvent, AlertIn, AlertList } from '../alerts/types'
 import type {
   BacktestCatalog,
   BacktestHistoryItem,
@@ -250,6 +251,12 @@ export const api = {
   updateWatchlist: (id: string, patch: { name?: string; items?: WatchItem[] }) =>
     post<Watchlist>(`/watchlists/${id}`, patch, 'PUT'),
   deleteWatchlist: (id: string) => post<{ ok: boolean }>(`/watchlists/${id}`, {}, 'DELETE'),
+  alerts: () => get<AlertList>('/alerts'),
+  createAlert: (a: AlertIn) => post<Alert>('/alerts', a),
+  updateAlert: (id: string, a: AlertIn) => post<Alert>(`/alerts/${id}`, a, 'PUT'),
+  deleteAlert: (id: string) => post<{ ok: boolean }>(`/alerts/${id}`, {}, 'DELETE'),
+  alertEvents: () => get<AlertEvent[]>('/alerts/events'),
+  testAlert: (channels?: string[]) => post<Record<string, string>>('/alerts/test', channels ?? null),
   backtestCatalog: () => get<BacktestCatalog>('/backtests/catalog'),
   runBacktest: (req: BacktestRequest) => post<BacktestJob>('/backtests', req),
   backtestJob: (id: string) => get<BacktestJob>(`/backtests/jobs/${id}`),

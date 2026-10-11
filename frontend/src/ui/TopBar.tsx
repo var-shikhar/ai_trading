@@ -69,6 +69,8 @@ interface Props {
   onSignOut: () => void
   showTester: boolean
   onToggleTester: () => void
+  showAlerts: boolean
+  onToggleAlerts: () => void
 }
 
 export function TopBar(p: Props) {
@@ -218,6 +220,17 @@ export function TopBar(p: Props) {
           <path d="M2 15h14M4 12l3-4 3 2 5-6" />
         </svg>
         Backtest
+      </button>
+      <button
+        className={`tool-button ${p.showAlerts ? 'selected' : ''}`}
+        aria-pressed={p.showAlerts}
+        onClick={p.onToggleAlerts}
+        title="Price, indicator and scan alerts"
+      >
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+          <path d="M5 13V8a4 4 0 0 1 8 0v5l1.5 1.5h-11zM7.5 16h3" />
+        </svg>
+        Alerts
       </button>
 
       <span className="spacer" />

@@ -15,6 +15,14 @@ export interface Tick {
 
 export type LiveStatus = 'idle' | 'connecting' | 'connected' | 'closed' | 'error'
 
+export interface AlertMessage {
+  alert_id: string | null
+  symbol: string | null
+  title: string
+  body: string
+  time: number
+}
+
 type TickListener = (t: Tick) => void
 
 /**
@@ -26,6 +34,7 @@ class LiveClient {
   private ws: WebSocket | null = null
   private listeners = new Map<string, Set<TickListener>>()
   private statusListeners = new Set<(s: LiveStatus, msg: string) => void>()
+  private alertListeners = new Set<(m: AlertMessage) => void>()
   private retry = 0
   private timer: ReturnType<typeof setTimeout> | null = null
   status: LiveStatus = 'idle'
@@ -43,6 +52,15 @@ class LiveClient {
       set!.delete(fn)
       if (!set!.size) this.listeners.delete(symbol)
       this.sync()
+    }
+  }
+
+  /** Alerts fired by the server's alert engine (keeps the socket open). */
+  onAlert(fn: (m: AlertMessage) => void): () => void {
+    this.alertListeners.add(fn)
+    if (!this.ws) this.connect()
+    return () => {
+      this.alertListeners.delete(fn)
     }
   }
 
@@ -77,6 +95,7 @@ class LiveClient {
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data)
       if (msg.type === 'status') return this.setStatus(msg.status, msg.message ?? '')
+      if (msg.type === 'alert') return this.alertListeners.forEach((fn) => fn(msg as AlertMessage))
       if (msg.type !== 'tick') return
       const tick = msg as Tick
       this.last.set(tick.symbol, tick)
@@ -87,7 +106,7 @@ class LiveClient {
       this.ws = null
       if (e.code === 4401) return this.setStatus('error', 'Not signed in') // no retry without a session
       this.setStatus('closed')
-      if (!this.listeners.size) return
+      if (!this.listeners.size && !this.alertListeners.size) return
       // Reconnect: 1s, 2s, 4s ... up to 30s.
       const delay = Math.min(30000, 1000 * 2 ** this.retry++)
       this.timer = setTimeout(() => this.connect(), delay)
@@ -96,6 +115,8 @@ class LiveClient {
 }
 
 export const live = new LiveClient()
+
+export const onAlertEvent = (fn: (m: AlertMessage) => void) => live.onAlert(fn)
 
 export function useLiveStatus(): { status: LiveStatus; message: string } {
   const [state, setState] = useState({ status: live.status, message: live.message })

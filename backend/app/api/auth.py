@@ -52,6 +52,10 @@ async def fyers_callback(
         await fyers.exchange_auth_code(auth_code)
     except ProviderError:
         return RedirectResponse(f"{frontend}/?login=failed")
+    if get_settings().alerts_enabled:
+        from app.api.alerts import get_engine
+
+        await get_engine().refresh()
     return RedirectResponse(f"{frontend}/?login=ok")
 
 

@@ -79,6 +79,8 @@ interface Props {
   /** Bar being formed from live ticks (replaces/extends the last bar). */
   liveBar?: Candle | null
   isLive?: boolean
+  /** "Alert on this line" from the selected drawing's toolbar. */
+  onDrawingAlert?: (d: Drawing) => void
 }
 
 interface StudySeries {
@@ -369,6 +371,11 @@ export function PriceChart(props: Props) {
                 onClick={() => drawing.setColor(`slot:${n}`)}
               />
             ))}
+          {(drawing.selected.type === 'hline' || drawing.selected.type === 'trend') && props.onDrawingAlert && (
+            <button className="icon-button" title="Alert when price crosses this line" onClick={() => props.onDrawingAlert?.(drawing.selected!)}>
+              🔔
+            </button>
+          )}
           <button className="icon-button" title="Remove (Delete)" onClick={drawing.remove}>
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
               <path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11" />

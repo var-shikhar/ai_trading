@@ -38,6 +38,20 @@ class Settings(BaseSettings):
     # Trust X-Forwarded-For from a reverse proxy for login throttling.
     trust_proxy: bool = False
 
+    # Alert delivery (optional). Telegram: create a bot with @BotFather, send
+    # it a message, then use your chat id. Email: any SMTP server.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    alert_email_to: str = ""
+    # Run the alert engine (off in tests).
+    alerts_enabled: bool = True
+
     @property
     def db_file(self) -> Path:
         path = Path(self.db_path)

@@ -94,6 +94,7 @@ interface Props {
   highlightPattern: string | null
   /** Extra markers for this chart's symbol (e.g. backtest entries/exits). */
   extraMarkers?: SeriesMarker<Time>[]
+  onDrawingAlert?: (d: Drawing, symbol: InstrumentHit) => void
 }
 
 export function ChartPanel(p: Props) {
@@ -384,6 +385,7 @@ export function ChartPanel(p: Props) {
           showZones={showZones}
           highlightPattern={p.highlightPattern}
           liveBar={liveBar && chartKey === key ? liveBar.bar : null}
+          onDrawingAlert={p.onDrawingAlert ? (d) => p.onDrawingAlert!(d, symbol) : undefined}
           isLive={isLive}
         />
       )}

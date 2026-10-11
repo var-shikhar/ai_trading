@@ -83,6 +83,35 @@ CREATE TABLE IF NOT EXISTS backtests (
     result  VARCHAR   NOT NULL       -- JSON full result (equity, trades, ...)
 );
 
+CREATE TABLE IF NOT EXISTS alerts (
+    id         VARCHAR PRIMARY KEY,
+    kind       VARCHAR   NOT NULL,   -- price | drawing | condition | scan
+    symbol     VARCHAR,
+    ticker     VARCHAR,
+    name       VARCHAR,
+    config     VARCHAR   NOT NULL,   -- JSON rule
+    tf         VARCHAR,
+    frequency  VARCHAR   NOT NULL,   -- once | once_per_bar | every
+    channels   VARCHAR   NOT NULL,   -- JSON list: app, telegram, email
+    message    VARCHAR,
+    status     VARCHAR   NOT NULL,   -- active | paused | triggered | expired
+    expires    TIMESTAMP,
+    created    TIMESTAMP NOT NULL,
+    last_fired BIGINT,               -- IST wall time as epoch
+    fire_count INTEGER   NOT NULL,
+    state      VARCHAR               -- JSON engine bookkeeping
+);
+
+CREATE TABLE IF NOT EXISTS alert_events (
+    id        VARCHAR PRIMARY KEY,
+    alert_id  VARCHAR,
+    time      BIGINT  NOT NULL,
+    symbol    VARCHAR,
+    title     VARCHAR NOT NULL,
+    body      VARCHAR,
+    delivered VARCHAR               -- JSON {channel: ok | error}
+);
+
 CREATE TABLE IF NOT EXISTS users (
     username      VARCHAR PRIMARY KEY,
     password_hash VARCHAR   NOT NULL,   -- scrypt$salt$digest
