@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { api, type AuthStatus, type InstrumentHit, type InstrumentKind } from '../api/client'
+import { api, type AuthStatus, type InstrumentHit, type InstrumentKind, type UserInfo } from '../api/client'
+import { PasswordDialog, UsersDialog } from '../auth/UsersDialog'
 import type { ChartType } from '../chart/PriceChart'
 import type { ThemeMode } from '../chart/theme'
 import { Dropdown } from './Dropdown'
@@ -65,7 +66,7 @@ interface Props {
   onToggleScanner: () => void
   showWatchlist: boolean
   onToggleWatchlist: () => void
-  user: string
+  user: UserInfo
   onSignOut: () => void
   showTester: boolean
   onToggleTester: () => void
@@ -75,6 +76,7 @@ interface Props {
 
 export function TopBar(p: Props) {
   const [searchOpen, setSearchOpen] = useState(false)
+  const [accountDialog, setAccountDialog] = useState<'users' | 'password' | null>(null)
   const fyers = p.auth?.fyers
   const allTfs = TIMEFRAME_GROUPS.flatMap((g) => g.items)
   const favoriteTfs = allTfs.filter((i) => p.favorites.includes(i.tf))
@@ -283,10 +285,37 @@ export function TopBar(p: Props) {
         )}
       </Dropdown>
 
-      <Dropdown align="right" title="Account" label={<span className="user-chip">{p.user.slice(0, 1).toUpperCase()}</span>}>
+      <Dropdown align="right" title="Account" label={<span className="user-chip">{p.user.username.slice(0, 1).toUpperCase()}</span>}>
         {(close) => (
           <div className="menu-list">
-            <div className="menu-heading">Signed in as {p.user}</div>
+            <div className="menu-heading">
+              Signed in as {p.user.username}
+              {p.user.role === 'admin' ? ' · admin' : ''}
+            </div>
+            {p.user.role === 'admin' && (
+              <div className="menu-item">
+                <button
+                  className="menu-main"
+                  onClick={() => {
+                    close()
+                    setAccountDialog('users')
+                  }}
+                >
+                  Manage users
+                </button>
+              </div>
+            )}
+            <div className="menu-item">
+              <button
+                className="menu-main"
+                onClick={() => {
+                  close()
+                  setAccountDialog('password')
+                }}
+              >
+                Change password
+              </button>
+            </div>
             <div className="menu-item">
               <button
                 className="menu-main"
@@ -301,6 +330,9 @@ export function TopBar(p: Props) {
           </div>
         )}
       </Dropdown>
+
+      {accountDialog === 'users' && <UsersDialog me={p.user} onClose={() => setAccountDialog(null)} />}
+      {accountDialog === 'password' && <PasswordDialog onClose={() => setAccountDialog(null)} />}
 
       {searchOpen && (
         <SymbolDialog

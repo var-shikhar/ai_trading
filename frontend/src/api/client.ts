@@ -149,6 +149,16 @@ export interface Watchlist {
   position: number
 }
 
+export interface UserInfo {
+  username: string
+  role: 'admin' | 'user'
+  email: string | null
+  disabled: boolean
+  created: string
+  last_login: string | null
+  created_by: string | null
+}
+
 export interface Health {
   status: string
   candles: number
@@ -222,7 +232,16 @@ async function post<T>(path: string, body: unknown, method = 'POST'): Promise<T>
 export const api = {
   login: (username: string, password: string) => post<{ username: string }>('/session/login', { username, password }),
   logout: () => post<{ ok: boolean }>('/session/logout', {}),
-  me: () => get<{ username: string }>('/session/me'),
+  me: () => get<UserInfo>('/session/me'),
+  changePassword: (current: string, next: string) => post<{ ok: boolean }>('/session/password', { current, new: next }),
+  users: () => get<UserInfo[]>('/admin/users'),
+  createUser: (u: { username: string; password: string; email: string | null; role: 'admin' | 'user' }) =>
+    post<UserInfo>('/admin/users', u),
+  updateUser: (username: string, patch: { role?: 'admin' | 'user'; disabled?: boolean; email?: string | null; set_email?: boolean }) =>
+    post<UserInfo>(`/admin/users/${encodeURIComponent(username)}`, patch, 'PATCH'),
+  resetUserPassword: (username: string, password: string) =>
+    post<{ ok: boolean }>(`/admin/users/${encodeURIComponent(username)}/password`, { password }),
+  deleteUser: (username: string) => post<{ ok: boolean }>(`/admin/users/${encodeURIComponent(username)}`, {}, 'DELETE'),
   health: () => get<Health>('/health'),
   authStatus: () => get<AuthStatus>('/auth/status'),
   timeframes: () => get<string[]>('/timeframes'),

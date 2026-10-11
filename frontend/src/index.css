@@ -1694,3 +1694,43 @@ details.note {
   top: 6px;
   right: 6px;
 }
+
+/* --- user management --- */
+
+.user-create {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 14px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.user-create h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.user-create .form-row input,
+.user-create .form-row select,
+.form-grid input[type='password'],
+.form-grid input[type='email'] {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.user-create .primary-button {
+  align-self: flex-start;
+}
+.users-table {
+  width: 100%;
+  margin: 0 0 8px;
+}
+.user-actions {
+  white-space: nowrap;
+}
+.user-actions .link-button {
+  margin-left: 8px;
+  font-size: 12px;
+}

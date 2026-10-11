@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type AuthStatus, type InstrumentHit, type PatternCatalog, type StudyDef } from './api/client'
+import { api, type AuthStatus, type InstrumentHit, type PatternCatalog, type StudyDef, type UserInfo } from './api/client'
 import type { ChartType, ScaleMode } from './chart/PriceChart'
 import { useChartTheme, type ThemeMode } from './chart/theme'
 import { DrawingToolbar } from './drawings/DrawingToolbar'
@@ -79,7 +79,7 @@ function initialPanels(): PanelConfig[] {
   ].slice(0, MAX_PANELS)
 }
 
-function App({ user, onSignOut }: { user: string; onSignOut: () => void }) {
+function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
   const [themeMode, setThemeMode] = usePref<ThemeMode>('themeMode', 'system')
   const theme = useChartTheme(themeMode)
   const [auth, setAuth] = useState<AuthStatus | null>(null)

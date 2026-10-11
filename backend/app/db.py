@@ -115,7 +115,12 @@ CREATE TABLE IF NOT EXISTS alert_events (
 CREATE TABLE IF NOT EXISTS users (
     username      VARCHAR PRIMARY KEY,
     password_hash VARCHAR   NOT NULL,   -- scrypt$salt$digest
-    created       TIMESTAMP NOT NULL
+    created       TIMESTAMP NOT NULL,
+    role          VARCHAR   NOT NULL DEFAULT 'user',  -- admin | user
+    email         VARCHAR,
+    disabled      BOOLEAN   NOT NULL DEFAULT false,
+    last_login    TIMESTAMP,
+    created_by    VARCHAR
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -146,6 +151,7 @@ def get_conn() -> duckdb.DuckDBPyConnection:
             _conn = duckdb.connect(str(db_file))
             _migrate(_conn)
             _conn.execute(SCHEMA)
+            _migrate_users(_conn)
         return _conn.cursor()
 
 
@@ -156,6 +162,26 @@ def _migrate(conn: duckdb.DuckDBPyConnection) -> None:
     ).fetchall()}
     if cols and "actual" not in cols:
         conn.execute("DROP TABLE instruments")
+
+
+def _migrate_users(conn: duckdb.DuckDBPyConnection) -> None:
+    """Add account columns to databases created before admin user
+    management, and make sure someone can manage users: if there is no
+    admin, the oldest account becomes one."""
+    for column, ddl in (
+        ("role", "VARCHAR DEFAULT 'user'"),
+        ("email", "VARCHAR"),
+        ("disabled", "BOOLEAN DEFAULT false"),
+        ("last_login", "TIMESTAMP"),
+        ("created_by", "VARCHAR"),
+    ):
+        conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {column} {ddl}")
+    conn.execute("UPDATE users SET role = 'user' WHERE role IS NULL")
+    conn.execute("UPDATE users SET disabled = false WHERE disabled IS NULL")
+    if not conn.execute("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").fetchone():
+        conn.execute(
+            "UPDATE users SET role = 'admin' WHERE username = (SELECT username FROM users ORDER BY created LIMIT 1)"
+        )
 
 
 def close_conn() -> None:

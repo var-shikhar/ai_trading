@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
@@ -41,7 +41,7 @@ def test_login_logout_flow(client):
     assert ok.status_code == 200
     cookie = ok.headers["set-cookie"].lower()
     assert "httponly" in cookie and "samesite=lax" in cookie
-    assert client.get("/api/session/me").json() == {"username": "owner"}
+    assert client.get("/api/session/me").json()["username"] == "owner"
     assert client.get("/api/watchlists").status_code == 200
 
     client.post("/api/session/logout")

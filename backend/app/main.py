@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import alerts, auth, backtests, candles, chart, drawings, instruments, live, patterns, scanner, session
+from app.api import admin, alerts, auth, backtests, candles, chart, drawings, instruments, live, patterns, scanner, session
 from app.config import get_settings
 from app.db import close_conn, get_conn
 from app.deps import get_fyers
@@ -25,7 +25,7 @@ PUBLIC_PATHS = {"/api/session/login", "/api/session/logout", "/api/session/me", 
 def bootstrap_admin() -> None:
     s = get_settings()
     if s.admin_username and s.admin_password and accounts.user_count() == 0:
-        accounts.create_user(s.admin_username, s.admin_password)
+        accounts.create_user(s.admin_username, s.admin_password, role="admin", email=s.admin_email or None)
         log.info("Created admin user '%s' from .env", s.admin_username)
     if s.auth_required and accounts.user_count() == 0:
         log.warning("No users yet: create one with `python -m app.cli create-user <name>`")
@@ -72,6 +72,7 @@ async def require_login(request: Request, call_next):
 
 
 app.include_router(session.router)
+app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(instruments.router)
 app.include_router(candles.router)

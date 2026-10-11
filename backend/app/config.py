@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     auth_required: bool = True
     admin_username: str = ""
     admin_password: str = ""
+    admin_email: str = ""
     # Send the session cookie only over HTTPS (turn on when hosted).
     cookie_secure: bool = False
     # Trust X-Forwarded-For from a reverse proxy for login throttling.

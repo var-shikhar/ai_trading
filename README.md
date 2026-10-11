@@ -41,17 +41,27 @@ browser; Fyers keys stay in `backend/.env`.
 
 ## Accounts
 
-The app needs a login; there's no public sign-up. Create accounts (and
-change passwords) from `backend`:
+The app needs a login; there's no public sign-up. Create the **first admin**
+from `backend` with the server stopped (the database allows one process):
 
 ```powershell
-.\.venv\Scripts\python -m app.cli create-user <name>
+.\.venv\Scripts\python -m app.cli create-user <name>            # admin
+.\.venv\Scripts\python -m app.cli create-user <name> --user     # normal user
 .\.venv\Scripts\python -m app.cli set-password <name>
+.\.venv\Scripts\python -m app.cli list-users
 ```
 
-Or set `ADMIN_USERNAME` / `ADMIN_PASSWORD` in `backend/.env`: that account
-is created on startup if no user exists yet. When hosted over HTTPS set
-`COOKIE_SECURE=true` (and `TRUST_PROXY=true` behind Caddy/Nginx).
+Or set `ADMIN_USERNAME` / `ADMIN_PASSWORD` (and optionally `ADMIN_EMAIL`) in
+`backend/.env`: that admin is created on startup if no user exists yet.
+
+After that, admins manage everyone from the app: account menu (top right)
+-> **Manage users**: create accounts (user or admin), set emails, reset
+passwords, disable or delete. Everyone can **Change password** there.
+Disabling, deleting or resetting a password signs that person out; the last
+admin can't be removed or demoted.
+
+When hosted over HTTPS set `COOKIE_SECURE=true` (and `TRUST_PROXY=true`
+behind Caddy/Nginx).
 
 ## Connect Fyers
 
