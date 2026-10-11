@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type AuthStatus, type InstrumentHit, type PatternCatalog, type StudyDef, type UserInfo } from './api/client'
+import {
+  api,
+  onFyersAuthLost,
+  type AuthStatus,
+  type InstrumentHit,
+  type PatternCatalog,
+  type StudyDef,
+  type UserInfo,
+} from './api/client'
 import type { ChartType, ScaleMode } from './chart/PriceChart'
 import { useChartTheme, type ThemeMode } from './chart/theme'
 import { DrawingToolbar } from './drawings/DrawingToolbar'
@@ -136,6 +144,30 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
       .catch((e: Error) => setError(e.message))
   }, [])
   const authenticated = auth?.fyers.authenticated ?? false
+  const refreshAuth = useCallback(() => {
+    api.authStatus().then(setAuth, () => {})
+  }, [])
+  useEffect(() => onFyersAuthLost(refreshAuth), [refreshAuth])
+
+  // Result of the Fyers login (the backend returns here with ?fyers=...).
+  // Read once, then remove it from the address bar so a reload doesn't repeat it.
+  const [fyersNotice, setFyersNotice] = useState<{ ok: boolean; reason: string } | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const result = params.get('fyers')
+    return result ? { ok: result === 'ok', reason: params.get('reason') ?? '' } : null
+  })
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('fyers') || url.searchParams.has('login')) {
+      for (const k of ['fyers', 'reason', 'login']) url.searchParams.delete(k)
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+    }
+  }, [])
+  useEffect(() => {
+    if (!fyersNotice?.ok) return
+    const id = setTimeout(() => setFyersNotice(null), 6000)
+    return () => clearTimeout(id)
+  }, [fyersNotice])
 
   // Give every chart concrete indicator instances (with stable ids) once the
   // catalog is known, so settings/remove always find the instance clicked.
@@ -253,6 +285,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
         dark={theme.dark}
         auth={auth}
         error={error}
+        onFyersChanged={refreshAuth}
         layoutMenu={<LayoutMenu layout={layout} onLayout={setLayoutId} sync={sync} onSync={setSync} />}
         showScanner={showScanner}
         onToggleScanner={() => setShowScanner((v) => !v)}
@@ -265,6 +298,22 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
         showAlerts={showAlerts}
         onToggleAlerts={() => setShowAlerts((v) => !v)}
       />
+
+      {fyersNotice && (
+        <div className={`fyers-notice ${fyersNotice.ok ? 'ok' : 'err'}`} role={fyersNotice.ok ? 'status' : 'alert'}>
+          <span>
+            {fyersNotice.ok ? '✓ Fyers connected.' : `Fyers login didn't work: ${fyersNotice.reason || 'unknown error'}`}
+          </span>
+          {!fyersNotice.ok && auth?.fyers.login_url && (
+            <a className="primary-button small" href={auth.fyers.login_url}>
+              Try again
+            </a>
+          )}
+          <button className="icon-button" aria-label="Dismiss" onClick={() => setFyersNotice(null)}>
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="workspace">
         <DrawingToolbar

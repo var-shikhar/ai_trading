@@ -198,8 +198,18 @@ export function onSignedOut(fn: () => void): () => void {
     signedOutListeners.delete(fn)
   }
 }
+// The Fyers token was rejected (expired, or replaced by a newer Fyers login):
+// the app re-checks its Fyers status so "Connect Fyers" shows again.
+const fyersLostListeners = new Set<() => void>()
+export function onFyersAuthLost(fn: () => void): () => void {
+  fyersLostListeners.add(fn)
+  return () => {
+    fyersLostListeners.delete(fn)
+  }
+}
 function checkSession(status: number, detail: unknown) {
   if (status === 401 && detail === 'Not signed in') signedOutListeners.forEach((fn) => fn())
+  else if (status === 401 && typeof detail === 'string' && /fyers/i.test(detail)) fyersLostListeners.forEach((fn) => fn())
 }
 
 async function get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -244,6 +254,7 @@ export const api = {
   deleteUser: (username: string) => post<{ ok: boolean }>(`/admin/users/${encodeURIComponent(username)}`, {}, 'DELETE'),
   health: () => get<Health>('/health'),
   authStatus: () => get<AuthStatus>('/auth/status'),
+  fyersLogout: () => post<{ ok: boolean }>('/auth/fyers/logout', {}),
   timeframes: () => get<string[]>('/timeframes'),
   search: (q: string, kind?: InstrumentKind | null, limit = 30) =>
     get<InstrumentHit[]>('/instruments/search', { q, limit, ...(kind ? { kind } : {}) }),

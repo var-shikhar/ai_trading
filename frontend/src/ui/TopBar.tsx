@@ -61,6 +61,7 @@ interface Props {
   dark: boolean
   auth: AuthStatus | null
   error: string | null
+  onFyersChanged: () => void
   layoutMenu?: ReactNode
   showScanner: boolean
   onToggleScanner: () => void
@@ -239,9 +240,29 @@ export function TopBar(p: Props) {
       {p.error && <span className="status err">Backend unreachable</span>}
       {fyers &&
         (fyers.authenticated ? (
-          <span className="status ok" title="Fyers session active until end of day">
-            ● Fyers
-          </span>
+          <Dropdown align="right" title="Fyers session (valid until end of day)" label={<span className="status ok">● Fyers</span>}>
+            {(close) => (
+              <div className="menu-list">
+                <div className="menu-heading">Fyers connected until end of day</div>
+                <div className="menu-item">
+                  <a className="menu-main" href={fyers.login_url}>
+                    Reconnect Fyers
+                  </a>
+                </div>
+                <div className="menu-item">
+                  <button
+                    className="menu-main"
+                    onClick={() => {
+                      close()
+                      api.fyersLogout().finally(p.onFyersChanged)
+                    }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            )}
+          </Dropdown>
         ) : fyers.configured ? (
           <a className="primary-button" href={fyers.login_url}>
             Connect Fyers

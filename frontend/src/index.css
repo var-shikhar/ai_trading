@@ -1734,3 +1734,26 @@ details.note {
   margin-left: 8px;
   font-size: 12px;
 }
+
+/* --- Fyers login result --- */
+
+.fyers-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.fyers-notice.ok {
+  background: color-mix(in srgb, var(--ok) 14%, var(--surface));
+}
+.fyers-notice.err {
+  background: color-mix(in srgb, var(--err) 14%, var(--surface));
+}
+.fyers-notice span {
+  flex: 1;
+}
+a.menu-main {
+  color: inherit;
+  text-decoration: none;
+}

@@ -1,18 +1,32 @@
+"""Fyers OAuth: /login sends the browser to Fyers, Fyers sends it back to
+/callback with a one-time auth code, which we exchange for the day's token.
+
+The OAuth `state` (proof that the flow started from this app) is stored in
+the database with a 15-minute lifetime, so a backend restart between the two
+steps doesn't break the login. The callback never shows a bare error page: it
+always returns to the app with ?fyers=ok or ?fyers=error&reason=..., and a
+reload of the callback after a successful login simply reports success.
+"""
+
+import logging
 import secrets
+from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
 from app.config import get_settings
+from app.db import get_conn
 from app.deps import get_fyers
 from app.providers.base import ProviderError
 from app.providers.fyers import FyersProvider
 from app.services import tokens
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# OAuth state values issued by /login, checked once in /callback.
-_pending_states: set[str] = set()
+STATE_MINUTES = 15
 
 
 @router.get("/status")
@@ -30,9 +44,17 @@ def status(fyers: FyersProvider = Depends(get_fyers)):
 def fyers_login(fyers: FyersProvider = Depends(get_fyers)):
     if not fyers.configured:
         raise HTTPException(400, "Set FYERS_APP_ID and FYERS_SECRET_KEY in backend/.env")
+    con = get_conn()
+    now = datetime.now()
+    con.execute("DELETE FROM oauth_states WHERE created < ?", [now - timedelta(days=1)])
     state = secrets.token_urlsafe(16)
-    _pending_states.add(state)
+    con.execute("INSERT INTO oauth_states VALUES (?, ?, false)", [state, now])
     return RedirectResponse(fyers.login_url(state))
+
+
+def _back(result: str, reason: str = "") -> RedirectResponse:
+    params = {"fyers": result, **({"reason": reason} if reason else {})}
+    return RedirectResponse(f"{get_settings().frontend_url}/?{urlencode(params)}")
 
 
 @router.get("/fyers/callback")
@@ -40,23 +62,35 @@ async def fyers_callback(
     auth_code: str | None = None,
     state: str | None = None,
     s: str | None = None,
+    message: str | None = None,
     fyers: FyersProvider = Depends(get_fyers),
 ):
-    frontend = get_settings().frontend_url
-    if state not in _pending_states:
-        raise HTTPException(400, "Unknown login state; start again from the app")
-    _pending_states.discard(state)
+    con = get_conn()
+    row = con.execute("SELECT created, used FROM oauth_states WHERE state = ?", [state or ""]).fetchone()
+    fresh = row is not None and row[0] > datetime.now() - timedelta(minutes=STATE_MINUTES)
+
+    if row is None or not fresh or row[1]:
+        # Reloaded / revisited callback, or a link older than 15 minutes.
+        if fyers.is_authenticated():
+            return _back("ok")
+        log.info("Fyers callback with unknown, used or expired state")
+        return _back("error", "That Fyers login link has expired. Click Connect Fyers to start again.")
+
+    con.execute("UPDATE oauth_states SET used = true WHERE state = ?", [state])
     if s != "ok" or not auth_code:
-        return RedirectResponse(f"{frontend}/?login=failed")
+        log.warning("Fyers login not completed: s=%s message=%s", s, message)
+        return _back("error", message or "Fyers login was cancelled or didn't complete.")
     try:
         await fyers.exchange_auth_code(auth_code)
-    except ProviderError:
-        return RedirectResponse(f"{frontend}/?login=failed")
+    except ProviderError as e:
+        log.warning("Fyers token exchange failed: %s", e)
+        return _back("error", str(e))
+    log.info("Fyers connected")
     if get_settings().alerts_enabled:
         from app.api.alerts import get_engine
 
         await get_engine().refresh()
-    return RedirectResponse(f"{frontend}/?login=ok")
+    return _back("ok")
 
 
 @router.post("/fyers/logout")

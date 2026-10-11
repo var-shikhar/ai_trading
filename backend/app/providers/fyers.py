@@ -100,9 +100,13 @@ class FyersProvider(MarketDataProvider):
             f"{API}/validate-authcode",
             json={"grant_type": "authorization_code", "appIdHash": app_hash, "code": auth_code},
         )
-        body = resp.json()
+        try:
+            body = resp.json()
+        except ValueError:
+            raise ProviderError(f"Fyers login failed (HTTP {resp.status_code})") from None
         if body.get("s") != "ok" or "access_token" not in body:
-            raise ProviderError(f"Fyers login failed: {body.get('message', body)}")
+            # e.g. "invalid auth code" (expired/used) or a wrong app secret.
+            raise ProviderError(f"Fyers login failed: {body.get('message') or body.get('code') or body}")
         # Access tokens are valid until the end of the day they were issued.
         expires = datetime.combine(now_ist().date() + timedelta(days=1), time.min)
         tokens.save_token(self.name, body["access_token"], expires)

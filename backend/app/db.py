@@ -130,6 +130,12 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires    TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS oauth_states (
+    state   VARCHAR PRIMARY KEY,   -- one-time value sent to Fyers with /login
+    created TIMESTAMP NOT NULL,
+    used    BOOLEAN   NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS tokens (
     provider     VARCHAR PRIMARY KEY,
     access_token VARCHAR   NOT NULL,
