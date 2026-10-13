@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { api, type AuthStatus, type InstrumentHit, type InstrumentKind, type UserInfo } from '../api/client'
 import { PasswordDialog, UsersDialog } from '../auth/UsersDialog'
+import { ProfileDialog } from '../auth/ProfileDialog'
 import type { ChartType } from '../chart/PriceChart'
 import type { ThemeMode } from '../chart/theme'
 import { Dropdown } from './Dropdown'
@@ -77,7 +78,7 @@ interface Props {
 
 export function TopBar(p: Props) {
   const [searchOpen, setSearchOpen] = useState(false)
-  const [accountDialog, setAccountDialog] = useState<'users' | 'password' | null>(null)
+  const [accountDialog, setAccountDialog] = useState<'users' | 'password' | 'profile' | null>(null)
   const fyers = p.auth?.fyers
   const allTfs = TIMEFRAME_GROUPS.flatMap((g) => g.items)
   const favoriteTfs = allTfs.filter((i) => p.favorites.includes(i.tf))
@@ -238,7 +239,17 @@ export function TopBar(p: Props) {
 
       <span className="spacer" />
       {p.error && <span className="status err">Backend unreachable</span>}
-      {fyers &&
+      {fyers && p.user.role !== 'admin' &&
+        (fyers.authenticated ? (
+          <span className="status ok" title="Market data connected">
+            ● Live data
+          </span>
+        ) : (
+          <span className="status err" title="The shared Fyers connection is off. An admin needs to connect it.">
+            ● Data paused
+          </span>
+        ))}
+      {fyers && p.user.role === 'admin' &&
         (fyers.authenticated ? (
           <Dropdown align="right" title="Fyers session (valid until end of day)" label={<span className="status ok">● Fyers</span>}>
             {(close) => (
@@ -331,6 +342,17 @@ export function TopBar(p: Props) {
                 className="menu-main"
                 onClick={() => {
                   close()
+                  setAccountDialog('profile')
+                }}
+              >
+                Profile, notifications &amp; API keys
+              </button>
+            </div>
+            <div className="menu-item">
+              <button
+                className="menu-main"
+                onClick={() => {
+                  close()
                   setAccountDialog('password')
                 }}
               >
@@ -354,6 +376,7 @@ export function TopBar(p: Props) {
 
       {accountDialog === 'users' && <UsersDialog me={p.user} onClose={() => setAccountDialog(null)} />}
       {accountDialog === 'password' && <PasswordDialog onClose={() => setAccountDialog(null)} />}
+      {accountDialog === 'profile' && <ProfileDialog me={p.user} onClose={() => setAccountDialog(null)} />}
 
       {searchOpen && (
         <SymbolDialog

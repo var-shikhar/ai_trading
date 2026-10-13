@@ -11,18 +11,21 @@ Alerts need market data, so they pause when the Fyers login has expired.
 """
 
 import asyncio
-import json
 import logging
 import time
 import uuid
 from datetime import datetime
 
 import pandas as pd
+import sqlalchemy as sa
 
 from app.alerts import notify
 from app.alerts.evaluate import PriceRule, check_price, last_closed_bar, line_level, should_fire
 from app.analysis import scanner
-from app.db import get_conn
+from app import store
+from app.store import alert_events as events_t
+from app.store import alerts as alerts_t
+from app.store import signals as signals_t
 from app.providers.base import AuthRequired
 from app.services import universes
 
@@ -37,66 +40,77 @@ def now_ist() -> int:
     return int(time.time()) + IST_OFFSET
 
 
-# --- storage ----------------------------------------------------------------------------
+# --- storage (all alerts are kept in memory; the database is written on change) ---------
+
+_cache: list[dict] | None = None
 
 
-def _row(r) -> dict:
-    keys = ["id", "kind", "symbol", "ticker", "name", "config", "tf", "frequency", "channels", "message",
-            "status", "expires", "created", "last_fired", "fire_count", "state"]
-    d = dict(zip(keys, r))
-    d["config"] = json.loads(d["config"])
-    d["channels"] = json.loads(d["channels"])
-    d["state"] = json.loads(d["state"] or "{}")
-    d["expires"] = d["expires"].isoformat() if d["expires"] else None
+def _public(r: dict) -> dict:
+    d = dict(r)
+    d["state"] = d.get("state") or {}
+    d["expires"] = d["expires"].isoformat() if d.get("expires") else None
     d["created"] = d["created"].isoformat(timespec="seconds")
     return d
 
 
-SELECT = ("SELECT id, kind, symbol, ticker, name, config, tf, frequency, channels, message, status, expires, "
-          "created, last_fired, fire_count, state FROM alerts")
+def _all() -> list[dict]:
+    global _cache
+    if _cache is None:
+        _cache = [_public(r) for r in store.rows(sa.select(alerts_t).order_by(alerts_t.c.created.desc()))]
+    return _cache
 
 
-def list_alerts() -> list[dict]:
-    return [_row(r) for r in get_conn().execute(SELECT + " ORDER BY created DESC").fetchall()]
+def invalidate() -> None:
+    global _cache
+    _cache = None
 
 
-def get_alert(alert_id: str) -> dict | None:
-    r = get_conn().execute(SELECT + " WHERE id = ?", [alert_id]).fetchone()
-    return _row(r) if r else None
+def list_alerts(owner: str | None = None) -> list[dict]:
+    """Alerts of one user, or every user's (engine)."""
+    return [a for a in _all() if owner is None or a["owner"] == owner]
 
 
-def save_alert(a: dict) -> dict:
-    con = get_conn()
+def get_alert(alert_id: str, owner: str | None = None) -> dict | None:
+    return next((a for a in _all() if a["id"] == alert_id and (owner is None or a["owner"] == owner)), None)
+
+
+def save_alert(a: dict, owner: str) -> dict:
     aid = a.get("id") or uuid.uuid4().hex[:12]
     existing = get_alert(aid)
-    con.execute(
-        "INSERT OR REPLACE INTO alerts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-            aid, a["kind"], a.get("symbol"), a.get("ticker"), a.get("name", ""), json.dumps(a.get("config", {})),
-            a.get("tf"), a.get("frequency", "once"), json.dumps(a.get("channels", ["app"])), a.get("message", ""),
-            a.get("status", "active"), a.get("expires"),
-            datetime.fromisoformat(existing["created"]) if existing else datetime.now(),
-            existing["last_fired"] if existing and a.get("status") != "active" else None,
-            existing["fire_count"] if existing else 0,
-            json.dumps({} if a.get("reset_state", True) else (existing or {}).get("state", {})),
-        ],
+    if existing and existing["owner"] != owner:
+        raise PermissionError("Not your alert")
+    expires = datetime.fromisoformat(a["expires"]) if a.get("expires") else None
+    values = dict(
+        id=aid, owner=owner, kind=a["kind"], symbol=a.get("symbol"), ticker=a.get("ticker"), name=a.get("name", ""),
+        config=a.get("config", {}), tf=a.get("tf"), frequency=a.get("frequency", "once"),
+        channels=a.get("channels", ["app"]), message=a.get("message", ""), status=a.get("status", "active"),
+        expires=expires,
+        created=datetime.fromisoformat(existing["created"]) if existing else datetime.now(),
+        last_fired=existing["last_fired"] if existing and a.get("status") != "active" else None,
+        fire_count=existing["fire_count"] if existing else 0,
+        state={} if a.get("reset_state", True) else (existing or {}).get("state", {}),
     )
+    with store.tx() as c:
+        c.execute(sa.delete(alerts_t).where(alerts_t.c.id == aid))
+        c.execute(sa.insert(alerts_t).values(**values))
+    invalidate()
     return get_alert(aid)
 
 
-def delete_alert(alert_id: str) -> None:
-    get_conn().execute("DELETE FROM alerts WHERE id = ?", [alert_id])
+def delete_alert(alert_id: str, owner: str) -> None:
+    with store.tx() as c:
+        c.execute(sa.delete(alerts_t).where(alerts_t.c.id == alert_id, alerts_t.c.owner == owner))
+    invalidate()
 
 
-def list_events(limit: int = 200) -> list[dict]:
-    rows = get_conn().execute(
-        "SELECT id, alert_id, time, symbol, title, body, delivered FROM alert_events ORDER BY time DESC LIMIT ?",
-        [limit],
-    ).fetchall()
-    return [
-        {"id": i, "alert_id": a, "time": t, "symbol": s, "title": ti, "body": b, "delivered": json.loads(d)}
-        for i, a, t, s, ti, b, d in rows
-    ]
+def _write(alert_id: str, **values) -> None:
+    with store.tx() as c:
+        c.execute(sa.update(alerts_t).where(alerts_t.c.id == alert_id).values(**values))
+
+
+def list_events(owner: str, limit: int = 200) -> list[dict]:
+    q = (sa.select(events_t).where(events_t.c.owner == owner).order_by(events_t.c.time.desc()).limit(limit))
+    return store.rows(q)
 
 
 # --- engine -------------------------------------------------------------------------------
@@ -140,25 +154,39 @@ class AlertEngine:
         await self.hub.set_symbols(self._client(), symbols)
 
     # firing
-    async def fire(self, alert: dict, title: str, body: str, bar_time: int | None = None) -> None:
+    async def fire(self, alert: dict, title: str, body: str, bar_time: int | None = None,
+                   signal_symbols: list[str] | None = None) -> None:
         now = now_ist()
         if not should_fire(alert["frequency"], alert["last_fired"], now, bar_time, alert["state"].get("last_bar")):
             return
+        owner = alert["owner"]
         event = {"type": "alert", "alert_id": alert["id"], "symbol": alert.get("symbol"), "title": title,
                  "body": body, "time": now}
-        delivered = await notify.deliver(alert["channels"], title, body, lambda: self.hub.broadcast(event))
-        con = get_conn()
+        delivered = await notify.deliver(
+            alert["channels"], title, body, lambda: self.hub.broadcast(event, user=owner), owner=owner
+        )
         state = {**alert["state"], "last_bar": bar_time}
         status = "triggered" if alert["frequency"] == "once" else alert["status"]
-        con.execute(
-            "UPDATE alerts SET last_fired = ?, fire_count = fire_count + 1, status = ?, state = ? WHERE id = ?",
-            [now, status, json.dumps(state), alert["id"]],
-        )
-        con.execute(
-            "INSERT INTO alert_events VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [uuid.uuid4().hex[:12], alert["id"], now, alert.get("symbol"), title, body, json.dumps(delivered)],
-        )
-        alert.update(last_fired=now, status=status, state=state)
+        with store.tx() as c:
+            c.execute(
+                sa.update(alerts_t).where(alerts_t.c.id == alert["id"]).values(
+                    last_fired=now, fire_count=alerts_t.c.fire_count + 1, status=status, state=state
+                )
+            )
+            c.execute(sa.insert(events_t).values(
+                id=uuid.uuid4().hex[:12], owner=owner, alert_id=alert["id"], time=now, symbol=alert.get("symbol"),
+                title=title, body=body, delivered=delivered,
+            ))
+            # Condition and scan alerts are trading signals: record them for review/agents.
+            if alert["kind"] in ("condition", "scan") and signal_symbols:
+                for sym in signal_symbols:
+                    c.execute(sa.insert(signals_t).values(
+                        id=uuid.uuid4().hex[:12], owner=owner, source="alert", symbol=sym, tf=alert.get("tf") or "1D",
+                        bar_time=bar_time, direction=alert["config"].get("direction", "watch"), reason=body[:2000],
+                        payload={"alert_id": alert["id"], "alert_name": alert.get("name")}, status="new",
+                        created=datetime.now(),
+                    ))
+        alert.update(last_fired=now, status=status, state=state, fire_count=alert["fire_count"] + 1)
         if status != "active":
             await self.refresh()
 
@@ -207,7 +235,7 @@ class AlertEngine:
 
     def _expired(self, a: dict) -> bool:
         if a["expires"] and datetime.fromisoformat(a["expires"]) < datetime.now():
-            get_conn().execute("UPDATE alerts SET status = 'expired' WHERE id = ?", [a["id"]])
+            _write(a["id"], status="expired")
             a["status"] = "expired"
             return True
         return False
@@ -233,14 +261,15 @@ class AlertEngine:
             df = pd.DataFrame(rows, columns=COLUMNS)
             df = df[df["time"] <= closed].reset_index(drop=True)
             state = {**a["state"], "checked_bar": closed}
-            get_conn().execute("UPDATE alerts SET state = ? WHERE id = ?", [json.dumps(state), a["id"]])
+            _write(a["id"], state=state)
             a["state"] = state
             if len(df) < 30 or int(df["time"].iloc[-1]) != closed:
                 continue  # no bar for this period (holiday) or not enough data
             matched, details = scanner.evaluate(df, a["config"]["conditions"])
             if matched:
                 body = "; ".join(details) + (f". {a['message']}" if a["message"] else "")
-                await self.fire(a, f"{a['ticker']} {a['tf']}: conditions met", body, bar_time=closed)
+                await self.fire(a, f"{a['ticker']} {a['tf']}: conditions met", body, bar_time=closed,
+                                signal_symbols=[a["symbol"]])
 
     async def check_scans(self, now: int | None = None) -> None:
         now = now or now_ist()
@@ -259,8 +288,9 @@ class AlertEngine:
 
     async def run_scan_alert(self, a: dict, today: str) -> None:
         cfg = a["config"]
-        members = await universes.members(cfg["universe"], cfg.get("custom", []))
+        members = await universes.members(cfg["universe"], cfg.get("custom", []), owner=a["owner"])
         matches: dict[str, list[str]] = {}
+        symbols_by_ticker: dict[str, str] = {}
         for inst in members:
             try:
                 rows = await self.service.get_candles(inst["symbol"], "1D", 400)
@@ -274,15 +304,17 @@ class AlertEngine:
             ok, details = scanner.evaluate(df, cfg["conditions"])
             if ok:
                 matches[inst["ticker"]] = details
+                symbols_by_ticker[inst["ticker"]] = inst["symbol"]
         previous = set(a["state"].get("matches", []))
         new = sorted(set(matches) - previous)
         state = {**a["state"], "ran_on": today, "matches": sorted(matches)}
-        get_conn().execute("UPDATE alerts SET state = ? WHERE id = ?", [json.dumps(state), a["id"]])
+        _write(a["id"], state=state)
         a["state"] = state
         if new:
             lines = [f"{t}: {'; '.join(matches[t])}" for t in new[:30]]
             more = f"\n…and {len(new) - 30} more" if len(new) > 30 else ""
-            await self.fire(a, f"Scan '{a['name'] or cfg['universe']}': {len(new)} new", "\n".join(lines) + more)
+            await self.fire(a, f"Scan '{a['name'] or cfg['universe']}': {len(new)} new", "\n".join(lines) + more,
+                            signal_symbols=[symbols_by_ticker[t] for t in new])
 
 
 def describe_price(a: dict, level: float | None) -> str:

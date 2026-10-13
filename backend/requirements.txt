@@ -5,6 +5,9 @@ duckdb==1.5.6
 pandas==3.0.6
 httpx==0.28.1
 ta-lib==0.8.1
+# App database (users and their data): Postgres via SQLAlchemy Core
+sqlalchemy==2.1.4
+psycopg[binary]==3.3.6
 # Live prices use the Fyers SDK's socket client. Install the SDK itself with
 #   pip install --no-deps fyers-apiv3==3.1.19
 # (its pinned dependencies don't build on Python 3.13); these cover it:

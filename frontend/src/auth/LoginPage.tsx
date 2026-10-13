@@ -54,7 +54,7 @@ export function LoginPage({ onSignedIn }: { onSignedIn: (username: string) => vo
         <button className="primary-button" type="submit" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
-        <p className="note">Accounts are created by the owner. There is no public sign-up.</p>
+        <p className="note">Invite only: to join, ask the admin for an invite link.</p>
       </form>
     </div>
   )

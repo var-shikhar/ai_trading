@@ -1,6 +1,6 @@
-"""Account management from the command line (stop the server first: the
-database can only be opened by one process). Day to day, admins manage
-users in the app (account menu -> Manage users).
+"""Account management from the command line (works while the server runs).
+Day to day, admins manage users and invites in the app (account menu ->
+Manage users).
 
     python -m app.cli create-user <username> [--user] [--email you@example.com]
         Creates an admin unless --user is given.

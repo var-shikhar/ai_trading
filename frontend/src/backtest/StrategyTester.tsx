@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, type InstrumentHit } from '../api/client'
+import { api, type InstrumentHit, type Strategy } from '../api/client'
 import type { ChartTheme } from '../chart/theme'
 import { formatBarTime } from '../chart/format'
 import { usePref } from '../prefs'
@@ -250,6 +250,7 @@ function Setup({
 
   return (
     <div className="tester-setup">
+      <StrategyBar req={req} set={set} />
       <div className="tester-section">
         <h3>Market</h3>
         <div className="form-row">
@@ -582,5 +583,81 @@ function History({
         ))}
       </tbody>
     </table>
+  )
+}
+
+// --- saved strategies ------------------------------------------------------------------------
+
+// The rule part of a setup: what a strategy is, independent of which symbols
+// or dates it's tested on (an agent can later create or tune these).
+const RULE_KEYS = [
+  'tf', 'side', 'entry', 'exit_conditions', 'stop_type', 'stop_value', 'target_type', 'target_value',
+  'trail_type', 'trail_value', 'max_bars', 'sizing', 'size_value', 'max_positions', 'cost_pct', 'slippage_pct',
+] as const
+
+function StrategyBar({ req, set }: { req: BacktestRequest; set: (p: Partial<BacktestRequest>) => void }) {
+  const [list, setList] = useState<Strategy[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
+  const reload = () => api.strategies().then(setList, () => {})
+  useEffect(() => {
+    reload()
+  }, [])
+  const current = list.find((s) => s.id === req.strategy_id) ?? null
+
+  const save = async (asNew: boolean) => {
+    const name = asNew || !current ? window.prompt('Strategy name', req.name)?.trim() : current.name
+    if (!name) return
+    const definition = Object.fromEntries(RULE_KEYS.map((k) => [k, req[k]]))
+    const saved = await api.saveStrategy({ id: asNew ? undefined : current?.id, name, definition })
+    set({ strategy_id: saved.id, name })
+    setNotice(`Saved “${saved.name}”`)
+    reload()
+  }
+
+  return (
+    <div className="tester-section strategy-bar">
+      <h3>Strategy</h3>
+      <div className="inline-fields">
+        <select
+          value={req.strategy_id ?? ''}
+          aria-label="Saved strategy"
+          onChange={(e) => {
+            const s = list.find((x) => x.id === e.target.value)
+            if (!s) return set({ strategy_id: null })
+            set({ ...(s.definition as Partial<BacktestRequest>), strategy_id: s.id, name: s.name })
+          }}
+        >
+          <option value="">Unsaved setup</option>
+          {list.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        {current && (
+          <button className="secondary-button" onClick={() => save(false)}>
+            Save
+          </button>
+        )}
+        <button className="secondary-button" onClick={() => save(true)}>
+          Save as new
+        </button>
+        {current && (
+          <button
+            className="link-button danger"
+            onClick={async () => {
+              if (!window.confirm(`Delete strategy “${current.name}”?`)) return
+              await api.deleteStrategy(current.id)
+              set({ strategy_id: null })
+              reload()
+            }}
+          >
+            Delete
+          </button>
+        )}
+        {notice && <span className="status ok small">{notice}</span>}
+      </div>
+      <p className="note">A strategy saves the rules (entry, exits, sizing). Backtests run with it are linked to it.</p>
+    </div>
   )
 }

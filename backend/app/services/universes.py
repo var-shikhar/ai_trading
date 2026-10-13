@@ -1,4 +1,4 @@
-"""Symbol lists to scan: NSE index constituents (from niftyindices.com,
+﻿"""Symbol lists to scan: NSE index constituents (from niftyindices.com,
 cached daily), F&O stocks, MCX commodities, or a custom ticker list."""
 
 import csv
@@ -8,6 +8,7 @@ from datetime import date
 
 import httpx
 import pandas as pd
+import sqlalchemy as sa
 
 from app.db import get_conn
 
@@ -26,8 +27,14 @@ INDEX_LISTS = {
 OTHER_LISTS = {"fno": "F&O stocks", "mcx": "MCX commodities (continuous)"}
 
 
-def catalog() -> list[dict]:
-    watchlists = get_conn().execute("SELECT id, name FROM watchlists ORDER BY position, name").fetchall()
+def catalog(owner: str | None = None) -> list[dict]:
+    from app import store
+    from app.store import watchlists as wl
+
+    watchlists = [] if owner is None else [
+        (r["id"], r["name"])
+        for r in store.rows(sa.select(wl.c.id, wl.c.name).where(wl.c.owner == owner).order_by(wl.c.position, wl.c.name))
+    ]
     return (
         [{"id": k, "name": v[0]} for k, v in INDEX_LISTS.items()]
         + [{"id": k, "name": v} for k, v in OTHER_LISTS.items()]
@@ -51,7 +58,9 @@ async def _download_index(universe: str, client: httpx.AsyncClient | None = None
     return [(r["Symbol"].strip(), r.get("Industry", "").strip()) for r in rows if r.get("Symbol")]
 
 
-async def members(universe: str, custom: list[str] | None = None, client: httpx.AsyncClient | None = None) -> list[dict]:
+async def members(
+    universe: str, custom: list[str] | None = None, client: httpx.AsyncClient | None = None, owner: str | None = None
+) -> list[dict]:
     """Instruments in a universe: symbol, ticker, name, industry."""
     con = get_conn()
     if universe in INDEX_LISTS:
@@ -87,14 +96,15 @@ async def members(universe: str, custom: list[str] | None = None, client: httpx.
             "SELECT symbol, ticker, name FROM instruments WHERE exchange = 'MCX' AND actual IS NOT NULL"
         ).fetchall()
     elif universe.startswith("watchlist:"):
-        row = con.execute("SELECT items FROM watchlists WHERE id = ?", [universe.split(":", 1)[1]]).fetchone()
+        from app import store
+        from app.store import watchlists as wl
+
+        row = store.row(sa.select(wl.c["items"]).where(wl.c.id == universe.split(":", 1)[1], wl.c.owner == (owner or "")))
         if row is None:
             raise KeyError(universe)
-        import json
-
         return [
             {"symbol": i["symbol"], "ticker": i["ticker"], "name": i.get("name", ""), "industry": ""}
-            for i in json.loads(row[0])
+            for i in row["items"]
         ]
     elif universe == "custom":
         tickers = [t.strip().upper() for t in (custom or []) if t.strip()]

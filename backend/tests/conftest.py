@@ -11,14 +11,28 @@ from app.providers.base import Candle, Instrument, MarketDataProvider, Tick
 @pytest.fixture(autouse=True)
 def temp_db(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "test.duckdb"))
+    # Never the real app database (Neon) from .env: a throwaway SQLite file.
+    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "app.sqlite"))
     # Feature tests call the API directly; test_session.py turns login back on.
     monkeypatch.setenv("AUTH_REQUIRED", "false")
     monkeypatch.setenv("ALERTS_ENABLED", "false")
-    get_settings.cache_clear()
-    db.close_conn()
+    _reset_app_state()
     yield
-    db.close_conn()
+    _reset_app_state()
+
+
+def _reset_app_state():
+    from app import store
+    from app.alerts import engine as alert_engine
+    from app.services import accounts, tokens
+
     get_settings.cache_clear()
+    db.close_conn()
+    store.dispose()
+    tokens._cache.clear()
+    accounts.reset_throttle()
+    alert_engine.invalidate()
 
 
 @pytest.fixture

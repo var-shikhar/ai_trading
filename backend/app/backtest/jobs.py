@@ -12,7 +12,10 @@ from datetime import date, datetime
 import pandas as pd
 
 from app.backtest import engine, metrics
-from app.db import get_conn
+import sqlalchemy as sa
+
+from app import store
+from app.store import backtests as backtests_t
 from app.providers.base import AuthRequired
 from app.services.candles import CandleService
 
@@ -28,6 +31,7 @@ _jobs: dict[str, "Job"] = {}
 @dataclass
 class Job:
     id: str
+    owner: str
     request: dict
     total: int
     status: str = "loading"  # loading | simulating | done | error | cancelled
@@ -51,12 +55,13 @@ class Job:
         }
 
 
-def get(job_id: str) -> Job | None:
-    return _jobs.get(job_id)
-
-
-def cancel(job_id: str) -> bool:
+def get(job_id: str, owner: str) -> Job | None:
     j = _jobs.get(job_id)
+    return j if j and j.owner == owner else None
+
+
+def cancel(job_id: str, owner: str) -> bool:
+    j = get(job_id, owner)
     if j and j.task and j.status in ("loading", "simulating"):
         j.task.cancel()
         return True
@@ -69,8 +74,8 @@ def bars_needed(start: date, tf: str) -> int:
     return int((trading if tf == "1D" else trading / 5) * 1.05) + WARMUP_BARS
 
 
-def start(service: CandleService, request: dict, symbols: list[dict], rules: engine.Rules) -> Job:
-    job = Job(uuid.uuid4().hex[:12], request, len(symbols))
+def start(service: CandleService, request: dict, symbols: list[dict], rules: engine.Rules, owner: str) -> Job:
+    job = Job(uuid.uuid4().hex[:12], owner, request, len(symbols))
     _jobs[job.id] = job
     job.task = asyncio.create_task(_run(job, service, symbols, rules))
     return job
@@ -143,11 +148,11 @@ async def _run(job: Job, service: CandleService, symbols: list[dict], rules: eng
             "skipped": job.errors[-50:],
             "symbols_tested": len(data),
         }
-        get_conn().execute(
-            "INSERT INTO backtests VALUES (?, ?, ?, ?, ?, ?)",
-            [result_id, req.get("name") or "Backtest", datetime.now(), json.dumps(req), json.dumps(summary),
-             json.dumps(payload)],
-        )
+        with store.tx() as c:
+            c.execute(sa.insert(backtests_t).values(
+                id=result_id, owner=job.owner, strategy_id=req.get("strategy_id"), name=req.get("name") or "Backtest",
+                created=datetime.now(), request=_jsonable(req), summary=_jsonable(summary), result=_jsonable(payload),
+            ))
         job.result_id = result_id
         job.status = "done"
     except AuthRequired:
@@ -159,20 +164,23 @@ async def _run(job: Job, service: CandleService, symbols: list[dict], rules: eng
         job.status, job.message = "error", str(e)
 
 
-def list_results() -> list[dict]:
-    rows = get_conn().execute(
-        "SELECT id, name, created, request, summary FROM backtests ORDER BY created DESC LIMIT 100"
-    ).fetchall()
-    return [
-        {"id": i, "name": n, "created": c.isoformat(timespec="seconds"), "request": json.loads(r), "summary": json.loads(s)}
-        for i, n, c, r, s in rows
-    ]
+def _jsonable(x):
+    """JSON round-trip: numpy numbers etc. become plain types for the JSON column."""
+    return json.loads(json.dumps(x, default=float))
 
 
-def load_result(result_id: str) -> dict | None:
-    row = get_conn().execute("SELECT result FROM backtests WHERE id = ?", [result_id]).fetchone()
-    return json.loads(row[0]) if row else None
+def list_results(owner: str) -> list[dict]:
+    q = (sa.select(backtests_t.c.id, backtests_t.c.name, backtests_t.c.created, backtests_t.c.request,
+                   backtests_t.c.summary, backtests_t.c.strategy_id)
+         .where(backtests_t.c.owner == owner).order_by(backtests_t.c.created.desc()).limit(100))
+    return [{**r, "created": r["created"].isoformat(timespec="seconds")} for r in store.rows(q)]
 
 
-def delete_result(result_id: str) -> None:
-    get_conn().execute("DELETE FROM backtests WHERE id = ?", [result_id])
+def load_result(result_id: str, owner: str) -> dict | None:
+    r = store.row(sa.select(backtests_t.c.result).where(backtests_t.c.id == result_id, backtests_t.c.owner == owner))
+    return r["result"] if r else None
+
+
+def delete_result(result_id: str, owner: str) -> None:
+    with store.tx() as c:
+        c.execute(sa.delete(backtests_t).where(backtests_t.c.id == result_id, backtests_t.c.owner == owner))

@@ -1,16 +1,16 @@
 """Live data: quotes snapshot, watchlists, and the /api/live tick stream."""
 
 import asyncio
-import json
 import uuid
-from datetime import datetime
 from functools import lru_cache
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from app.db import get_conn
-from app.deps import get_candle_service, get_fyers
+from app import store
+from app.deps import LOCAL_USER, current_user, get_candle_service, get_fyers
+from app.store import watchlists
 from app.providers.base import AuthRequired, ProviderError
 from app.providers.fyers import FyersProvider
 from app.services.live import LiveHub
@@ -58,44 +58,52 @@ class WatchlistIn(BaseModel):
     items: list[WatchItem] | None = Field(None, max_length=500)
 
 
-def _row(r) -> dict:
-    return {"id": r[0], "name": r[1], "items": json.loads(r[2]), "position": r[3]}
+def _wl(r: dict) -> dict:
+    return {"id": r["id"], "name": r["name"], "items": r["items"], "position": r["position"]}
 
 
 @router.get("/watchlists")
-def list_watchlists():
-    rows = get_conn().execute("SELECT id, name, items, position FROM watchlists ORDER BY position, name").fetchall()
-    return [_row(r) for r in rows]
+def list_watchlists(user: str = Depends(current_user)):
+    q = sa.select(watchlists).where(watchlists.c.owner == user).order_by(watchlists.c.position, watchlists.c.name)
+    return [_wl(r) for r in store.rows(q)]
 
 
 @router.post("/watchlists")
-def create_watchlist(body: WatchlistIn):
-    con = get_conn()
-    position = con.execute("SELECT coalesce(max(position), -1) + 1 FROM watchlists").fetchone()[0]
+def create_watchlist(body: WatchlistIn, user: str = Depends(current_user)):
     wid = uuid.uuid4().hex[:10]
     items = [i.model_dump() for i in body.items or []]
-    con.execute(
-        "INSERT INTO watchlists VALUES (?, ?, ?, ?, ?)",
-        [wid, (body.name or "Watchlist").strip() or "Watchlist", json.dumps(items), position, datetime.now()],
-    )
-    return _row((wid, body.name or "Watchlist", json.dumps(items), position))
+    name = (body.name or "Watchlist").strip() or "Watchlist"
+    with store.tx() as c:
+        position = c.execute(
+            sa.select(sa.func.coalesce(sa.func.max(watchlists.c.position), -1) + 1).where(watchlists.c.owner == user)
+        ).scalar()
+        c.execute(sa.insert(watchlists).values(id=wid, owner=user, name=name, items=items, position=position,
+                                               updated=store.now()))
+    return {"id": wid, "name": name, "items": items, "position": position}
+
+
+def _own_watchlist(c, wid: str, user: str) -> dict:
+    r = c.execute(sa.select(watchlists).where(watchlists.c.id == wid, watchlists.c.owner == user)).first()
+    if not r:
+        raise HTTPException(404, "Watchlist not found")
+    return dict(r._mapping)
 
 
 @router.put("/watchlists/{wid}")
-def update_watchlist(wid: str, body: WatchlistIn):
-    con = get_conn()
-    row = con.execute("SELECT id, name, items, position FROM watchlists WHERE id = ?", [wid]).fetchone()
-    if not row:
-        raise HTTPException(404, "Watchlist not found")
-    name = body.name.strip() if body.name and body.name.strip() else row[1]
-    items = json.dumps([i.model_dump() for i in body.items]) if body.items is not None else row[2]
-    con.execute("UPDATE watchlists SET name = ?, items = ?, updated = ? WHERE id = ?", [name, items, datetime.now(), wid])
-    return _row((wid, name, items, row[3]))
+def update_watchlist(wid: str, body: WatchlistIn, user: str = Depends(current_user)):
+    with store.tx() as c:
+        r = _own_watchlist(c, wid, user)
+        name = body.name.strip() if body.name and body.name.strip() else r["name"]
+        items = [i.model_dump() for i in body.items] if body.items is not None else r["items"]
+        c.execute(sa.update(watchlists).where(watchlists.c.id == wid).values(name=name, items=items,
+                                                                            updated=store.now()))
+    return {"id": wid, "name": name, "items": items, "position": r["position"]}
 
 
 @router.delete("/watchlists/{wid}")
-def delete_watchlist(wid: str):
-    get_conn().execute("DELETE FROM watchlists WHERE id = ?", [wid])
+def delete_watchlist(wid: str, user: str = Depends(current_user)):
+    with store.tx() as c:
+        c.execute(sa.delete(watchlists).where(watchlists.c.id == wid, watchlists.c.owner == user))
     return {"ok": True}
 
 
@@ -110,12 +118,14 @@ async def live(ws: WebSocket):
     from app.services import accounts
 
     # HTTP middleware doesn't run for WebSockets: check the session here.
-    if get_settings().auth_required and not accounts.session_user(ws.cookies.get(accounts.SESSION_COOKIE)):
+    user = accounts.session_user(ws.cookies.get(accounts.SESSION_COOKIE))
+    if not user and get_settings().auth_required:
         await ws.close(code=4401, reason="Not signed in")
         return
     await ws.accept()
     hub = get_hub()
     client = hub.add()
+    client.user = user or LOCAL_USER  # alerts are delivered to their owner only
     await ws.send_json({"type": "status", "status": hub.status, "message": hub.message})
 
     async def pump():

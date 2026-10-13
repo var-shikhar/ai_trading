@@ -1,23 +1,14 @@
-"""User management for admins (there is no public sign-up)."""
+"""Admin: user management and invites (there is no open sign-up)."""
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.services import accounts
+from app.deps import require_admin
+from app.services import accounts, cache
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-
-
-def require_admin(request: Request) -> str:
-    user = getattr(request.state, "user", None)
-    info = accounts.get_user(user) if user else None
-    if not info:
-        raise HTTPException(401, "Not signed in")
-    if info["role"] != "admin":
-        raise HTTPException(403, "Only admins can manage users")
-    return info["username"]
 
 
 class NewUser(BaseModel):
@@ -36,6 +27,13 @@ class UserPatch(BaseModel):
 
 class NewPassword(BaseModel):
     password: str = Field(..., max_length=256)
+
+
+class NewInvite(BaseModel):
+    email: str | None = Field(None, max_length=254)
+    role: Literal["admin", "user"] = "user"
+    days: int = Field(7, ge=1, le=accounts.INVITE_MAX_DAYS)
+    note: str | None = Field(None, max_length=120)
 
 
 def _bad(e: Exception):
@@ -84,3 +82,42 @@ def delete_user(username: str, admin: str = Depends(require_admin)):
     except (ValueError, LookupError) as e:
         raise _bad(e) from e
     return {"ok": True}
+
+
+# --- invites ------------------------------------------------------------------------------------
+
+
+@router.get("/invites")
+def list_invites(_: str = Depends(require_admin)):
+    return accounts.list_invites()
+
+
+@router.post("/invites")
+def create_invite(body: NewInvite, admin: str = Depends(require_admin)):
+    """The response contains the code once; only its hash is stored."""
+    try:
+        return accounts.create_invite(admin, body.email, body.role, body.days, body.note)
+    except ValueError as e:
+        raise _bad(e) from e
+
+
+@router.delete("/invites/{invite_id}")
+def revoke_invite(invite_id: str, _: str = Depends(require_admin)):
+    try:
+        accounts.revoke_invite(invite_id)
+    except LookupError as e:
+        raise _bad(e) from e
+    return {"ok": True}
+
+
+# --- market-data cache -------------------------------------------------------------------------
+
+
+@router.get("/data")
+def data_stats(_: str = Depends(require_admin)):
+    return cache.stats()
+
+
+@router.post("/data/trim")
+def trim_cache(_: str = Depends(require_admin)):
+    return cache.trim()

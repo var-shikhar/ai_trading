@@ -2,6 +2,7 @@ import type { ScanCondition } from '../scanner/types'
 
 export interface BacktestRequest {
   name: string
+  strategy_id?: string | null
   universe: string
   symbol?: string | null
   custom: string[]

@@ -157,6 +157,55 @@ export interface UserInfo {
   created: string
   last_login: string | null
   created_by: string | null
+  telegram_chat_id: string | null
+}
+
+export interface InviteInfo {
+  id: string
+  prefix: string
+  email: string | null
+  role: 'admin' | 'user'
+  note: string | null
+  created_by: string
+  created: string
+  expires: string
+  used_by: string | null
+  used_at: string | null
+  status: 'open' | 'used' | 'expired' | 'revoked'
+}
+
+export interface ApiKeyInfo {
+  id: string
+  prefix: string
+  name: string
+  created: string
+  last_used: string | null
+}
+
+export interface Strategy {
+  id: string
+  owner: string
+  name: string
+  description: string | null
+  definition: Record<string, unknown>
+  created: string
+  updated: string
+}
+
+export interface Signal {
+  id: string
+  strategy_id: string | null
+  source: 'alert' | 'scanner' | 'agent' | 'manual'
+  symbol: string
+  tf: string | null
+  bar_time: number | null
+  direction: 'long' | 'short' | 'exit' | 'watch'
+  price: number | null
+  confidence: number | null
+  reason: string | null
+  payload: Record<string, unknown> | null
+  status: 'new' | 'seen' | 'acted' | 'dismissed'
+  created: string
 }
 
 export interface Health {
@@ -243,6 +292,26 @@ export const api = {
   login: (username: string, password: string) => post<{ username: string }>('/session/login', { username, password }),
   logout: () => post<{ ok: boolean }>('/session/logout', {}),
   me: () => get<UserInfo>('/session/me'),
+  updateMe: (p: { email?: string | null; set_email?: boolean; telegram_chat_id?: string | null; set_telegram?: boolean }) =>
+    post<UserInfo>('/session/me', p, 'PATCH'),
+  checkInvite: (code: string) => get<{ email: string | null; role: string; expires: string }>('/session/invite', { code }),
+  signup: (b: { code: string; username: string; password: string; email: string | null }) =>
+    post<UserInfo>('/session/signup', b),
+  apiKeys: () => get<ApiKeyInfo[]>('/session/api-keys'),
+  createApiKey: (name: string) => post<ApiKeyInfo & { key: string }>('/session/api-keys', { name }),
+  revokeApiKey: (id: string) => post<{ ok: boolean }>(`/session/api-keys/${id}`, {}, 'DELETE'),
+  invites: () => get<InviteInfo[]>('/admin/invites'),
+  createInvite: (b: { email: string | null; role: 'user' | 'admin'; days: number; note: string | null }) =>
+    post<InviteInfo & { code: string }>('/admin/invites', b),
+  revokeInvite: (id: string) => post<{ ok: boolean }>(`/admin/invites/${id}`, {}, 'DELETE'),
+  strategies: () => get<Strategy[]>('/strategies'),
+  saveStrategy: (s: { id?: string; name: string; description?: string | null; definition: Record<string, unknown> }) =>
+    s.id
+      ? post<Strategy>(`/strategies/${s.id}`, { name: s.name, description: s.description, definition: s.definition }, 'PUT')
+      : post<Strategy>('/strategies', s),
+  deleteStrategy: (id: string) => post<{ ok: boolean }>(`/strategies/${id}`, {}, 'DELETE'),
+  signals: (q: { status?: string; source?: string } = {}) => get<Signal[]>('/signals', q),
+  updateSignal: (id: string, status: Signal['status']) => post<{ ok: boolean }>(`/signals/${id}`, { status }, 'PATCH'),
   changePassword: (current: string, next: string) => post<{ ok: boolean }>('/session/password', { current, new: next }),
   users: () => get<UserInfo[]>('/admin/users'),
   createUser: (u: { username: string; password: string; email: string | null; role: 'admin' | 'user' }) =>

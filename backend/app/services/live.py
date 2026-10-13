@@ -26,6 +26,7 @@ class Client:
     queue: asyncio.Queue
     symbols: set[str] = field(default_factory=set)
     internal: bool = False  # e.g. the alert engine; doesn't receive broadcasts
+    user: str | None = None  # signed-in user of a browser tab
 
 
 def tick_from_message(msg: dict) -> dict | None:
@@ -90,10 +91,10 @@ class LiveHub:
         except asyncio.QueueFull:
             pass  # a stalled tab drops ticks rather than growing memory
 
-    def broadcast(self, message: dict) -> None:
-        """Send to every browser tab (e.g. an alert that fired)."""
+    def broadcast(self, message: dict, user: str | None = None) -> None:
+        """Send to browser tabs: all of them, or only `user`'s (e.g. an alert that fired)."""
         for c in self.clients:
-            if not c.internal:
+            if not c.internal and (user is None or c.user == user):
                 self._put(c, message)
 
     def _broadcast_status(self) -> None:

@@ -13,12 +13,14 @@ import secrets
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
+from app import store
 from app.config import get_settings
-from app.db import get_conn
-from app.deps import get_fyers
+from app.deps import get_fyers, require_admin
+from app.store import oauth_states
 from app.providers.base import ProviderError
 from app.providers.fyers import FyersProvider
 from app.services import tokens
@@ -31,6 +33,7 @@ STATE_MINUTES = 15
 
 @router.get("/status")
 def status(fyers: FyersProvider = Depends(get_fyers)):
+    # One shared Fyers connection for the whole app; only admins manage it.
     return {
         "fyers": {
             "configured": fyers.configured,
@@ -41,14 +44,14 @@ def status(fyers: FyersProvider = Depends(get_fyers)):
 
 
 @router.get("/fyers/login")
-def fyers_login(fyers: FyersProvider = Depends(get_fyers)):
+def fyers_login(fyers: FyersProvider = Depends(get_fyers), _: str = Depends(require_admin)):
     if not fyers.configured:
         raise HTTPException(400, "Set FYERS_APP_ID and FYERS_SECRET_KEY in backend/.env")
-    con = get_conn()
     now = datetime.now()
-    con.execute("DELETE FROM oauth_states WHERE created < ?", [now - timedelta(days=1)])
     state = secrets.token_urlsafe(16)
-    con.execute("INSERT INTO oauth_states VALUES (?, ?, false)", [state, now])
+    with store.tx() as c:
+        c.execute(sa.delete(oauth_states).where(oauth_states.c.created < now - timedelta(days=1)))
+        c.execute(sa.insert(oauth_states).values(state=state, created=now, used=False))
     return RedirectResponse(fyers.login_url(state))
 
 
@@ -65,18 +68,18 @@ async def fyers_callback(
     message: str | None = None,
     fyers: FyersProvider = Depends(get_fyers),
 ):
-    con = get_conn()
-    row = con.execute("SELECT created, used FROM oauth_states WHERE state = ?", [state or ""]).fetchone()
-    fresh = row is not None and row[0] > datetime.now() - timedelta(minutes=STATE_MINUTES)
+    row = store.row(sa.select(oauth_states).where(oauth_states.c.state == (state or "")))
+    fresh = row is not None and row["created"] > datetime.now() - timedelta(minutes=STATE_MINUTES)
 
-    if row is None or not fresh or row[1]:
+    if row is None or not fresh or row["used"]:
         # Reloaded / revisited callback, or a link older than 15 minutes.
         if fyers.is_authenticated():
             return _back("ok")
         log.info("Fyers callback with unknown, used or expired state")
         return _back("error", "That Fyers login link has expired. Click Connect Fyers to start again.")
 
-    con.execute("UPDATE oauth_states SET used = true WHERE state = ?", [state])
+    with store.tx() as c:
+        c.execute(sa.update(oauth_states).where(oauth_states.c.state == state).values(used=True))
     if s != "ok" or not auth_code:
         log.warning("Fyers login not completed: s=%s message=%s", s, message)
         return _back("error", message or "Fyers login was cancelled or didn't complete.")
@@ -94,6 +97,6 @@ async def fyers_callback(
 
 
 @router.post("/fyers/logout")
-def fyers_logout():
+def fyers_logout(_: str = Depends(require_admin)):
     tokens.clear_token("fyers")
     return {"ok": True}

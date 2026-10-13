@@ -1,4 +1,8 @@
-"""DuckDB storage.
+"""DuckDB: the market-data cache (candles, coverage, instruments, index lists).
+
+People and their data live in the app database (app.store).
+
+DuckDB storage.
 
 Candles are stored per provider resolution code ('15', 'D', '60', ...).
 '15' and 'D' are the base resolutions other timeframes are resampled from;
@@ -60,87 +64,6 @@ CREATE TABLE IF NOT EXISTS universe_members (
     PRIMARY KEY (universe, ticker)
 );
 
-CREATE TABLE IF NOT EXISTS watchlists (
-    id       VARCHAR PRIMARY KEY,
-    name     VARCHAR   NOT NULL,
-    items    VARCHAR   NOT NULL,     -- JSON list of {symbol, ticker, name, kind, exchange}
-    position INTEGER   NOT NULL,
-    updated  TIMESTAMP NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS drawings (
-    symbol  VARCHAR PRIMARY KEY,
-    data    VARCHAR   NOT NULL,      -- JSON list, format owned by the frontend
-    updated TIMESTAMP NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS backtests (
-    id      VARCHAR PRIMARY KEY,
-    name    VARCHAR   NOT NULL,
-    created TIMESTAMP NOT NULL,
-    request VARCHAR   NOT NULL,      -- JSON strategy definition
-    summary VARCHAR   NOT NULL,      -- JSON headline stats (for the history list)
-    result  VARCHAR   NOT NULL       -- JSON full result (equity, trades, ...)
-);
-
-CREATE TABLE IF NOT EXISTS alerts (
-    id         VARCHAR PRIMARY KEY,
-    kind       VARCHAR   NOT NULL,   -- price | drawing | condition | scan
-    symbol     VARCHAR,
-    ticker     VARCHAR,
-    name       VARCHAR,
-    config     VARCHAR   NOT NULL,   -- JSON rule
-    tf         VARCHAR,
-    frequency  VARCHAR   NOT NULL,   -- once | once_per_bar | every
-    channels   VARCHAR   NOT NULL,   -- JSON list: app, telegram, email
-    message    VARCHAR,
-    status     VARCHAR   NOT NULL,   -- active | paused | triggered | expired
-    expires    TIMESTAMP,
-    created    TIMESTAMP NOT NULL,
-    last_fired BIGINT,               -- IST wall time as epoch
-    fire_count INTEGER   NOT NULL,
-    state      VARCHAR               -- JSON engine bookkeeping
-);
-
-CREATE TABLE IF NOT EXISTS alert_events (
-    id        VARCHAR PRIMARY KEY,
-    alert_id  VARCHAR,
-    time      BIGINT  NOT NULL,
-    symbol    VARCHAR,
-    title     VARCHAR NOT NULL,
-    body      VARCHAR,
-    delivered VARCHAR               -- JSON {channel: ok | error}
-);
-
-CREATE TABLE IF NOT EXISTS users (
-    username      VARCHAR PRIMARY KEY,
-    password_hash VARCHAR   NOT NULL,   -- scrypt$salt$digest
-    created       TIMESTAMP NOT NULL,
-    role          VARCHAR   NOT NULL DEFAULT 'user',  -- admin | user
-    email         VARCHAR,
-    disabled      BOOLEAN   NOT NULL DEFAULT false,
-    last_login    TIMESTAMP,
-    created_by    VARCHAR
-);
-
-CREATE TABLE IF NOT EXISTS sessions (
-    token_hash VARCHAR PRIMARY KEY,     -- sha256 of the cookie value
-    username   VARCHAR   NOT NULL,
-    created    TIMESTAMP NOT NULL,
-    expires    TIMESTAMP NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS oauth_states (
-    state   VARCHAR PRIMARY KEY,   -- one-time value sent to Fyers with /login
-    created TIMESTAMP NOT NULL,
-    used    BOOLEAN   NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS tokens (
-    provider     VARCHAR PRIMARY KEY,
-    access_token VARCHAR   NOT NULL,
-    expires_at   TIMESTAMP NOT NULL  -- IST
-);
 """
 
 _conn: duckdb.DuckDBPyConnection | None = None
@@ -161,7 +84,6 @@ def get_conn() -> duckdb.DuckDBPyConnection:
             )
             _migrate(_conn)
             _conn.execute(SCHEMA)
-            _migrate_users(_conn)
         return _conn.cursor()
 
 
@@ -172,26 +94,6 @@ def _migrate(conn: duckdb.DuckDBPyConnection) -> None:
     ).fetchall()}
     if cols and "actual" not in cols:
         conn.execute("DROP TABLE instruments")
-
-
-def _migrate_users(conn: duckdb.DuckDBPyConnection) -> None:
-    """Add account columns to databases created before admin user
-    management, and make sure someone can manage users: if there is no
-    admin, the oldest account becomes one."""
-    for column, ddl in (
-        ("role", "VARCHAR DEFAULT 'user'"),
-        ("email", "VARCHAR"),
-        ("disabled", "BOOLEAN DEFAULT false"),
-        ("last_login", "TIMESTAMP"),
-        ("created_by", "VARCHAR"),
-    ):
-        conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {column} {ddl}")
-    conn.execute("UPDATE users SET role = 'user' WHERE role IS NULL")
-    conn.execute("UPDATE users SET disabled = false WHERE disabled IS NULL")
-    if not conn.execute("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").fetchone():
-        conn.execute(
-            "UPDATE users SET role = 'admin' WHERE username = (SELECT username FROM users ORDER BY created LIMIT 1)"
-        )
 
 
 def close_conn() -> None:

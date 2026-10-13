@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from app.backtest import engine, jobs, signals
-from app.deps import get_candle_service
+from app.deps import current_user, get_candle_service
 from app.services import universes
 from app.services.candles import CandleService
 
@@ -19,6 +19,7 @@ class Condition(BaseModel):
 
 class BacktestIn(BaseModel):
     name: str = Field("Backtest", max_length=80)
+    strategy_id: str | None = Field(None, max_length=16)  # saved strategy this run belongs to
     universe: str  # same lists as the scanner, plus "symbol"
     symbol: str | None = None  # when universe == "symbol"
     custom: list[str] = Field(default_factory=list, max_length=500)
@@ -54,16 +55,17 @@ class BacktestIn(BaseModel):
 
 
 @router.get("/catalog")
-def catalog():
+def catalog(user: str = Depends(current_user)):
     return {
         "conditions": list(signals.SIGNALS),
         "not_backtestable": signals.NOT_BACKTESTABLE,
-        "universes": [{"id": "symbol", "name": "Chart symbol"}, *universes.catalog()],
+        "universes": [{"id": "symbol", "name": "Chart symbol"}, *universes.catalog(user)],
     }
 
 
 @router.post("")
-async def run(body: BacktestIn, service: CandleService = Depends(get_candle_service)):
+async def run(body: BacktestIn, service: CandleService = Depends(get_candle_service),
+              user: str = Depends(current_user)):
     bad = [c.type for c in body.entry + body.exit_conditions if c.type not in signals.SIGNALS]
     if bad:
         reasons = [f"{t}: {signals.NOT_BACKTESTABLE.get(t, 'unknown condition')}" for t in bad]
@@ -75,7 +77,7 @@ async def run(body: BacktestIn, service: CandleService = Depends(get_candle_serv
         symbols = [{"symbol": body.symbol, "ticker": ticker, "name": ticker, "industry": ""}]
     else:
         try:
-            symbols = await universes.members(body.universe, body.custom)
+            symbols = await universes.members(body.universe, body.custom, owner=user)
         except KeyError:
             raise HTTPException(400, f"Unknown universe '{body.universe}'") from None
     if not symbols:
@@ -99,36 +101,36 @@ async def run(body: BacktestIn, service: CandleService = Depends(get_candle_serv
     request = body.model_dump(mode="json")
     request["entry"] = [c.model_dump() for c in body.entry]
     request["exit_conditions"] = [c.model_dump() for c in body.exit_conditions]
-    return jobs.start(service, request, symbols, rules).view()
+    return jobs.start(service, request, symbols, rules, owner=user).view()
 
 
 @router.get("/jobs/{job_id}")
-def job(job_id: str):
-    j = jobs.get(job_id)
+def job(job_id: str, user: str = Depends(current_user)):
+    j = jobs.get(job_id, user)
     if not j:
         raise HTTPException(404, "Backtest job not found (the server may have restarted)")
     return j.view()
 
 
 @router.post("/jobs/{job_id}/cancel")
-def cancel(job_id: str):
-    return {"cancelled": jobs.cancel(job_id)}
+def cancel(job_id: str, user: str = Depends(current_user)):
+    return {"cancelled": jobs.cancel(job_id, user)}
 
 
 @router.get("")
-def history():
-    return jobs.list_results()
+def history(user: str = Depends(current_user)):
+    return jobs.list_results(user)
 
 
 @router.get("/{result_id}")
-def result(result_id: str):
-    r = jobs.load_result(result_id)
+def result(result_id: str, user: str = Depends(current_user)):
+    r = jobs.load_result(result_id, user)
     if not r:
         raise HTTPException(404, "Result not found")
     return r
 
 
 @router.delete("/{result_id}")
-def delete(result_id: str):
-    jobs.delete_result(result_id)
+def delete(result_id: str, user: str = Depends(current_user)):
+    jobs.delete_result(result_id, user)
     return {"ok": True}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, type UserInfo } from '../api/client'
 import { Modal } from '../ui/Modal'
+import { InvitesSection } from './InvitesSection'
 
 /** Admin: create accounts and manage existing ones (there is no sign-up). */
 export function UsersDialog({ me, onClose }: { me: UserInfo; onClose: () => void }) {
@@ -46,8 +47,10 @@ export function UsersDialog({ me, onClose }: { me: UserInfo; onClose: () => void
 
   return (
     <Modal title="Manage users" onClose={onClose} width={760}>
+      <InvitesSection />
+
       <form className="user-create" onSubmit={create}>
-        <h3>New account</h3>
+        <h3>Or create an account directly</h3>
         <div className="form-row">
           <label>
             <span>Username</span>
@@ -169,7 +172,8 @@ export function UsersDialog({ me, onClose }: { me: UserInfo; onClose: () => void
         </tbody>
       </table>
       <p className="note">
-        Everyone signed in sees the same watchlists, drawings, alerts and backtests, and uses your Fyers connection.
+        Each user has their own watchlists, drawings, alerts, strategies and backtests. Market data comes from the one
+        shared Fyers connection that admins connect.
       </p>
     </Modal>
   )

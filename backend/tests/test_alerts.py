@@ -9,6 +9,14 @@ from app.providers.base import Instrument
 from tests.conftest import FakeProvider
 
 pytestmark = pytest.mark.anyio
+ME = "trader"
+
+
+@pytest.fixture(autouse=True)
+def owner():
+    from app.services import accounts
+
+    accounts.create_user(ME, "long enough pass")
 
 DAY = 86400
 MON = timegm((2026, 10, 5, 0, 0, 0))  # Monday 00:00, IST wall time as epoch
@@ -88,7 +96,7 @@ class FakeHub:
     async def remove(self, client):
         pass
 
-    def broadcast(self, msg):
+    def broadcast(self, msg, user=None):
         self.sent.append(msg)
 
 
@@ -101,7 +109,7 @@ def make_engine(settings, now=None):
 
 async def test_price_alert_fires_once_and_subscribes(settings):
     e, hub = make_engine(settings)
-    a = eng.save_alert({"kind": "price", "symbol": "NSE:SBIN-EQ", "ticker": "SBIN",
+    a = eng.save_alert(owner=ME, a={"kind": "price", "symbol": "NSE:SBIN-EQ", "ticker": "SBIN",
                         "config": {"op": "crosses_above", "value": 800}, "frequency": "once", "channels": ["app"]})
     await e.refresh()
     assert hub.subscribed == ["NSE:SBIN-EQ"]
@@ -110,7 +118,7 @@ async def test_price_alert_fires_once_and_subscribes(settings):
     assert len(hub.sent) == 1 and "crossed above" in hub.sent[0]["title"]
     stored = eng.get_alert(a["id"])
     assert stored["status"] == "triggered" and stored["fire_count"] == 1
-    assert len(eng.list_events()) == 1
+    assert len(eng.list_events(ME)) == 1
     await e.refresh()
     assert hub.subscribed == []  # nothing active left to watch
 
@@ -118,7 +126,7 @@ async def test_price_alert_fires_once_and_subscribes(settings):
 async def test_drawing_alert_on_trend_line(settings):
     e, hub = make_engine(settings)
     t0 = at(0, 9, 15)
-    eng.save_alert({"kind": "drawing", "symbol": "NSE:SBIN-EQ", "ticker": "SBIN", "frequency": "every",
+    eng.save_alert(owner=ME, a={"kind": "drawing", "symbol": "NSE:SBIN-EQ", "ticker": "SBIN", "frequency": "every",
                     "config": {"op": "crosses_above", "points": [{"time": t0, "price": 100}, {"time": t0 + 3600, "price": 110}]}})
     await e.on_tick({"symbol": "NSE:SBIN-EQ", "ltp": 104, "time": t0 + 1800})  # line at 105
     await e.on_tick({"symbol": "NSE:SBIN-EQ", "ltp": 106.5, "time": t0 + 1860})  # line ~105.2: crossed
@@ -128,7 +136,7 @@ async def test_drawing_alert_on_trend_line(settings):
 async def test_condition_alert_once_per_closed_bar(settings):
     now_dt = datetime(2026, 10, 6, 20, 0)  # Tuesday evening: Tuesday's daily bar is closed
     e, hub = make_engine(settings, now=now_dt)
-    eng.save_alert({"kind": "condition", "symbol": "NSE:SBIN-EQ", "ticker": "SBIN", "tf": "1D",
+    eng.save_alert(owner=ME, a={"kind": "condition", "symbol": "NSE:SBIN-EQ", "ticker": "SBIN", "tf": "1D",
                     "frequency": "once_per_bar", "config": {"conditions": [{"type": "rsi", "params": {"op": ">", "value": 0}}]}})
     now = at(1, 20, 0)
     await e.check_bars(now)
@@ -147,7 +155,7 @@ async def test_scan_alert_reports_only_new_matches(settings):
 
     await refresh_instruments(Registry())
     e, hub = make_engine(settings)
-    a = eng.save_alert({"kind": "scan", "name": "Everything", "frequency": "every",
+    a = eng.save_alert(owner=ME, a={"kind": "scan", "name": "Everything", "frequency": "every",
                         "config": {"universe": "custom", "custom": ["SBIN", "TCS"], "at": "15:45",
                                    "conditions": [{"type": "rsi", "params": {"op": ">", "value": 0}}]}})
     await e.check_scans(at(0, 15, 0))  # before the scan time

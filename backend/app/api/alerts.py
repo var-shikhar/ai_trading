@@ -1,12 +1,13 @@
 from functools import lru_cache
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from app.alerts import engine as alert_engine
 from app.alerts import notify
 from app.analysis import scanner
+from app.deps import current_user
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
@@ -53,44 +54,44 @@ class AlertIn(BaseModel):
 
 
 @router.get("")
-def list_alerts():
+def list_alerts(user: str = Depends(current_user)):
     eng = get_engine()
-    return {"alerts": alert_engine.list_alerts(), "engine": eng.status, "channels": notify.available_channels()}
+    return {"alerts": alert_engine.list_alerts(user), "engine": eng.status, "channels": notify.available_channels(user)}
 
 
 @router.post("")
-async def create(body: AlertIn):
-    a = alert_engine.save_alert(body.model_dump())
+async def create(body: AlertIn, user: str = Depends(current_user)):
+    a = alert_engine.save_alert(body.model_dump(), owner=user)
     await get_engine().refresh()
     return a
 
 
 @router.put("/{alert_id}")
-async def update(alert_id: str, body: AlertIn):
-    if not alert_engine.get_alert(alert_id):
+async def update(alert_id: str, body: AlertIn, user: str = Depends(current_user)):
+    if not alert_engine.get_alert(alert_id, owner=user):
         raise HTTPException(404, "Alert not found")
-    a = alert_engine.save_alert({**body.model_dump(), "id": alert_id})
+    a = alert_engine.save_alert({**body.model_dump(), "id": alert_id}, owner=user)
     await get_engine().refresh()
     return a
 
 
 @router.delete("/{alert_id}")
-async def delete(alert_id: str):
-    alert_engine.delete_alert(alert_id)
+async def delete(alert_id: str, user: str = Depends(current_user)):
+    alert_engine.delete_alert(alert_id, owner=user)
     await get_engine().refresh()
     return {"ok": True}
 
 
 @router.get("/events")
-def events(limit: int = 200):
-    return alert_engine.list_events(min(limit, 1000))
+def events(limit: int = 200, user: str = Depends(current_user)):
+    return alert_engine.list_events(user, min(limit, 1000))
 
 
 @router.post("/test")
-async def test(channels: list[str] | None = None):
+async def test(channels: list[str] | None = None, user: str = Depends(current_user)):
     """Send a test notification to check the channel setup."""
     eng = get_engine()
     event = {"type": "alert", "alert_id": None, "symbol": None, "title": "Test alert", "body": "Notifications work.",
              "time": alert_engine.now_ist()}
     return await notify.deliver(channels or ["app", "telegram", "email"], "Test alert", "Notifications work.",
-                                lambda: eng.hub.broadcast(event))
+                                lambda: eng.hub.broadcast(event, user=user), owner=user)

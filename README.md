@@ -6,11 +6,13 @@ data, TradingView Lightweight Charts for rendering, pattern analysis in Python.
 ## Layout
 
 ```
-backend/            FastAPI + DuckDB
+backend/            FastAPI
   app/
-    main.py         app entry, /api/health
+    main.py         app entry, login middleware (cookie or API key), /api/health
     config.py       settings from backend/.env
-    db.py           DuckDB schema (candles, instruments)
+    store.py        app database (Postgres/Neon): users, invites, watchlists,
+                    drawings, alerts, strategies, backtests, signals, API keys
+    db.py           market-data cache (DuckDB): candles, instruments, index lists
     deps.py         provider / service singletons
     api/            routes: auth (Fyers OAuth), instruments, candles
     providers/      MarketDataProvider interface + Fyers adapter
@@ -39,10 +41,23 @@ copy .env.example .env      # optional: backend address / dev port
 which port to use). It holds no secrets and nothing in it reaches the
 browser; Fyers keys stay in `backend/.env`.
 
+## Databases
+
+- **App database** (`DATABASE_URL`, e.g. Neon Postgres): everything that belongs
+  to a person. Back this up (Neon does it for you). Empty `DATABASE_URL` uses a
+  local SQLite file for development.
+- **Market-data cache** (`DB_PATH`, DuckDB): candles and instruments. Rebuilt from
+  Fyers as needed and trimmed daily (daily candles kept; 15m after
+  `INTRADAY_BASE_DAYS`; other intraday after 60 days). No backup needed.
+
+Upgrading from a version that kept users in DuckDB: the first start with
+`DATABASE_URL` set imports users, watchlists, drawings, alerts and backtests
+once (shared data goes to the first admin). Run that first start **on the
+server**, whose DuckDB holds the real data.
+
 ## Accounts
 
-The app needs a login; there's no public sign-up. Create the **first admin**
-from `backend` with the server stopped (the database allows one process):
+Sign-up is **invite only**. Create the **first admin** from `backend`:
 
 ```powershell
 .\.venv\Scripts\python -m app.cli create-user <name>            # admin
@@ -55,8 +70,16 @@ Or set `ADMIN_USERNAME` / `ADMIN_PASSWORD` (and optionally `ADMIN_EMAIL`) in
 `backend/.env`: that admin is created on startup if no user exists yet.
 
 After that, admins manage everyone from the app: account menu (top right)
--> **Manage users**: create accounts (user or admin), set emails, reset
-passwords, disable or delete. Everyone can **Change password** there.
+-> **Manage users**: **invite a friend** (one-time link, optional email lock,
+expires in 1-30 days), create accounts directly, set roles and emails, reset
+passwords, disable or delete. Each user has their own watchlists, drawings,
+alerts, strategies, backtests and signals; market data and the Fyers
+connection are shared (only admins connect Fyers). Everyone can **Change
+password** and set **Profile, notifications & API keys** there.
+
+**API keys** (for scripts/agents): `Authorization: Bearer ik_...` works on the
+same `/api` routes as the app, as that user. E.g. agents post trade ideas to
+`POST /api/signals`; they show up in Alerts -> Signals.
 Disabling, deleting or resetting a password signs that person out; the last
 admin can't be removed or demoted.
 

@@ -28,18 +28,32 @@ def login(client, username, password=PW):
     return r
 
 
-def test_old_users_table_is_migrated_and_first_user_becomes_admin(tmp_path, monkeypatch):
+def test_old_duckdb_app_data_is_imported_once(tmp_path, monkeypatch):
+    """Older versions kept users, watchlists etc. in the DuckDB file."""
+    from app import migrate_duckdb, store
+
     path = tmp_path / "old.duckdb"
     con = duckdb.connect(str(path))
-    con.execute("CREATE TABLE users (username VARCHAR PRIMARY KEY, password_hash VARCHAR NOT NULL, created TIMESTAMP NOT NULL)")
-    con.execute("INSERT INTO users VALUES ('first', 'x', '2026-01-01'), ('second', 'y', '2026-02-01')")
+    con.execute("CREATE TABLE users (username VARCHAR, password_hash VARCHAR, created TIMESTAMP, role VARCHAR, "
+                "email VARCHAR, disabled BOOLEAN, last_login TIMESTAMP, created_by VARCHAR)")
+    con.execute("INSERT INTO users VALUES ('first', 'h1', '2026-01-01', 'admin', NULL, false, NULL, NULL), "
+                "('second', 'h2', '2026-02-01', 'user', 'b@x.io', false, NULL, 'first')")
+    con.execute("CREATE TABLE watchlists (id VARCHAR, name VARCHAR, items VARCHAR, position INTEGER, updated TIMESTAMP)")
+    con.execute("""INSERT INTO watchlists VALUES ('w1', 'Swing', '[{"symbol": "NSE:SBIN-EQ", "ticker": "SBIN"}]', 0, '2026-03-01')""")
+    con.execute("CREATE TABLE drawings (symbol VARCHAR, data VARCHAR, updated TIMESTAMP)")
+    con.execute("""INSERT INTO drawings VALUES ('NSE:SBIN-EQ', '[{"id": "d1", "type": "hline"}]', '2026-03-01')""")
     con.close()
     monkeypatch.setenv("DB_PATH", str(path))
     get_settings.cache_clear()
     db.close_conn()
+
+    counts = migrate_duckdb.run()
+    assert counts == {"users": 2, "watchlists": 1, "drawings": 1}
     users = {u["username"]: u for u in accounts.list_users()}
-    assert users["first"]["role"] == "admin" and users["second"]["role"] == "user"
-    assert users["second"]["disabled"] is False and users["second"]["email"] is None
+    assert users["first"]["role"] == "admin" and users["second"]["email"] == "b@x.io"
+    wl = store.rows(store.watchlists.select())
+    assert wl[0]["owner"] == "first" and wl[0]["items"][0]["ticker"] == "SBIN"  # JSON, owned by the admin
+    assert migrate_duckdb.run() == {}  # only once
 
 
 def test_admin_creates_and_manages_users(client):

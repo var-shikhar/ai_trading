@@ -3,9 +3,14 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { AuthGate } from './auth/AuthGate.tsx'
+import { SignupPage } from './auth/SignupPage.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthGate>{(user, signOut) => <App user={user} onSignOut={signOut} />}</AuthGate>
+    {window.location.pathname === '/signup' ? (
+      <SignupPage />
+    ) : (
+      <AuthGate>{(user, signOut) => <App user={user} onSignOut={signOut} />}</AuthGate>
+    )}
   </StrictMode>,
 )

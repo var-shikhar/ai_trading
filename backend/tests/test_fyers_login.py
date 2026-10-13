@@ -59,7 +59,10 @@ def test_login_then_reload_of_callback_still_reports_success(client, monkeypatch
 def test_state_survives_a_backend_restart(client, monkeypatch):
     succeed(monkeypatch)
     state = start_login(client)
+    from app import store
+
     db.close_conn()  # as if the server restarted while the user was on Fyers' page
+    store.dispose()
     r = client.get("/api/auth/fyers/callback", params={"s": "ok", "auth_code": "CODE", "state": state})
     assert back(r) == {"fyers": "ok"}
 
@@ -67,7 +70,10 @@ def test_state_survives_a_backend_restart(client, monkeypatch):
 def test_expired_or_unknown_link_explains_what_to_do(client, monkeypatch):
     succeed(monkeypatch)
     state = start_login(client)
-    db.get_conn().execute("UPDATE oauth_states SET created = ?", [datetime.now() - timedelta(minutes=20)])
+    from app import store
+
+    with store.tx() as c:
+        c.execute(store.oauth_states.update().values(created=datetime.now() - timedelta(minutes=20)))
     r = back(client.get("/api/auth/fyers/callback", params={"s": "ok", "auth_code": "CODE", "state": state}))
     assert r["fyers"] == "error" and "expired" in r["reason"]
     r = back(client.get("/api/auth/fyers/callback", params={"s": "ok", "auth_code": "X", "state": "made-up"}))

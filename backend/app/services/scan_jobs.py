@@ -30,6 +30,7 @@ class Job:
     tf: str
     conditions: list[dict]
     total: int
+    owner: str = ""
     status: str = "running"  # running | done | cancelled | error
     done: int = 0
     matches: list[dict] = field(default_factory=list)
@@ -60,12 +61,14 @@ class Job:
 _jobs: dict[str, Job] = {}
 
 
-def get(job_id: str) -> Job | None:
-    return _jobs.get(job_id)
+def get(job_id: str, owner: str | None = None) -> Job | None:
+    job = _jobs.get(job_id)
+    return job if job and (owner is None or job.owner == owner) else None
 
 
-def start(service: CandleService, universe: str, tf: str, conditions: list[dict], symbols: list[dict]) -> Job:
-    job = Job(uuid.uuid4().hex[:12], universe, tf, conditions, len(symbols))
+def start(service: CandleService, universe: str, tf: str, conditions: list[dict], symbols: list[dict],
+          owner: str = "") -> Job:
+    job = Job(uuid.uuid4().hex[:12], universe, tf, conditions, len(symbols), owner=owner)
     _jobs[job.id] = job
     for old in list(_jobs)[:-KEEP_JOBS]:
         _jobs.pop(old, None)
@@ -73,8 +76,8 @@ def start(service: CandleService, universe: str, tf: str, conditions: list[dict]
     return job
 
 
-def cancel(job_id: str) -> bool:
-    job = _jobs.get(job_id)
+def cancel(job_id: str, owner: str | None = None) -> bool:
+    job = get(job_id, owner)
     if not job or job.status != "running" or not job.task:
         return False
     job.task.cancel()

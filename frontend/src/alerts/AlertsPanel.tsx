@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, type InstrumentHit } from '../api/client'
 import { onAlertEvent } from '../live/liveClient'
 import { AlertDialog } from './AlertDialog'
+import { SignalsList } from './SignalsList'
 import { PRICE_OPS, toInput, type Alert, type AlertEvent, type AlertIn, type AlertList } from './types'
 
 const opName = Object.fromEntries(PRICE_OPS)
@@ -37,7 +38,7 @@ export function AlertsPanel({
 }) {
   const [data, setData] = useState<AlertList | null>(null)
   const [events, setEvents] = useState<AlertEvent[]>([])
-  const [tab, setTab] = useState<'alerts' | 'log'>('alerts')
+  const [tab, setTab] = useState<'alerts' | 'signals' | 'log'>('alerts')
   const [dialog, setDialog] = useState<{ initial?: Partial<AlertIn>; editing?: Alert } | null>(null)
   const [testResult, setTestResult] = useState<string | null>(null)
 
@@ -85,6 +86,9 @@ export function AlertsPanel({
       <div className="tabs" role="tablist">
         <button role="tab" className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}>
           Alerts {data ? `(${data.alerts.filter((a) => a.status === 'active').length} active)` : ''}
+        </button>
+        <button role="tab" className={tab === 'signals' ? 'active' : ''} onClick={() => setTab('signals')}>
+          Signals
         </button>
         <button role="tab" className={tab === 'log' ? 'active' : ''} onClick={() => setTab('log')}>
           Log
@@ -142,6 +146,7 @@ export function AlertsPanel({
             </p>
           </>
         )}
+        {tab === 'signals' && <SignalsList onOpen={onOpen} />}
         {tab === 'log' && (
           <ul className="hit-list">
             {events.length === 0 && <p className="status">Nothing has fired yet.</p>}

@@ -1757,3 +1757,41 @@ a.menu-main {
   color: inherit;
   text-decoration: none;
 }
+
+/* --- invites, profile, signals --- */
+
+.key-reveal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  margin: 8px 0;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+}
+.key-reveal code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.key-reveal .note {
+  width: 100%;
+  margin: 0;
+}
+.inline-fields input,
+.inline-fields select {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.signal-filter {
+  margin: 0 12px 8px;
+}
+.strategy-bar {
+  grid-column: 1 / -1;
+}

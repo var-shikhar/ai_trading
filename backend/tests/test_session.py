@@ -51,9 +51,9 @@ def test_login_logout_flow(client):
 def test_session_token_not_stored_in_plain_text(client):
     client.post("/api/session/login", json={"username": "owner", "password": "correct horse battery"})
     token = client.cookies.get(accounts.SESSION_COOKIE)
-    from app.db import get_conn
+    from app import store
 
-    stored = [r[0] for r in get_conn().execute("SELECT token_hash FROM sessions").fetchall()]
+    stored = [r["token_hash"] for r in store.rows(store.sessions.select())]
     assert token and token not in stored and len(stored) == 1
 
 

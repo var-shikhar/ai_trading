@@ -6,11 +6,26 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import admin, alerts, auth, backtests, candles, chart, drawings, instruments, live, patterns, scanner, session
+from app import migrate_duckdb, store
+from app.api import (
+    admin,
+    alerts,
+    auth,
+    backtests,
+    candles,
+    chart,
+    drawings,
+    instruments,
+    live,
+    patterns,
+    scanner,
+    session,
+    strategies,
+)
 from app.config import get_settings
 from app.db import close_conn, get_conn
 from app.deps import get_fyers
-from app.services import accounts
+from app.services import accounts, cache
 from app.services.instruments import refresh_if_stale
 
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +34,15 @@ log = logging.getLogger(__name__)
 # Reachable without signing in. The Fyers callback is protected by its
 # one-time OAuth state instead (it may arrive on a different host/port than
 # the app's cookie, e.g. 127.0.0.1:8000 vs localhost:5173 in development).
-PUBLIC_PATHS = {"/api/session/login", "/api/session/logout", "/api/session/me", "/api/health", "/api/auth/fyers/callback"}
+PUBLIC_PATHS = {
+    "/api/session/login",
+    "/api/session/logout",
+    "/api/session/me",
+    "/api/session/invite",  # check an invite code (signup page)
+    "/api/session/signup",  # needs a valid invite code
+    "/api/health",
+    "/api/auth/fyers/callback",
+}
 
 
 def bootstrap_admin() -> None:
@@ -33,18 +56,26 @@ def bootstrap_admin() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    get_conn()  # create DB file and schema on startup
+    get_conn()  # market-data cache: create file and schema
+    store.engine()  # app database: connect and create tables
+    try:
+        migrate_duckdb.run()  # one-time: move app data from older DuckDB versions
+    except Exception:
+        log.exception("Import of old app data from DuckDB failed; it will be retried on the next start")
     bootstrap_admin()
     # Symbol master is public (no login needed); refresh in the background.
     task = asyncio.create_task(refresh_if_stale(get_fyers()))
+    trimmer = asyncio.create_task(cache.trim_forever())
     if get_settings().alerts_enabled:
         await alerts.get_engine().start()
     yield
     task.cancel()
+    trimmer.cancel()
     if get_settings().alerts_enabled:
         await alerts.get_engine().stop()
     await live.get_hub().close()
     close_conn()
+    store.dispose()
 
 
 app = FastAPI(title="Indicator", version="0.2.0", lifespan=lifespan)
@@ -56,11 +87,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def _identify(request: Request) -> tuple[str, str] | None:
+    """(username, role) from the session cookie, or from an API key
+    (Authorization: Bearer ik_...) for scripts and agents."""
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return accounts.api_key_info(auth[7:].strip())
+    return accounts.session_info(request.cookies.get(accounts.SESSION_COOKIE))
+
+
 @app.middleware("http")
 async def require_login(request: Request, call_next):
-    token = request.cookies.get(accounts.SESSION_COOKIE)
-    request.state.user = accounts.session_user(token)
     path = request.url.path
+    # The lookup may reach a remote database: keep it off the event loop.
+    who = await asyncio.to_thread(_identify, request) if path.startswith("/api") else None
+    request.state.user, request.state.role = who if who else (None, None)
     if (
         get_settings().auth_required
         and path.startswith("/api")
@@ -83,6 +124,7 @@ app.include_router(scanner.router)
 app.include_router(live.router)
 app.include_router(backtests.router)
 app.include_router(alerts.router)
+app.include_router(strategies.router)
 
 
 @app.get("/api/health")

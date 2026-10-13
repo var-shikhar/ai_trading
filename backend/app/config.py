@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
+    # App database (users and their data). Postgres URL, e.g. Neon:
+    #   postgresql+psycopg://user:pass@host/db?sslmode=require
+    # Empty: a local SQLite file at APP_DB_PATH (development and tests).
+    database_url: str = ""
+    app_db_path: str = "data/app.sqlite"
+
+    # Market-data cache (candles, instruments).
     db_path: str = "data/market.duckdb"
     # DuckDB caps (it may otherwise use up to 80% of RAM on big queries; on a
     # 1 GB server keep it small; larger work spills to disk instead).
@@ -63,6 +70,11 @@ class Settings(BaseSettings):
     alerts_enabled: bool = True
 
     @property
+    def app_db_file(self) -> Path:
+        path = Path(self.app_db_path)
+        return path if path.is_absolute() else BACKEND_DIR / path
+
+    @property
     def db_file(self) -> Path:
         path = Path(self.db_path)
         return path if path.is_absolute() else BACKEND_DIR / path
@@ -70,4 +82,8 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    for prefix in ("postgres://", "postgresql://"):
+        if s.database_url.startswith(prefix):
+            s.database_url = "postgresql+psycopg://" + s.database_url[len(prefix):]
+    return s
