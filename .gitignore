@@ -20,3 +20,13 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Research: reference books and data dumps stay local
+strategy reference/
+research/data/
+research/.venv/
+*.pdf
+# row-level research outputs (regenerate with the scripts)
+research/01_market_analysis/out/breakout_failures.csv
+research/01_market_analysis/out/pullback_sequences.csv
+research/strategies/*/out/trades_*.csv

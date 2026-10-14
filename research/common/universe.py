@@ -1,0 +1,33 @@
+"""Research universe (NSE tickers, Yahoo symbols are these + '.NS').
+
+NIFTY50_NOW is today's index (from the app's universe list, Oct 2026).
+OTHERS are large/mid caps chosen for liquidity, including former index
+members and names that fell hard (YESBANK, IDEA, ZEEL, VEDL, ...), so the
+sample isn't only today's winners. It is still biased: fully delisted
+companies (e.g. RCOM, JPASSOCIAT) have no Yahoo history.
+"""
+
+NIFTY50_NOW = [
+    "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJAJFINSV", "BAJFINANCE",
+    "BEL", "BHARTIARTL", "CIPLA", "COALINDIA", "DRREDDY", "EICHERMOT", "ETERNAL", "GRASIM", "HCLTECH", "HDFCBANK",
+    "HDFCLIFE", "HINDALCO", "HINDUNILVR", "ICICIBANK", "INDIGO", "INFY", "ITC", "JIOFIN", "JSWSTEEL", "KOTAKBANK",
+    "LT", "M&M", "MARUTI", "MAXHEALTH", "NESTLEIND", "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SBIN",
+    "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", "TATASTEEL", "TCS", "TECHM", "TITAN", "TRENT", "ULTRACEMCO", "WIPRO",
+]
+
+OTHERS = [
+    # former NIFTY 50 members / fallen names
+    "BPCL", "IOC", "GAIL", "UPL", "HINDPETRO", "VEDL", "ZEEL", "YESBANK", "IDEA", "BANKBARODA", "PNB", "DLF",
+    "SAIL", "TATAPOWER", "BHEL", "LUPIN", "AUROPHARMA", "DIVISLAB", "BRITANNIA", "HEROMOTOCO", "INDUSINDBK",
+    "SHREECEM", "AMBUJACEM", "ACC", "IDFCFIRSTB", "TATAMOTORS", "HINDZINC", "NMDC",
+    # other large / mid caps
+    "CANBK", "DABUR", "GODREJCP", "PIDILITIND", "HAVELLS", "SIEMENS", "ABB", "MOTHERSON", "TVSMOTOR", "ASHOKLEY",
+    "JINDALSTEL", "CHOLAFIN", "MUTHOOTFIN", "LICHSGFIN", "MARICO", "COLPAL", "BERGEPAINT", "BIOCON", "TORNTPHARM",
+    "ZYDUSLIFE", "PFC", "RECLTD", "HAL", "BAJAJHLDNG", "NAUKRI", "PAGEIND", "INDHOTEL", "TATACOMM", "MPHASIS",
+    "PERSISTENT", "COFORGE", "VOLTAS", "CUMMINSIND", "BOSCHLTD", "MRF", "BALKRISIND", "APOLLOTYRE", "EXIDEIND",
+    "GLENMARK", "IPCALAB", "FEDERALBNK", "ESCORTS", "CONCOR", "PETRONET", "OIL", "NHPC", "IGL", "JUBLFOOD",
+    "TATAELXSI", "UNITDSPR", "SRF", "ASTRAL", "DIXON", "POLYCAB", "IRCTC", "BANDHANBNK", "AUBANK", "LTIM",
+]
+
+STOCKS = NIFTY50_NOW + OTHERS
+INDICES = {"NIFTY50": "^NSEI", "BANKNIFTY": "^NSEBANK"}
