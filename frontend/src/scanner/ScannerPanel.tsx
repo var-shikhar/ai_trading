@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, type InstrumentHit, type InstrumentKind, type Watchlist } from '../api/client'
 import { Dropdown } from '../ui/Dropdown'
 import { usePref } from '../prefs'
@@ -14,7 +14,7 @@ interface Setup {
   conditions: ScanCondition[]
 }
 
-/** Scanner side panel: pick a universe + conditions, run, open results. */
+/** Screener: pick a universe + conditions, run, open results on the chart. */
 export function ScannerPanel({ onOpen }: { onOpen: (s: InstrumentHit) => void }) {
   const [catalog, setCatalog] = useState<ScanCatalog | null>(null)
   const [setup, setSetup] = usePref<Setup>('scannerSetup', {
@@ -92,22 +92,23 @@ export function ScannerPanel({ onOpen }: { onOpen: (s: InstrumentHit) => void })
       onClick={() => setSort((s) => ({ key, desc: s.key === key ? !s.desc : key !== 'ticker' }))}
     >
       {label}
-      {sort.key === key ? (sort.desc ? ' â–¾' : ' â–´') : ''}
+      {sort.key === key ? (sort.desc ? ' ▾' : ' ▴') : ''}
     </th>
   )
 
   if (!catalog) {
     return (
-      <aside className="pattern-panel scanner-panel">
-        <div className="panel-body">{error ? <p className="status err">{error}</p> : <p className="status">Loadingâ€¦</p>}</div>
+      <aside className="pattern-panel scanner-panel page">
+        <div className="panel-body">{error ? <p className="status err">{error}</p> : <p className="status">Loading…</p>}</div>
       </aside>
     )
   }
 
   const preset = catalog.presets.find((p) => p.id === setup.presetId)
   return (
-    <aside className="pattern-panel scanner-panel" aria-label="Scanner">
+    <aside className="pattern-panel scanner-panel page" aria-label="Screener">
       <div className="panel-head">
+        <h1 className="page-title">Screener</h1>
         <div className="scan-row">
           <select value={setup.universe} onChange={(e) => set({ universe: e.target.value })} aria-label="Universe">
             {catalog.universes.map((u) => (
@@ -154,104 +155,109 @@ export function ScannerPanel({ onOpen }: { onOpen: (s: InstrumentHit) => void })
       </div>
 
       <div className="panel-body">
-        <div className="conditions">
-          {setup.conditions.map((c, i) => (
-            <ConditionCard
-              key={i}
-              condition={c}
-              onChange={(next) => setConditions(setup.conditions.map((x, j) => (j === i ? next : x)))}
-              onRemove={() => setConditions(setup.conditions.filter((_, j) => j !== i))}
-            />
-          ))}
-          <select
-            className="add-condition"
-            value=""
-            onChange={(e) => {
-              const def = CONDITION_DEFS[e.target.value]
-              if (def) setConditions([...setup.conditions, { type: e.target.value, params: { ...def.defaults } }])
-            }}
-            aria-label="Add condition"
-          >
-            <option value="">+ Add condition (all must match)</option>
-            {catalog.conditions
-              .filter((c) => CONDITION_DEFS[c])
-              .map((c) => (
-                <option key={c} value={c}>
-                  {CONDITION_DEFS[c].name}
-                </option>
-              ))}
-          </select>
-        </div>
-
-        <div className="scan-actions">
-          {running ? (
-            <button className="secondary-button" onClick={() => job && api.cancelScan(job.id).catch(() => {})}>
-              Cancel
-            </button>
-          ) : (
-            <button className="primary-button" disabled={!setup.conditions.length} onClick={run}>
-              Run scan
-            </button>
-          )}
-          {job && (
-            <span className="status small">
-              {job.status === 'running'
-                ? `${job.done}/${job.total}${job.eta_seconds !== null ? ` Â· ~${formatEta(job.eta_seconds)} left` : ''}`
-                : job.status === 'done'
-                  ? `${job.matches.length} of ${job.total} matched Â· ${job.elapsed_seconds}s`
-                  : job.message || job.status}
-            </span>
-          )}
-        </div>
-        {running && (
-          <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={job.total} aria-valuenow={job.done}>
-            <div style={{ width: `${(job.done / Math.max(1, job.total)) * 100}%` }} />
-          </div>
-        )}
-        {running && job.done < job.total && job.done < 5 && (
-          <p className="note">The first scan of a list downloads its daily history (a few minutes for 500 stocks); later scans are quick.</p>
-        )}
-        {error && <p className="status err">{error}</p>}
-
-        {job && results.length > 0 && (
-          <table className="stats scan-results">
-            <thead>
-              <tr>
-                {header('ticker', 'Symbol')}
-                {header('close', 'Close', true)}
-                {header('change_pct', 'Chg %', true)}
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((m) => (
-                <tr key={m.symbol} className={picked === m.symbol ? 'picked' : ''} onClick={() => open(m)}>
-                  <td>
-                    <b>{m.ticker}</b>
-                    {m.industry && <span className="muted"> Â· {m.industry}</span>}
-                    <div className="scan-details">{m.details.join(' Â· ')}</div>
-                  </td>
-                  <td className="num">{m.close.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-                  <td className={`num ${m.change_pct >= 0 ? 'pos' : 'neg'}`}>
-                    {m.change_pct >= 0 ? '+' : ''}
-                    {m.change_pct.toFixed(2)}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {job && results.length > 0 && !running && <AddToWatchlist matches={results} />}
-        {job && job.status === 'done' && results.length === 0 && (
-          <p className="status">No matches. Loosen a condition (e.g. a wider range %) or try another list.</p>
-        )}
-        {job && job.errors.length > 0 && (
-          <details className="note">
-            <summary>{job.errors.length} symbols skipped</summary>
-            {job.errors.map((e) => (
-              <div key={e}>{e}</div>
+        <div className="scan-setup">
+          <div className="conditions">
+            {setup.conditions.map((c, i) => (
+              <ConditionCard
+                key={i}
+                condition={c}
+                onChange={(next) => setConditions(setup.conditions.map((x, j) => (j === i ? next : x)))}
+                onRemove={() => setConditions(setup.conditions.filter((_, j) => j !== i))}
+              />
             ))}
-          </details>
-        )}
+            <select
+              className="add-condition"
+              value=""
+              onChange={(e) => {
+                const def = CONDITION_DEFS[e.target.value]
+                if (def) setConditions([...setup.conditions, { type: e.target.value, params: { ...def.defaults } }])
+              }}
+              aria-label="Add condition"
+            >
+              <option value="">+ Add condition (all must match)</option>
+              {catalog.conditions
+                .filter((c) => CONDITION_DEFS[c])
+                .map((c) => (
+                  <option key={c} value={c}>
+                    {CONDITION_DEFS[c].name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <div className="scan-actions">
+            {running ? (
+              <button className="secondary-button" onClick={() => job && api.cancelScan(job.id).catch(() => {})}>
+                Cancel
+              </button>
+            ) : (
+              <button className="primary-button" disabled={!setup.conditions.length} onClick={run}>
+                Run scan
+              </button>
+            )}
+            {job && (
+              <span className="status small">
+                {job.status === 'running'
+                  ? `${job.done}/${job.total}${job.eta_seconds !== null ? ` · ~${formatEta(job.eta_seconds)} left` : ''}`
+                  : job.status === 'done'
+                    ? `${job.matches.length} of ${job.total} matched · ${job.elapsed_seconds}s`
+                    : job.message || job.status}
+              </span>
+            )}
+          </div>
+          {running && (
+            <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={job.total} aria-valuenow={job.done}>
+              <div style={{ width: `${(job.done / Math.max(1, job.total)) * 100}%` }} />
+            </div>
+          )}
+          {running && job.done < job.total && job.done < 5 && (
+            <p className="note">The first scan of a list downloads its daily history (a few minutes for 500 stocks); later scans are quick.</p>
+          )}
+          {error && <p className="status err">{error}</p>}
+        </div>
+
+        <div className="scan-output">
+          {!job && <p className="status">Pick a list and conditions, then run the scan. Click a result to open its chart.</p>}
+          {job && results.length > 0 && (
+            <table className="stats scan-results">
+              <thead>
+                <tr>
+                  {header('ticker', 'Symbol')}
+                  {header('close', 'Close', true)}
+                  {header('change_pct', 'Chg %', true)}
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((m) => (
+                  <tr key={m.symbol} className={picked === m.symbol ? 'picked' : ''} onClick={() => open(m)}>
+                    <td>
+                      <b>{m.ticker}</b>
+                      {m.industry && <span className="muted"> · {m.industry}</span>}
+                      <div className="scan-details">{m.details.join(' · ')}</div>
+                    </td>
+                    <td className="num">{m.close.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                    <td className={`num ${m.change_pct >= 0 ? 'pos' : 'neg'}`}>
+                      {m.change_pct >= 0 ? '+' : ''}
+                      {m.change_pct.toFixed(2)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {job && results.length > 0 && !running && <AddToWatchlist matches={results} />}
+          {job && job.status === 'done' && results.length === 0 && (
+            <p className="status">No matches. Loosen a condition (e.g. a wider range %) or try another list.</p>
+          )}
+          {job && job.errors.length > 0 && (
+            <details className="note">
+              <summary>{job.errors.length} symbols skipped</summary>
+              {job.errors.map((e) => (
+                <div key={e}>{e}</div>
+              ))}
+            </details>
+          )}
+        </div>
       </div>
     </aside>
   )
@@ -356,7 +362,7 @@ function AddToWatchlist({ matches }: { matches: ScanMatch[] }) {
                   if (name) addTo(await api.createWatchlist(name))
                 }}
               >
-                New listâ€¦
+                New list…
               </button>
             </div>
           </div>

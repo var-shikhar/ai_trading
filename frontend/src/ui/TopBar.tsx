@@ -1,9 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { api, type AuthStatus, type InstrumentHit, type InstrumentKind, type UserInfo } from '../api/client'
-import { PasswordDialog, UsersDialog } from '../auth/UsersDialog'
-import { ProfileDialog } from '../auth/ProfileDialog'
+import { api, type InstrumentHit, type InstrumentKind } from '../api/client'
 import type { ChartType } from '../chart/PriceChart'
-import type { ThemeMode } from '../chart/theme'
 import { Dropdown } from './Dropdown'
 import { Modal } from './Modal'
 
@@ -54,37 +51,23 @@ interface Props {
   chartType: ChartType
   onChartType: (t: ChartType) => void
   onIndicators: () => void
-  showPatterns: boolean
-  onTogglePatterns: () => void
-  patternCount: number | null
-  themeMode: ThemeMode
-  onThemeMode: (m: ThemeMode) => void
-  dark: boolean
-  auth: AuthStatus | null
-  error: string | null
-  onFyersChanged: () => void
   layoutMenu?: ReactNode
-  showScanner: boolean
-  onToggleScanner: () => void
-  showWatchlist: boolean
-  onToggleWatchlist: () => void
-  user: UserInfo
-  onSignOut: () => void
-  showTester: boolean
-  onToggleTester: () => void
-  showAlerts: boolean
-  onToggleAlerts: () => void
+  /** Right end of the bar, e.g. the strategy on the chart. */
+  extra?: ReactNode
+  /** Keyboard shortcuts on (off while another page is showing). */
+  hotkeys: boolean
 }
 
+/** The chart's own toolbar: symbol, interval, chart type, indicators, layout.
+ * App sections live in the nav rail; panels in the chart's right rail. */
 export function TopBar(p: Props) {
   const [searchOpen, setSearchOpen] = useState(false)
-  const [accountDialog, setAccountDialog] = useState<'users' | 'password' | 'profile' | null>(null)
-  const fyers = p.auth?.fyers
   const allTfs = TIMEFRAME_GROUPS.flatMap((g) => g.items)
   const favoriteTfs = allTfs.filter((i) => p.favorites.includes(i.tf))
 
   // Typing a letter anywhere (outside inputs) opens symbol search, like TradingView.
   useEffect(() => {
+    if (!p.hotkeys) return
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       if (target.closest('input, textarea, select, [role=dialog]') || e.ctrlKey || e.metaKey || e.altKey) return
@@ -92,7 +75,7 @@ export function TopBar(p: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [p.hotkeys])
 
   return (
     <header className="topbar">
@@ -184,199 +167,10 @@ export function TopBar(p: Props) {
         </svg>
         Indicators
       </button>
-      <button
-        className={`tool-button ${p.showPatterns ? 'selected' : ''}`}
-        aria-pressed={p.showPatterns}
-        onClick={p.onTogglePatterns}
-        title="Candlestick patterns"
-      >
-        Patterns{p.showPatterns && p.patternCount !== null ? ` · ${p.patternCount}` : ''}
-      </button>
-      <button
-        className={`tool-button ${p.showScanner ? 'selected' : ''}`}
-        aria-pressed={p.showScanner}
-        onClick={p.onToggleScanner}
-        title="Scan a list of stocks for setups"
-      >
-        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-          <path d="M2 4h14M4 9h10M7 14h4" />
-        </svg>
-        Scanner
-      </button>
-      <button
-        className={`tool-button ${p.showWatchlist ? 'selected' : ''}`}
-        aria-pressed={p.showWatchlist}
-        onClick={p.onToggleWatchlist}
-        title="Watchlists with live prices"
-      >
-        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-          <path d="M3 4h12M3 9h12M3 14h8" />
-        </svg>
-        Watchlist
-      </button>
-      <button
-        className={`tool-button ${p.showTester ? 'selected' : ''}`}
-        aria-pressed={p.showTester}
-        onClick={p.onToggleTester}
-        title="Backtest a strategy (Strategy Tester)"
-      >
-        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-          <path d="M2 15h14M4 12l3-4 3 2 5-6" />
-        </svg>
-        Backtest
-      </button>
-      <button
-        className={`tool-button ${p.showAlerts ? 'selected' : ''}`}
-        aria-pressed={p.showAlerts}
-        onClick={p.onToggleAlerts}
-        title="Price, indicator and scan alerts"
-      >
-        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-          <path d="M5 13V8a4 4 0 0 1 8 0v5l1.5 1.5h-11zM7.5 16h3" />
-        </svg>
-        Alerts
-      </button>
+      {p.layoutMenu}
 
       <span className="spacer" />
-      {p.error && <span className="status err">Backend unreachable</span>}
-      {fyers && p.user.role !== 'admin' &&
-        (fyers.authenticated ? (
-          <span className="status ok" title="Market data connected">
-            ● Live data
-          </span>
-        ) : (
-          <span className="status err" title="The shared Fyers connection is off. An admin needs to connect it.">
-            ● Data paused
-          </span>
-        ))}
-      {fyers && p.user.role === 'admin' &&
-        (fyers.authenticated ? (
-          <Dropdown align="right" title="Fyers session (valid until end of day)" label={<span className="status ok">● Fyers</span>}>
-            {(close) => (
-              <div className="menu-list">
-                <div className="menu-heading">Fyers connected until end of day</div>
-                <div className="menu-item">
-                  <a className="menu-main" href={fyers.login_url}>
-                    Reconnect Fyers
-                  </a>
-                </div>
-                <div className="menu-item">
-                  <button
-                    className="menu-main"
-                    onClick={() => {
-                      close()
-                      api.fyersLogout().finally(p.onFyersChanged)
-                    }}
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              </div>
-            )}
-          </Dropdown>
-        ) : fyers.configured ? (
-          <a className="primary-button" href={fyers.login_url}>
-            Connect Fyers
-          </a>
-        ) : (
-          <span className="status err">Add Fyers keys to backend/.env</span>
-        ))}
-      {p.layoutMenu}
-      <Dropdown
-        align="right"
-        title="Theme"
-        label={
-          <>
-            <ThemeIcon dark={p.dark} /> {p.dark ? 'Dark' : 'Light'}
-          </>
-        }
-      >
-        {(close) => (
-          <div className="menu-list">
-            <div className="menu-heading">Theme</div>
-            {(
-              [
-                ['dark', 'Dark'],
-                ['light', 'Light'],
-                ['system', 'Same as Windows'],
-              ] as const
-            ).map(([mode, name]) => (
-              <div key={mode} className={`menu-item ${p.themeMode === mode ? 'selected' : ''}`}>
-                <button
-                  className="menu-main"
-                  onClick={() => {
-                    p.onThemeMode(mode)
-                    close()
-                  }}
-                >
-                  {name}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </Dropdown>
-
-      <Dropdown align="right" title="Account" label={<span className="user-chip">{p.user.username.slice(0, 1).toUpperCase()}</span>}>
-        {(close) => (
-          <div className="menu-list">
-            <div className="menu-heading">
-              Signed in as {p.user.username}
-              {p.user.role === 'admin' ? ' · admin' : ''}
-            </div>
-            {p.user.role === 'admin' && (
-              <div className="menu-item">
-                <button
-                  className="menu-main"
-                  onClick={() => {
-                    close()
-                    setAccountDialog('users')
-                  }}
-                >
-                  Manage users
-                </button>
-              </div>
-            )}
-            <div className="menu-item">
-              <button
-                className="menu-main"
-                onClick={() => {
-                  close()
-                  setAccountDialog('profile')
-                }}
-              >
-                Profile, notifications &amp; API keys
-              </button>
-            </div>
-            <div className="menu-item">
-              <button
-                className="menu-main"
-                onClick={() => {
-                  close()
-                  setAccountDialog('password')
-                }}
-              >
-                Change password
-              </button>
-            </div>
-            <div className="menu-item">
-              <button
-                className="menu-main"
-                onClick={() => {
-                  close()
-                  p.onSignOut()
-                }}
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
-        )}
-      </Dropdown>
-
-      {accountDialog === 'users' && <UsersDialog me={p.user} onClose={() => setAccountDialog(null)} />}
-      {accountDialog === 'password' && <PasswordDialog onClose={() => setAccountDialog(null)} />}
-      {accountDialog === 'profile' && <ProfileDialog me={p.user} onClose={() => setAccountDialog(null)} />}
+      {p.extra}
 
       {searchOpen && (
         <SymbolDialog
@@ -471,19 +265,6 @@ export function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) =
         {query.trim() && shown.length === 0 && <li className="empty">No symbols match.</li>}
       </ul>
     </Modal>
-  )
-}
-
-function ThemeIcon({ dark }: { dark: boolean }) {
-  return dark ? (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <path d="M14.5 11.5A6 6 0 0 1 6.5 3.5a6 6 0 1 0 8 8z" />
-    </svg>
-  ) : (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <circle cx="9" cy="9" r="3.2" />
-      <path d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.7 3.7l1.4 1.4M12.9 12.9l1.4 1.4M3.7 14.3l1.4-1.4M12.9 5.1l1.4-1.4" />
-    </svg>
   )
 }
 

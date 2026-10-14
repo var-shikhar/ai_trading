@@ -1,4 +1,4 @@
-﻿"""Symbol lists to scan: NSE index constituents (from niftyindices.com,
+"""Symbol lists to scan: NSE index constituents (from niftyindices.com,
 cached daily), F&O stocks, MCX commodities, or a custom ticker list."""
 
 import csv

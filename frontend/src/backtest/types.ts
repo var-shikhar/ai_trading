@@ -101,3 +101,43 @@ export interface BacktestCatalog {
   not_backtestable: Record<string, string>
   universes: { id: string; name: string }[]
 }
+
+/** A strategy's rules (what a saved strategy stores), without where/when it's tested. */
+export type StrategyRules = Pick<
+  BacktestRequest,
+  | 'side'
+  | 'entry'
+  | 'exit_conditions'
+  | 'stop_type'
+  | 'stop_value'
+  | 'target_type'
+  | 'target_value'
+  | 'trail_type'
+  | 'trail_value'
+  | 'max_bars'
+  | 'sizing'
+  | 'size_value'
+  | 'cost_pct'
+  | 'slippage_pct'
+>
+
+/** The strategy applied to the chart (TradingView-style): reruns on the
+ * active chart's symbol and timeframe whenever either or a rule changes. */
+export interface ChartStrategy extends StrategyRules {
+  enabled: boolean
+  strategy_id: string | null
+  name: string
+  capital: number
+  bars: number
+}
+
+export interface ChartBacktestResult {
+  request: ChartStrategy & { symbol: string; tf: string }
+  summary: BacktestSummary & { buy_hold_return_pct?: number }
+  equity: [number, number][]
+  buy_hold: [number, number][]
+  trades: BacktestTrade[]
+  bars_tested: number
+  from: number
+  to: number
+}

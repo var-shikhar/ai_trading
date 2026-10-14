@@ -10,10 +10,12 @@ export function EquityChart({
   equity,
   benchmark,
   theme,
+  benchmarkLabel = 'NIFTY 50',
 }: {
   equity: [number, number][]
   benchmark: [number, number][] | null
   theme: ChartTheme
+  benchmarkLabel?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -36,7 +38,7 @@ export function EquityChart({
         lineStyle: 2,
         priceLineVisible: false,
         lastValueVisible: false,
-        title: 'NIFTY 50',
+        title: benchmarkLabel,
       })
       b.setData(benchmark.map(([x, v]) => ({ time: t(x), value: v })))
     }
@@ -72,7 +74,7 @@ export function EquityChart({
     chart.panes()[1]?.setStretchFactor(1)
     chart.timeScale().fitContent()
     return () => chart.remove()
-  }, [equity, benchmark, theme])
+  }, [equity, benchmark, theme, benchmarkLabel])
 
   return <div ref={ref} className="equity-chart" role="img" aria-label="Equity curve and drawdown" />
 }

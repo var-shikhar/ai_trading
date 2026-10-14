@@ -11,7 +11,8 @@ export function Dropdown({
   label: ReactNode
   title?: string
   children: (close: () => void) => ReactNode
-  align?: 'left' | 'right'
+  /** side: opens to the right of the button, bottom-aligned (for the nav rail). */
+  align?: 'left' | 'right' | 'side'
   className?: string
 }) {
   const [open, setOpen] = useState(false)

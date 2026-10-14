@@ -14,6 +14,7 @@ import type {
   BacktestResult,
   BacktestSummary,
   BacktestTrade,
+  StrategyRules,
 } from './types'
 
 type Tab = 'setup' | 'results' | 'trades' | 'history'
@@ -47,17 +48,16 @@ const defaultRequest = (): BacktestRequest => ({
   slippage_pct: 0.05,
 })
 
-/** TradingView-style "Strategy Tester" panel under the charts. */
+/** Strategy Lab: portfolio backtests over a list of symbols, saved to history.
+ * (One chart's strategy runs live on the chart instead: see ChartStrategy.) */
 export function StrategyTester({
   chartSymbol,
   theme,
   onOpenTrade,
-  onClose,
 }: {
   chartSymbol: InstrumentHit
   theme: ChartTheme
   onOpenTrade: (trade: BacktestTrade, all: BacktestTrade[]) => void
-  onClose: () => void
 }) {
   const [tab, setTab] = useState<Tab>('setup')
   const [req, setReq] = usePref<BacktestRequest>('backtestSetup', defaultRequest)
@@ -66,7 +66,6 @@ export function StrategyTester({
   const [result, setResult] = useState<BacktestResult | null>(null)
   const [history, setHistory] = useState<BacktestHistoryItem[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [height, setHeight] = usePref<number>('testerHeight', 360)
   const poll = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -109,24 +108,10 @@ export function StrategyTester({
     }
   }
 
-  // Drag the top edge to resize.
-  const startResize = (e: React.MouseEvent) => {
-    const startY = e.clientY
-    const startH = height
-    const move = (ev: MouseEvent) => setHeight(Math.min(window.innerHeight - 160, Math.max(180, startH + startY - ev.clientY)))
-    const up = () => {
-      window.removeEventListener('mousemove', move)
-      window.removeEventListener('mouseup', up)
-    }
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', up)
-  }
-
   return (
-    <section className="tester" style={{ height }} aria-label="Strategy tester">
-      <div className="tester-resize" onMouseDown={startResize} role="separator" aria-orientation="horizontal" />
+    <section className="tester lab" aria-label="Strategy Lab">
       <div className="tester-head">
-        <b>Strategy Tester</b>
+        <h1 className="page-title">Strategy Lab</h1>
         <div className="tabs inline" role="tablist">
           {(['setup', 'results', 'trades', 'history'] as Tab[]).map((t) => (
             <button key={t} role="tab" className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
@@ -150,11 +135,6 @@ export function StrategyTester({
             Run backtest
           </button>
         )}
-        <button className="icon-button" aria-label="Close strategy tester" onClick={onClose}>
-          <svg width="16" height="16" viewBox="0 0 18 18" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-            <path d="M4.5 4.5l9 9M13.5 4.5l-9 9" />
-          </svg>
-        </button>
       </div>
       {error && <p className="status err tester-error">{error}</p>}
       <div className="tester-body">
@@ -202,55 +182,9 @@ function Setup({
   catalog: BacktestCatalog
   chartSymbol: InstrumentHit
 }) {
-  const usable = catalog.conditions.filter((c) => CONDITION_DEFS[c])
-  const conditionList = (key: 'entry' | 'exit_conditions', label: string, hint: string) => (
-    <div className="tester-section">
-      <h3>{label}</h3>
-      <p className="note">{hint}</p>
-      {req[key].map((c, i) => (
-        <ConditionCard
-          key={i}
-          condition={c}
-          onChange={(next) => set({ [key]: req[key].map((x, j) => (j === i ? next : x)) } as Partial<BacktestRequest>)}
-          onRemove={() => set({ [key]: req[key].filter((_, j) => j !== i) } as Partial<BacktestRequest>)}
-        />
-      ))}
-      <select
-        className="add-condition"
-        value=""
-        onChange={(e) => {
-          const def = CONDITION_DEFS[e.target.value]
-          if (def)
-            set({ [key]: [...req[key], { type: e.target.value, params: { ...def.defaults } } as ScanCondition] } as Partial<BacktestRequest>)
-        }}
-        aria-label={`Add ${label.toLowerCase()} condition`}
-      >
-        <option value="">+ Add condition (all must match)</option>
-        {usable.map((c) => (
-          <option key={c} value={c}>
-            {CONDITION_DEFS[c].name}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
-
-  const num = (key: keyof BacktestRequest, label: string, step = 0.1, min = 0) => (
-    <label>
-      <span>{label}</span>
-      <input
-        type="number"
-        step={step}
-        min={min}
-        value={(req[key] as number | null) ?? ''}
-        onChange={(e) => set({ [key]: e.target.value === '' ? null : Number(e.target.value) } as Partial<BacktestRequest>)}
-      />
-    </label>
-  )
-
   return (
     <div className="tester-setup">
-      <StrategyBar req={req} set={set} />
+      <StrategyBar value={req} set={set} keys={RULE_KEYS} />
       <div className="tester-section">
         <h3>Market</h3>
         <div className="form-row">
@@ -293,16 +227,114 @@ function Setup({
             <span>To (blank = today)</span>
             <input type="date" value={req.end ?? ''} onChange={(e) => set({ end: e.target.value || null })} />
           </label>
-          <label>
-            <span>Direction</span>
-            <select value={req.side} onChange={(e) => set({ side: e.target.value as 'long' | 'short' })}>
-              <option value="long">Long</option>
-              <option value="short">Short</option>
-            </select>
-          </label>
+          <NumberField label="Capital ₹" value={req.capital} step={10000} min={1000} onChange={(capital) => set({ capital: capital ?? 0 })} />
+          <NumberField
+            label="Max open positions"
+            value={req.max_positions}
+            step={1}
+            min={1}
+            onChange={(max_positions) => set({ max_positions: max_positions ?? 1 })}
+          />
+        </div>
+        <p className="note">Index lists use today’s members, so older years carry survivorship bias.</p>
+      </div>
+      <RulesEditor rules={req} set={set} conditions={catalog.conditions} />
+    </div>
+  )
+}
+
+export function NumberField({
+  label,
+  value,
+  onChange,
+  step = 0.1,
+  min = 0,
+}: {
+  label: string
+  value: number | null
+  onChange: (v: number | null) => void
+  step?: number
+  min?: number
+}) {
+  return (
+    <label>
+      <span>{label}</span>
+      <input
+        type="number"
+        step={step}
+        min={min}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+      />
+    </label>
+  )
+}
+
+/** Entry/exit conditions, stops, targets, sizing and costs: the rules of a
+ * strategy. Shared by the Strategy Lab and the strategy applied to the chart. */
+export function RulesEditor<T extends StrategyRules>({
+  rules,
+  set,
+  conditions,
+}: {
+  rules: T
+  set: (p: Partial<T>) => void
+  conditions: string[]
+}) {
+  const usable = conditions.filter((c) => CONDITION_DEFS[c])
+  const patch = (p: Partial<StrategyRules>) => set(p as Partial<T>)
+  const conditionList = (key: 'entry' | 'exit_conditions', label: string, hint: string) => (
+    <div className="tester-section">
+      <h3>{label}</h3>
+      <p className="note">{hint}</p>
+      {rules[key].map((c, i) => (
+        <ConditionCard
+          key={i}
+          condition={c}
+          onChange={(next) => patch({ [key]: rules[key].map((x, j) => (j === i ? next : x)) })}
+          onRemove={() => patch({ [key]: rules[key].filter((_, j) => j !== i) })}
+        />
+      ))}
+      <select
+        className="add-condition"
+        value=""
+        onChange={(e) => {
+          const def = CONDITION_DEFS[e.target.value]
+          if (def) patch({ [key]: [...rules[key], { type: e.target.value, params: { ...def.defaults } } as ScanCondition] })
+        }}
+        aria-label={`Add ${label.toLowerCase()} condition`}
+      >
+        <option value="">+ Add condition (all must match)</option>
+        {usable.map((c) => (
+          <option key={c} value={c}>
+            {CONDITION_DEFS[c].name}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+  const num = (key: keyof StrategyRules, label: string, step = 0.1, min = 0) => (
+    <NumberField
+      label={label}
+      value={rules[key] as number | null}
+      step={step}
+      min={min}
+      onChange={(v) => patch({ [key]: v } as Partial<StrategyRules>)}
+    />
+  )
+
+  return (
+    <>
+      <div className="tester-section">
+        <h3>Direction</h3>
+        <div className="segmented small" role="group" aria-label="Direction">
+          {(['long', 'short'] as const).map((side) => (
+            <button key={side} className={rules.side === side ? 'active' : ''} onClick={() => patch({ side })}>
+              {side === 'long' ? 'Long' : 'Short'}
+            </button>
+          ))}
         </div>
       </div>
-
       {conditionList('entry', 'Entry', 'Signal on a bar’s close; the trade opens at the next bar’s open.')}
 
       <div className="tester-section">
@@ -310,71 +342,73 @@ function Setup({
         <div className="form-row">
           <label>
             <span>Stop</span>
-            <select value={req.stop_type} onChange={(e) => set({ stop_type: e.target.value as BacktestRequest['stop_type'] })}>
+            <select value={rules.stop_type} onChange={(e) => patch({ stop_type: e.target.value as StrategyRules['stop_type'] })}>
               <option value="none">None</option>
-              <option value="pct">% below entry</option>
+              <option value="pct">% from entry</option>
               <option value="atr">ATR(14) multiple</option>
             </select>
           </label>
-          {req.stop_type !== 'none' && num('stop_value', req.stop_type === 'pct' ? 'Stop %' : 'Stop × ATR')}
+          {rules.stop_type !== 'none' && num('stop_value', rules.stop_type === 'pct' ? 'Stop %' : 'Stop × ATR')}
           <label>
             <span>Target</span>
-            <select value={req.target_type} onChange={(e) => set({ target_type: e.target.value as BacktestRequest['target_type'] })}>
+            <select value={rules.target_type} onChange={(e) => patch({ target_type: e.target.value as StrategyRules['target_type'] })}>
               <option value="none">None</option>
               <option value="pct">% from entry</option>
               <option value="r">R multiple (× stop distance)</option>
             </select>
           </label>
-          {req.target_type !== 'none' && num('target_value', req.target_type === 'pct' ? 'Target %' : 'Target R')}
+          {rules.target_type !== 'none' && num('target_value', rules.target_type === 'pct' ? 'Target %' : 'Target R')}
           <label>
             <span>Trailing stop</span>
-            <select value={req.trail_type} onChange={(e) => set({ trail_type: e.target.value as BacktestRequest['trail_type'] })}>
+            <select value={rules.trail_type} onChange={(e) => patch({ trail_type: e.target.value as StrategyRules['trail_type'] })}>
               <option value="none">None</option>
               <option value="pct">% from high</option>
               <option value="atr">ATR multiple</option>
             </select>
           </label>
-          {req.trail_type !== 'none' && num('trail_value', req.trail_type === 'pct' ? 'Trail %' : 'Trail × ATR')}
+          {rules.trail_type !== 'none' && num('trail_value', rules.trail_type === 'pct' ? 'Trail %' : 'Trail × ATR')}
           {num('max_bars', 'Exit after bars (blank = never)', 1, 1)}
         </div>
       </div>
       {conditionList('exit_conditions', 'Exit rules', 'Optional: exit at the next open when all of these hold.')}
 
       <div className="tester-section">
-        <h3>Money</h3>
+        <h3>Sizing &amp; costs</h3>
         <div className="form-row">
-          {num('capital', 'Capital ₹', 10000, 1000)}
           <label>
             <span>Position size</span>
-            <select value={req.sizing} onChange={(e) => set({ sizing: e.target.value as BacktestRequest['sizing'] })}>
+            <select value={rules.sizing} onChange={(e) => patch({ sizing: e.target.value as StrategyRules['sizing'] })}>
               <option value="pct_equity">% of equity</option>
               <option value="risk">% of equity risked (needs a stop)</option>
               <option value="fixed">Fixed ₹ per trade</option>
             </select>
           </label>
-          {num('size_value', req.sizing === 'fixed' ? '₹ per trade' : req.sizing === 'risk' ? 'Risk %' : '% of equity', req.sizing === 'fixed' ? 1000 : 0.5)}
-          {num('max_positions', 'Max open positions', 1, 1)}
+          {num(
+            'size_value',
+            rules.sizing === 'fixed' ? '₹ per trade' : rules.sizing === 'risk' ? 'Risk %' : '% of equity',
+            rules.sizing === 'fixed' ? 1000 : 0.5,
+          )}
           {num('cost_pct', 'Costs % per side', 0.01)}
           {num('slippage_pct', 'Slippage % per side', 0.01)}
         </div>
         <p className="note">
-          Costs cover brokerage, STT and exchange charges (≈0.1% per side for delivery). Index lists use today’s members, so older
-          years carry survivorship bias. Support/resistance zones can’t be backtested; chart patterns trigger on their breakout bar.
+          Costs cover brokerage, STT and exchange charges (≈0.1% per side for delivery). Support/resistance zones can’t be
+          backtested; chart patterns trigger on their breakout bar.
         </p>
       </div>
-    </div>
+    </>
   )
 }
 
 // --- results ---------------------------------------------------------------------------
 
-const pct = (v: number | null | undefined, sign = true) =>
+export const pct = (v: number | null | undefined, sign = true) =>
   v === null || v === undefined ? '–' : `${sign && v > 0 ? '+' : ''}${v.toFixed(2)}%`
-const num = (v: number | null | undefined, d = 2) => (v === null || v === undefined ? '–' : v.toFixed(d))
-const inr = (v: number | null | undefined) =>
+export const num = (v: number | null | undefined, d = 2) => (v === null || v === undefined ? '–' : v.toFixed(d))
+export const inr = (v: number | null | undefined) =>
   v === null || v === undefined ? '–' : `₹${v.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
 
-function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'pos' | 'neg' }) {
+export function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'pos' | 'neg' }) {
   return (
     <div className="kpi">
       <span className="kpi-label">{label}</span>
@@ -383,7 +417,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'pos
   )
 }
 
-const tone = (v: number | null | undefined): 'pos' | 'neg' | undefined =>
+export const tone = (v: number | null | undefined): 'pos' | 'neg' | undefined =>
   v === null || v === undefined || v === 0 ? undefined : v > 0 ? 'pos' : 'neg'
 
 function Results({ result, theme }: { result: BacktestResult; theme: ChartTheme }) {
@@ -464,7 +498,7 @@ function Results({ result, theme }: { result: BacktestResult; theme: ChartTheme 
 
 // --- trades ------------------------------------------------------------------------------
 
-function Trades({ trades, tf, onOpen }: { trades: BacktestTrade[]; tf: string; onOpen: (t: BacktestTrade) => void }) {
+export function Trades({ trades, tf, onOpen }: { trades: BacktestTrade[]; tf: string; onOpen: (t: BacktestTrade) => void }) {
   const [sort, setSort] = useState<{ key: keyof BacktestTrade; desc: boolean }>({ key: 'entry_time', desc: true })
   const rows = useMemo(() => {
     const list = [...trades]
@@ -476,7 +510,7 @@ function Trades({ trades, tf, onOpen }: { trades: BacktestTrade[]; tf: string; o
     })
     return list
   }, [trades, sort])
-  const intraday = tf !== '1D' && tf !== '1W'
+  const intraday = !['1D', '1W', '1M'].includes(tf)
   const th = (key: keyof BacktestTrade, label: string, numeric = false) => (
     <th
       className={`sortable ${numeric ? 'num' : ''}`}
@@ -590,26 +624,40 @@ function History({
 
 // The rule part of a setup: what a strategy is, independent of which symbols
 // or dates it's tested on (an agent can later create or tune these).
-const RULE_KEYS = [
+export const RULE_KEYS = [
   'tf', 'side', 'entry', 'exit_conditions', 'stop_type', 'stop_value', 'target_type', 'target_value',
   'trail_type', 'trail_value', 'max_bars', 'sizing', 'size_value', 'max_positions', 'cost_pct', 'slippage_pct',
 ] as const
 
-function StrategyBar({ req, set }: { req: BacktestRequest; set: (p: Partial<BacktestRequest>) => void }) {
+type Named = { strategy_id?: string | null; name: string }
+
+/** Pick, save and delete saved strategies. `keys` are the rule fields this
+ * editor owns: loading a strategy copies only those. */
+export function StrategyBar<T extends Named>({
+  value,
+  set,
+  keys,
+}: {
+  value: T
+  set: (p: Partial<T>) => void
+  keys: readonly string[]
+}) {
   const [list, setList] = useState<Strategy[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const reload = () => api.strategies().then(setList, () => {})
   useEffect(() => {
     reload()
   }, [])
-  const current = list.find((s) => s.id === req.strategy_id) ?? null
+  const current = list.find((s) => s.id === value.strategy_id) ?? null
+  const fields = value as unknown as Record<string, unknown>
 
   const save = async (asNew: boolean) => {
-    const name = asNew || !current ? window.prompt('Strategy name', req.name)?.trim() : current.name
+    const name = asNew || !current ? window.prompt('Strategy name', value.name)?.trim() : current.name
     if (!name) return
-    const definition = Object.fromEntries(RULE_KEYS.map((k) => [k, req[k]]))
+    // Keep rule fields this editor doesn't own (e.g. the Lab's timeframe).
+    const definition = { ...(current?.definition ?? {}), ...Object.fromEntries(keys.map((k) => [k, fields[k]])) }
     const saved = await api.saveStrategy({ id: asNew ? undefined : current?.id, name, definition })
-    set({ strategy_id: saved.id, name })
+    set({ strategy_id: saved.id, name } as Partial<T>)
     setNotice(`Saved “${saved.name}”`)
     reload()
   }
@@ -619,12 +667,14 @@ function StrategyBar({ req, set }: { req: BacktestRequest; set: (p: Partial<Back
       <h3>Strategy</h3>
       <div className="inline-fields">
         <select
-          value={req.strategy_id ?? ''}
+          value={value.strategy_id ?? ''}
           aria-label="Saved strategy"
           onChange={(e) => {
             const s = list.find((x) => x.id === e.target.value)
-            if (!s) return set({ strategy_id: null })
-            set({ ...(s.definition as Partial<BacktestRequest>), strategy_id: s.id, name: s.name })
+            if (!s) return set({ strategy_id: null } as Partial<T>)
+            const def = s.definition as Record<string, unknown>
+            const picked = Object.fromEntries(keys.filter((k) => k in def).map((k) => [k, def[k]]))
+            set({ ...picked, strategy_id: s.id, name: s.name } as Partial<T>)
           }}
         >
           <option value="">Unsaved setup</option>
@@ -648,7 +698,7 @@ function StrategyBar({ req, set }: { req: BacktestRequest; set: (p: Partial<Back
             onClick={async () => {
               if (!window.confirm(`Delete strategy “${current.name}”?`)) return
               await api.deleteStrategy(current.id)
-              set({ strategy_id: null })
+              set({ strategy_id: null } as Partial<T>)
               reload()
             }}
           >
@@ -657,7 +707,7 @@ function StrategyBar({ req, set }: { req: BacktestRequest; set: (p: Partial<Back
         )}
         {notice && <span className="status ok small">{notice}</span>}
       </div>
-      <p className="note">A strategy saves the rules (entry, exits, sizing). Backtests run with it are linked to it.</p>
+      <p className="note">A strategy saves its rules (entry, exits, sizing), for the chart and the Strategy Lab.</p>
     </div>
   )
 }

@@ -78,8 +78,187 @@ select {
 
 .app {
   display: flex;
-  flex-direction: column;
   height: 100vh;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+/* One section of the app (charts, screener, lab, signals). Visited pages
+   stay mounted and are only hidden, so their state survives. */
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.page[hidden] {
+  display: none;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.page-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+.page-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 24px;
+}
+.page-inner.narrow {
+  max-width: 760px;
+}
+
+/* --- nav rail (app sections, left edge) --- */
+
+.nav-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 68px;
+  flex-shrink: 0;
+  padding: 10px 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+.nav-brand {
+  margin-bottom: 12px;
+}
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 60px;
+  padding: 8px 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10.5px;
+  line-height: 1.15;
+  text-align: center;
+}
+.nav-item:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+.nav-item.active {
+  background: var(--selected);
+  color: var(--accent);
+}
+.nav-dot {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 0;
+}
+.nav-dot small {
+  font-size: 10px;
+  margin-top: 2px;
+  color: var(--muted);
+}
+.nav-dot.ok {
+  color: var(--ok);
+}
+.nav-dot.err {
+  color: var(--err);
+}
+.nav-dropdown .tool-button {
+  height: auto;
+  min-height: 36px;
+  padding: 4px 8px;
+}
+.nav-dropdown .caret {
+  display: none;
+}
+.menu.side {
+  top: auto;
+  bottom: 0;
+  left: calc(100% + 8px);
+}
+
+/* --- right rail (chart panels) and the dock it opens --- */
+
+.right-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 46px;
+  flex-shrink: 0;
+  padding: 6px 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+.rail-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rail-button:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+.rail-button.active {
+  background: var(--selected);
+  color: var(--accent);
+}
+.rail-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 9px;
+  font-style: normal;
+  line-height: 14px;
+  text-align: center;
+}
+.dock {
+  display: flex;
+  flex-shrink: 0;
+  min-height: 0;
+  animation: dock-in 0.16s ease-out;
+}
+.dock > .pattern-panel {
+  border-left-width: 1px;
+}
+@keyframes dock-in {
+  from {
+    transform: translateX(28px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock {
+    animation: none;
+  }
 }
 
 .spacer {
@@ -1794,4 +1973,119 @@ a.menu-main {
 }
 .strategy-bar {
   grid-column: 1 / -1;
+}
+
+/* --- pages: screener, strategy lab, signals --- */
+
+.scanner-panel.page {
+  flex: 1;
+  width: auto;
+  min-height: 0;
+  border-left: 0;
+}
+.scanner-panel.page .panel-head {
+  padding: 16px 20px 12px;
+}
+.scanner-panel.page .panel-head > :not(.page-title) {
+  max-width: 440px;
+}
+.scanner-panel.page .panel-body {
+  display: grid;
+  grid-template-columns: minmax(300px, 440px) minmax(0, 1fr);
+  gap: 24px;
+  padding: 12px 20px 0;
+  overflow: hidden;
+}
+.scan-setup,
+.scan-output {
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+.scanner-panel.page .scan-results {
+  width: 100%;
+}
+@media (max-width: 900px) {
+  .scanner-panel.page .panel-body {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .scan-setup,
+  .scan-output {
+    overflow: visible;
+  }
+}
+
+.tester.lab {
+  flex: 1;
+  min-height: 0;
+  border-top: 0;
+}
+.tester.lab .tester-head {
+  padding: 12px 20px;
+}
+.tester.lab .tester-body {
+  padding: 14px 20px;
+}
+
+.signals-card {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.signals-card .signal-filter {
+  margin: 10px 12px;
+}
+
+/* --- strategy on the chart --- */
+
+.strategy-panel {
+  width: 360px;
+}
+.strategy-status {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.strategy-status b {
+  color: var(--fg);
+}
+.strategy-status b.pos {
+  color: var(--ok);
+}
+.strategy-status b.neg {
+  color: var(--err);
+}
+.strategy-form {
+  padding: 0;
+}
+.strategy-form .tester-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.switch input {
+  accent-color: var(--accent);
+}
+.strategy-report.collapsed {
+  height: auto;
+}
+.strategy-report .tester-head {
+  gap: 10px;
+}
+.tester-body.stale {
+  opacity: 0.55;
+  transition: opacity 0.15s;
 }

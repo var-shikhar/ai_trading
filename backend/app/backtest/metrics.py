@@ -8,7 +8,16 @@ import numpy as np
 
 from app.backtest.engine import Trade
 
-PERIODS_PER_YEAR = {"1D": 252, "1W": 52}
+PERIODS_PER_YEAR = {"1D": 252, "1W": 52, "1M": 12}
+NSE_SESSION_MINUTES = 375
+
+
+def periods_per_year(tf: str) -> float:
+    """Bars per year, for annualising Sharpe on any chart timeframe."""
+    if tf in PERIODS_PER_YEAR:
+        return PERIODS_PER_YEAR[tf]
+    minutes = int(tf[:-1]) * (60 if tf.endswith("h") else 1) if tf[:-1].isdigit() else None
+    return 252 * NSE_SESSION_MINUTES / minutes if minutes else 252
 
 
 def _year(t: int) -> int:
@@ -31,7 +40,7 @@ def summarize(trades: list[Trade], equity: list[tuple[int, float]], capital: flo
     cagr = ((final / capital) ** (1 / years) - 1) * 100 if final > 0 else -100.0
 
     rets = np.diff(values) / values[:-1] if len(values) > 1 else np.array([])
-    per_year = PERIODS_PER_YEAR.get(tf, 252)
+    per_year = periods_per_year(tf)
     sharpe = float(rets.mean() / rets.std() * math.sqrt(per_year)) if len(rets) > 1 and rets.std() > 0 else None
     dd = drawdown(values)
 

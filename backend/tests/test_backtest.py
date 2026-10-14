@@ -196,3 +196,46 @@ async def test_backtest_job_end_to_end(settings):
             assert client.get("/api/backtests").json() == []
     finally:
         app.dependency_overrides.clear()
+
+
+async def test_chart_backtest_runs_on_chart_bars(settings):
+    from fastapi.testclient import TestClient
+
+    from app import deps
+    from app.main import app
+    from tests.test_candles import service
+
+    svc = service(settings)
+    app.dependency_overrides[deps.get_candle_service] = lambda: svc
+    try:
+        with TestClient(app) as client:
+            body = {
+                "symbol": "NSE:SBIN-EQ",
+                "tf": "1D",
+                "bars": 300,
+                "entry": [{"type": "rsi", "params": {"op": ">", "value": 0}}],
+                "stop_type": "pct",
+                "stop_value": 5,
+                "target_type": "r",
+                "target_value": 2,
+            }
+            r = client.post("/api/backtests/chart", json=body)
+            assert r.status_code == 200, r.text
+            res = r.json()
+            assert res["summary"]["trades"] == len(res["trades"]) > 0
+            assert "buy_hold_return_pct" in res["summary"]
+            assert res["from"] <= res["trades"][0]["entry_time"] <= res["to"]
+            assert len(res["buy_hold"]) == res["bars_tested"]
+            assert client.get("/api/backtests").json() == []  # chart runs aren't saved
+            bad_tf = client.post("/api/backtests/chart", json={**body, "tf": "7m"})
+            assert bad_tf.status_code == 400
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_periods_per_year():
+    from app.backtest.metrics import periods_per_year
+
+    assert periods_per_year("1D") == 252
+    assert periods_per_year("15m") == 252 * 25
+    assert periods_per_year("1h") == 252 * 6.25

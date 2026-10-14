@@ -20,3 +20,6 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Reference books (copyrighted; kept locally only)
+strategy reference/

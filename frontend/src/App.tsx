@@ -26,15 +26,25 @@ import { loadPref, usePref } from './prefs'
 import { ScannerPanel } from './scanner/ScannerPanel'
 import { WatchlistPanel } from './watchlist/WatchlistPanel'
 import { StrategyTester } from './backtest/StrategyTester'
+import {
+  ChartStrategyPanel,
+  ChartStrategyReport,
+  defaultChartStrategy,
+  tradeMarkers,
+  useChartStrategy,
+} from './backtest/ChartStrategy'
+import type { ChartStrategy } from './backtest/types'
 import { AlertsPanel } from './alerts/AlertsPanel'
 import { AlertToasts } from './alerts/AlertToasts'
+import { SignalsPage } from './alerts/SignalsPage'
 import type { AlertIn } from './alerts/types'
-import type { BacktestTrade } from './backtest/types'
-import type { SeriesMarker, Time, UTCTimestamp } from 'lightweight-charts'
+import type { SeriesMarker, Time } from 'lightweight-charts'
 import { IndicatorDialog } from './studies/IndicatorDialog'
 import { defaultStudies, newStudy } from './studies/model'
 import { StudySettings } from './studies/StudySettings'
 import { BottomBar } from './ui/BottomBar'
+import { NavRail, type Page } from './ui/NavRail'
+import { RightRail, type Dock } from './ui/RightRail'
 import { TopBar } from './ui/TopBar'
 
 const DEFAULT_FAVORITES = ['15m', '1h', '4h', '1D', '1W']
@@ -122,14 +132,26 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
     chartError: null,
   })
   const [highlight, setHighlight] = useState<string | null>(null)
-  const [showScanner, setShowScanner] = usePref<boolean>('scanner', false)
-  const [showWatchlist, setShowWatchlist] = usePref<boolean>('watchlist', true)
-  const [showTester, setShowTester] = usePref<boolean>('tester', false)
-  const [showAlerts, setShowAlerts] = usePref<boolean>('alertsPanel', false)
+  const [page, setPage] = usePref<Page>('page', 'chart')
+  // Pages stay mounted once opened, so a scan or a backtest survives a trip to the chart.
+  const [visited, setVisited] = useState<Set<Page>>(() => new Set([page]))
+  const goTo = useCallback(
+    (p: Page) => {
+      setPage(p)
+      setVisited((v) => (v.has(p) ? v : new Set(v).add(p)))
+    },
+    [setPage],
+  )
+  const [dock, setDock] = usePref<Dock | null>('dock', 'watchlist')
   const [alertRequest, setAlertRequest] = useState<Partial<AlertIn> | null>(null)
   const clearAlertRequest = useCallback(() => setAlertRequest(null), [])
-  // Backtest trades shown on the chart for the symbol last opened from the tester.
+  // Lab backtest trades shown on the chart for the symbol last opened from its results.
   const [tradeMarks, setTradeMarks] = useState<{ symbol: string; markers: SeriesMarker<Time>[] } | null>(null)
+  const [chartStrategy, setChartStrategy] = usePref<ChartStrategy>('chartStrategy', defaultChartStrategy)
+  const patchStrategy = useCallback(
+    (patch: Partial<ChartStrategy>) => setChartStrategy((s) => ({ ...s, ...patch })),
+    [setChartStrategy],
+  )
   const [indicatorsOpen, setIndicatorsOpen] = useState(false)
   const [settingsUid, setSettingsUid] = useState<string | null>(null)
   const [crosshair, setCrosshair] = useState<{ time: number | null; source: number } | null>(null)
@@ -238,6 +260,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
   // Alt+T trend, Alt+H horizontal, Alt+V vertical, Alt+R rectangle (as TradingView).
   useEffect(() => {
     const keys: Record<string, DrawingTool> = { t: 'trend', h: 'hline', v: 'vline', r: 'rect' }
+    if (page !== 'chart') return
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey || (e.target as HTMLElement).closest('input, textarea, select')) return
       const t = keys[e.key.toLowerCase()]
@@ -248,7 +271,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [page])
 
   const onStatus = useCallback((text: string, activeRange: string | null) => setStatus({ text, activeRange }), [])
   const onPatterns = useCallback((s: PatternState) => setPatterns(s), [])
@@ -264,192 +287,282 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
   const settingsStudy = activeStudies.find((s) => s.uid === settingsUid)
   const isIndex = activeConfig.symbol.kind === 'INDEX'
   const fyersReady = authenticated && catalog
+  const strategyState = useChartStrategy(chartStrategy, activeConfig.symbol.symbol, activeConfig.tf, !!fyersReady)
+  // The strategy's trades, on the chart(s) showing the symbol and interval it ran on.
+  const strategyMarks = useMemo(() => {
+    const r = strategyState.result
+    if (!chartStrategy.enabled || !r) return null
+    return { symbol: r.request.symbol, tf: r.request.tf, markers: tradeMarkers(r.trades, theme) }
+  }, [chartStrategy.enabled, strategyState.result, theme])
+
+  // The patterns panel shows the active chart's patterns, so opening it turns them on.
+  useEffect(() => {
+    if (dock === 'patterns' && !activeConfig.showPatterns) updateActive({ showPatterns: true })
+  }, [dock, activeConfig.showPatterns]) // eslint-disable-line react-hooks/exhaustive-deps
+  const onDock = (d: Dock | null) => {
+    if (dock === 'patterns' && d === null) updateActive({ showPatterns: false })
+    setDock(d)
+  }
+  const openOnChart = (symbol: InstrumentHit) => {
+    updateActive({ symbol })
+    goTo('chart')
+  }
 
   return (
     <div className="app">
-      <TopBar
-        symbol={activeConfig.symbol}
-        onSymbol={(symbol) => updateActive({ symbol })}
-        tf={activeConfig.tf}
-        onTf={(tf) => updateActive({ tf })}
-        favorites={favorites}
-        onFavorites={setFavorites}
-        chartType={activeConfig.chartType}
-        onChartType={(chartType) => updateActive({ chartType })}
-        onIndicators={() => setIndicatorsOpen(true)}
-        showPatterns={activeConfig.showPatterns}
-        onTogglePatterns={() => updateActive({ showPatterns: !activeConfig.showPatterns })}
-        patternCount={activeConfig.showPatterns && patterns.result ? patterns.result.hits.length : null}
-        themeMode={themeMode}
-        onThemeMode={setThemeMode}
-        dark={theme.dark}
+      <NavRail
+        page={page}
+        onPage={goTo}
+        user={user}
+        onSignOut={onSignOut}
         auth={auth}
         error={error}
         onFyersChanged={refreshAuth}
-        layoutMenu={<LayoutMenu layout={layout} onLayout={setLayoutId} sync={sync} onSync={setSync} />}
-        showScanner={showScanner}
-        onToggleScanner={() => setShowScanner((v) => !v)}
-        showWatchlist={showWatchlist}
-        onToggleWatchlist={() => setShowWatchlist((v) => !v)}
-        user={user}
-        onSignOut={onSignOut}
-        showTester={showTester}
-        onToggleTester={() => setShowTester((v) => !v)}
-        showAlerts={showAlerts}
-        onToggleAlerts={() => setShowAlerts((v) => !v)}
+        themeMode={themeMode}
+        onThemeMode={setThemeMode}
+        dark={theme.dark}
       />
-
-      {fyersNotice && (
-        <div className={`fyers-notice ${fyersNotice.ok ? 'ok' : 'err'}`} role={fyersNotice.ok ? 'status' : 'alert'}>
-          <span>
-            {fyersNotice.ok ? '✓ Fyers connected.' : `Fyers login didn't work: ${fyersNotice.reason || 'unknown error'}`}
-          </span>
-          {!fyersNotice.ok && auth?.fyers.login_url && (
-            <a className="primary-button small" href={auth.fyers.login_url}>
-              Try again
-            </a>
-          )}
-          <button className="icon-button" aria-label="Dismiss" onClick={() => setFyersNotice(null)}>
-            ×
-          </button>
-        </div>
-      )}
-
-      <div className="workspace">
-        <DrawingToolbar
-          tool={tool}
-          onTool={setTool}
-          hasDrawings={(drawings[activeConfig.symbol.symbol] ?? []).length > 0}
-          onClearAll={() => onDrawingsChange(activeConfig.symbol.symbol, [])}
-        />
-        <main
-          className={`chart-grid ${layout.count > 1 ? 'multi' : ''}`}
-          style={{
-            gridTemplateAreas: layout.areas,
-            gridTemplateColumns: layout.columns,
-            gridTemplateRows: layout.rows,
-          }}
-        >
-          {!fyersReady && auth && !authenticated && <div className="overlay">Connect Fyers to load charts.</div>}
-          {catalog &&
-            panels.slice(0, layout.count).map((config, i) => (
-              <div key={i} className="chart-cell" style={{ gridArea: LETTERS[i] }}>
-                <ChartPanel
-                  config={config}
-                  onConfig={(patch) => updatePanel(i, patch)}
-                  active={i === active}
-                  onActivate={() => setActiveIndex(i)}
-                  command={commands[i] ?? null}
-                  theme={theme}
-                  catalog={catalog}
-                  catalogById={catalogById}
-                  patternCatalog={patternCatalog}
-                  authenticated={authenticated}
-                  tool={tool}
-                  onToolDone={onToolDone}
-                  drawings={drawings[config.symbol.symbol] ?? EMPTY_DRAWINGS}
-                  onDrawingsChange={onDrawingsChange}
-                  onStudySettings={(uid) => {
-                    setActiveIndex(i)
-                    setSettingsUid(uid)
-                  }}
-                  onStatus={onStatus}
-                  onPatterns={onPatterns}
-                  // undefined = this chart isn't following another chart's crosshair
-                  syncCrosshair={
-                    sync.crosshair && layout.count > 1 && crosshair && crosshair.source !== i
-                      ? crosshair.time
-                      : undefined
-                  }
-                  onCrosshairTime={(time) => setCrosshair({ time, source: i })}
-                  syncRange={sync.time && layout.count > 1 && i !== active ? timeRange : null}
-                  onVisibleTimeRange={sync.time && i === active ? onVisibleTimeRange : undefined}
-                  highlightPattern={i === active ? highlight : null}
-                  extraMarkers={tradeMarks && tradeMarks.symbol === config.symbol.symbol ? tradeMarks.markers : undefined}
-                  onDrawingAlert={(d, sym) => {
-                    const points =
-                      d.type === 'hline' ? [{ time: 0, price: d.price }] : d.type === 'trend' ? [d.a, d.b] : null
-                    if (!points) return
-                    setAlertRequest({
-                      kind: 'drawing',
-                      symbol: sym.symbol,
-                      ticker: sym.ticker,
-                      config: { op: 'crosses', points },
-                      frequency: 'once',
-                    })
-                    setShowAlerts(true)
-                  }}
-                />
-              </div>
-            ))}
-        </main>
-        {activeConfig.showPatterns && patternCatalog && (
-          <PatternPanel
-            catalog={patternCatalog}
-            settings={activeConfig.patternSettings}
-            onSettings={(patternSettings) => updateActive({ patternSettings })}
-            result={patterns.result}
-            loading={patterns.loading}
-            error={patterns.error}
-            intraday={!DAILY_TIMEFRAMES.has(activeConfig.tf)}
-            onFocus={(time) => sendCommand({ kind: 'focus', time })}
-            chartResult={patterns.chart}
-            chartLoading={patterns.chartLoading}
-            chartError={patterns.chartError}
-            highlight={highlight}
-            onPickPattern={(pat) => {
-              const k = patternKey(pat)
-              setHighlight((h) => (h === k ? null : k))
-              sendCommand({ kind: 'focus', time: pat.points[Math.floor(pat.points.length / 2)].time })
-            }}
-          />
+      <div className="app-main">
+        {fyersNotice && (
+          <div className={`fyers-notice ${fyersNotice.ok ? 'ok' : 'err'}`} role={fyersNotice.ok ? 'status' : 'alert'}>
+            <span>
+              {fyersNotice.ok ? '✓ Fyers connected.' : `Fyers login didn't work: ${fyersNotice.reason || 'unknown error'}`}
+            </span>
+            {!fyersNotice.ok && auth?.fyers.login_url && (
+              <a className="primary-button small" href={auth.fyers.login_url}>
+                Try again
+              </a>
+            )}
+            <button className="icon-button" aria-label="Dismiss" onClick={() => setFyersNotice(null)}>
+              ×
+            </button>
+          </div>
         )}
-        {showScanner && <ScannerPanel onOpen={(symbol) => updateActive({ symbol })} />}
-        {showAlerts && (
-          <AlertsPanel
+
+        <div className="page chart-page" hidden={page !== 'chart'}>
+          <TopBar
             symbol={activeConfig.symbol}
-            createRequest={alertRequest}
-            onCreateHandled={clearAlertRequest}
-            onOpen={(symbol) => updateActive({ symbol })}
+            onSymbol={(symbol) => updateActive({ symbol })}
+            tf={activeConfig.tf}
+            onTf={(tf) => updateActive({ tf })}
+            favorites={favorites}
+            onFavorites={setFavorites}
+            chartType={activeConfig.chartType}
+            onChartType={(chartType) => updateActive({ chartType })}
+            onIndicators={() => setIndicatorsOpen(true)}
+            layoutMenu={<LayoutMenu layout={layout} onLayout={setLayoutId} sync={sync} onSync={setSync} />}
+            hotkeys={page === 'chart'}
+            extra={
+              <button
+                className={`tool-button ${chartStrategy.enabled ? 'selected' : ''}`}
+                title="Backtest a strategy on this chart"
+                onClick={() => {
+                  if (!chartStrategy.enabled) patchStrategy({ enabled: true })
+                  setDock('strategy')
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+                  <path d="M2 15h14M4 12l3-4 3 2 5-6" />
+                </svg>
+                {chartStrategy.enabled ? chartStrategy.name : 'Strategy'}
+              </button>
+            }
           />
+
+          <div className="workspace">
+            <DrawingToolbar
+              tool={tool}
+              onTool={setTool}
+              hasDrawings={(drawings[activeConfig.symbol.symbol] ?? []).length > 0}
+              onClearAll={() => onDrawingsChange(activeConfig.symbol.symbol, [])}
+            />
+            <main
+              className={`chart-grid ${layout.count > 1 ? 'multi' : ''}`}
+              style={{
+                gridTemplateAreas: layout.areas,
+                gridTemplateColumns: layout.columns,
+                gridTemplateRows: layout.rows,
+              }}
+            >
+              {!fyersReady && auth && !authenticated && (
+                <div className="overlay">
+                  {user.role === 'admin'
+                    ? 'Connect Fyers (bottom left) to load charts.'
+                    : 'Market data is paused until an admin connects Fyers.'}
+                </div>
+              )}
+              {catalog &&
+                panels.slice(0, layout.count).map((config, i) => {
+                  const marks =
+                    strategyMarks && strategyMarks.symbol === config.symbol.symbol && strategyMarks.tf === config.tf
+                      ? strategyMarks.markers
+                      : !chartStrategy.enabled && tradeMarks && tradeMarks.symbol === config.symbol.symbol
+                        ? tradeMarks.markers
+                        : undefined
+                  return (
+                    <div key={i} className="chart-cell" style={{ gridArea: LETTERS[i] }}>
+                      <ChartPanel
+                        config={config}
+                        onConfig={(patch) => updatePanel(i, patch)}
+                        active={i === active}
+                        onActivate={() => setActiveIndex(i)}
+                        command={commands[i] ?? null}
+                        theme={theme}
+                        catalog={catalog}
+                        catalogById={catalogById}
+                        patternCatalog={patternCatalog}
+                        authenticated={authenticated}
+                        tool={tool}
+                        onToolDone={onToolDone}
+                        drawings={drawings[config.symbol.symbol] ?? EMPTY_DRAWINGS}
+                        onDrawingsChange={onDrawingsChange}
+                        onStudySettings={(uid) => {
+                          setActiveIndex(i)
+                          setSettingsUid(uid)
+                        }}
+                        onStatus={onStatus}
+                        onPatterns={onPatterns}
+                        // undefined = this chart isn't following another chart's crosshair
+                        syncCrosshair={
+                          sync.crosshair && layout.count > 1 && crosshair && crosshair.source !== i
+                            ? crosshair.time
+                            : undefined
+                        }
+                        onCrosshairTime={(time) => setCrosshair({ time, source: i })}
+                        syncRange={sync.time && layout.count > 1 && i !== active ? timeRange : null}
+                        onVisibleTimeRange={sync.time && i === active ? onVisibleTimeRange : undefined}
+                        highlightPattern={i === active ? highlight : null}
+                        extraMarkers={marks}
+                        onDrawingAlert={(d, sym) => {
+                          const points =
+                            d.type === 'hline' ? [{ time: 0, price: d.price }] : d.type === 'trend' ? [d.a, d.b] : null
+                          if (!points) return
+                          setAlertRequest({
+                            kind: 'drawing',
+                            symbol: sym.symbol,
+                            ticker: sym.ticker,
+                            config: { op: 'crosses', points },
+                            frequency: 'once',
+                          })
+                          setDock('alerts')
+                        }}
+                      />
+                    </div>
+                  )
+                })}
+            </main>
+            {dock && (
+              <div className="dock" key={dock}>
+                {dock === 'patterns' && patternCatalog && (
+                  <PatternPanel
+                    catalog={patternCatalog}
+                    settings={activeConfig.patternSettings}
+                    onSettings={(patternSettings) => updateActive({ patternSettings })}
+                    result={patterns.result}
+                    loading={patterns.loading}
+                    error={patterns.error}
+                    intraday={!DAILY_TIMEFRAMES.has(activeConfig.tf)}
+                    onFocus={(time) => sendCommand({ kind: 'focus', time })}
+                    chartResult={patterns.chart}
+                    chartLoading={patterns.chartLoading}
+                    chartError={patterns.chartError}
+                    highlight={highlight}
+                    onPickPattern={(pat) => {
+                      const k = patternKey(pat)
+                      setHighlight((h) => (h === k ? null : k))
+                      sendCommand({ kind: 'focus', time: pat.points[Math.floor(pat.points.length / 2)].time })
+                    }}
+                  />
+                )}
+                {dock === 'alerts' && (
+                  <AlertsPanel
+                    symbol={activeConfig.symbol}
+                    createRequest={alertRequest}
+                    onCreateHandled={clearAlertRequest}
+                    onOpen={(symbol) => updateActive({ symbol })}
+                  />
+                )}
+                {dock === 'watchlist' && (
+                  <WatchlistPanel
+                    current={activeConfig.symbol}
+                    activeSymbol={activeConfig.symbol.symbol}
+                    onOpen={(symbol) => updateActive({ symbol })}
+                  />
+                )}
+                {dock === 'strategy' && (
+                  <ChartStrategyPanel
+                    strategy={chartStrategy}
+                    onChange={patchStrategy}
+                    state={strategyState}
+                    ticker={activeConfig.symbol.ticker}
+                    tf={activeConfig.tf}
+                  />
+                )}
+              </div>
+            )}
+            <RightRail
+              dock={dock}
+              onDock={onDock}
+              badges={{
+                patterns: activeConfig.showPatterns && patterns.result ? patterns.result.hits.length : null,
+                strategy: chartStrategy.enabled ? 'on' : null,
+              }}
+            />
+          </div>
+
+          {chartStrategy.enabled && (
+            <ChartStrategyReport
+              strategy={chartStrategy}
+              state={strategyState}
+              theme={theme}
+              onSettings={() => setDock('strategy')}
+              onRemove={() => patchStrategy({ enabled: false })}
+              onOpenTrade={(trade) => sendCommand({ kind: 'goto', epoch: trade.entry_time })}
+            />
+          )}
+
+          <BottomBar
+            activeRange={status.activeRange}
+            onRange={(label) => sendCommand({ kind: 'range', label })}
+            onGoTo={(epoch) => sendCommand({ kind: 'goto', epoch })}
+            intraday={!DAILY_TIMEFRAMES.has(activeConfig.tf)}
+            scaleMode={activeConfig.scaleMode}
+            onScaleMode={(scaleMode) => updateActive({ scaleMode })}
+            status={layout.count > 1 ? `Chart ${active + 1} · ${status.text}` : status.text}
+          />
+        </div>
+
+        {visited.has('screener') && (
+          <div className="page" hidden={page !== 'screener'}>
+            <ScannerPanel onOpen={openOnChart} />
+          </div>
         )}
-        {showWatchlist && (
-          <WatchlistPanel
-            current={activeConfig.symbol}
-            activeSymbol={activeConfig.symbol.symbol}
-            onOpen={(symbol) => updateActive({ symbol })}
-          />
+        {visited.has('lab') && (
+          <div className="page" hidden={page !== 'lab'}>
+            <StrategyTester
+              chartSymbol={activeConfig.symbol}
+              theme={theme}
+              onOpenTrade={(trade, all) => {
+                const symbol = trade.symbol
+                const kind = symbol.startsWith('MCX:') ? 'COM' : symbol.endsWith('-INDEX') ? 'INDEX' : 'EQ'
+                if (symbol !== activeConfig.symbol.symbol)
+                  updateActive({ symbol: { symbol, ticker: trade.ticker, name: trade.ticker, kind } })
+                setTradeMarks({ symbol, markers: tradeMarkers(all.filter((t) => t.symbol === symbol), theme) })
+                goTo('chart')
+                // goto waits for the symbol's data (and loads older history if needed).
+                sendCommand({ kind: 'goto', epoch: trade.entry_time })
+              }}
+            />
+          </div>
+        )}
+        {visited.has('signals') && (
+          <div className="page" hidden={page !== 'signals'}>
+            <SignalsPage onOpen={openOnChart} />
+          </div>
         )}
       </div>
 
-      {showTester && (
-        <StrategyTester
-          chartSymbol={activeConfig.symbol}
-          theme={theme}
-          onClose={() => setShowTester(false)}
-          onOpenTrade={(trade, all) => {
-            const symbol = trade.symbol
-            const kind = symbol.startsWith('MCX:') ? 'COM' : symbol.endsWith('-INDEX') ? 'INDEX' : 'EQ'
-            if (symbol !== activeConfig.symbol.symbol)
-              updateActive({ symbol: { symbol, ticker: trade.ticker, name: trade.ticker, kind } })
-            setTradeMarks({ symbol, markers: tradeMarkers(all.filter((t) => t.symbol === symbol), theme) })
-            // goto waits for the symbol's data (and loads older history if needed).
-            sendCommand({ kind: 'goto', epoch: trade.entry_time })
-          }}
-        />
-      )}
-
       <AlertToasts />
-
-      <BottomBar
-        activeRange={status.activeRange}
-        onRange={(label) => sendCommand({ kind: 'range', label })}
-        onGoTo={(epoch) => sendCommand({ kind: 'goto', epoch })}
-        intraday={!DAILY_TIMEFRAMES.has(activeConfig.tf)}
-        scaleMode={activeConfig.scaleMode}
-        onScaleMode={(scaleMode) => updateActive({ scaleMode })}
-        status={layout.count > 1 ? `Chart ${active + 1} · ${status.text}` : status.text}
-      />
 
       {indicatorsOpen && catalog && (
         <IndicatorDialog
@@ -475,27 +588,3 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
 }
 
 export default App
-
-/** Entry/exit arrows for backtest trades: entries below (long) or above
- * (short) the bar, exits on the other side, colored by the trade's result. */
-function tradeMarkers(trades: BacktestTrade[], theme: { up: string; down: string; muted: string }): SeriesMarker<Time>[] {
-  const out: SeriesMarker<Time>[] = []
-  for (const t of trades) {
-    const long = t.side === 'long'
-    out.push({
-      time: t.entry_time as UTCTimestamp,
-      position: long ? 'belowBar' : 'aboveBar',
-      shape: long ? 'arrowUp' : 'arrowDown',
-      color: theme.muted,
-      text: `${long ? 'Buy' : 'Sell'} ${t.entry_price.toFixed(2)}`,
-    })
-    out.push({
-      time: t.exit_time as UTCTimestamp,
-      position: long ? 'aboveBar' : 'belowBar',
-      shape: long ? 'arrowDown' : 'arrowUp',
-      color: t.pnl >= 0 ? theme.up : theme.down,
-      text: `${t.reason} ${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct.toFixed(1)}%`,
-    })
-  }
-  return out.sort((a, b) => (a.time as number) - (b.time as number))
-}

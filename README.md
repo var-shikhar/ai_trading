@@ -135,6 +135,22 @@ behind Caddy/Nginx; if you change `PORT`, also set `BACKEND_URL` in
 
 Tests: `cd backend; .\.venv\Scripts\python -m pytest`
 
+## Using the app
+
+- **Left rail**: the app's sections. **Charts**, **Screener** (scan a list
+  for setups), **Strategy Lab** (portfolio backtests over a list, saved to
+  history) and **Signals** (from alerts now, agents later). Fyers status,
+  theme and account sit at the bottom.
+- **Charts**: the top bar has only chart controls. The icons on the right edge
+  open a docked panel (Watchlist, Alerts, Patterns, Strategy) that stays until
+  you click its icon again.
+- **Strategy on the chart** (as in TradingView): open *Strategy* in the right
+  rail and switch it on. It backtests on the active chart's symbol and interval
+  (any interval, the last N bars), reruns as you edit the rules or change
+  symbol/interval, draws its trades on the chart, and shows results in the
+  Strategy Tester under the chart. Save the rules as a strategy to reuse them
+  in the Strategy Lab. API: `POST /api/backtests/chart`.
+
 ## Roadmap
 
 1. Project setup ✅

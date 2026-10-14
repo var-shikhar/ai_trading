@@ -8,6 +8,8 @@ import type {
   BacktestJob,
   BacktestRequest,
   BacktestResult,
+  ChartBacktestResult,
+  ChartStrategy,
 } from '../backtest/types'
 
 export interface Candle {
@@ -274,6 +276,14 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
   return res.json() as Promise<T>
 }
 
+/** FastAPI errors: a string, or a list of validation errors. */
+function errorText(detail: unknown): string | null {
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail))
+    return detail.map((d: { msg?: string }) => String(d.msg ?? '').replace(/^Value error, /, '')).join('; ') || null
+  return null
+}
+
 async function post<T>(path: string, body: unknown, method = 'POST'): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method,
@@ -283,7 +293,7 @@ async function post<T>(path: string, body: unknown, method = 'POST'): Promise<T>
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
     checkSession(res.status, data.detail)
-    throw new ApiError(res.status, typeof data.detail === 'string' ? data.detail : res.statusText)
+    throw new ApiError(res.status, errorText(data.detail) ?? res.statusText)
   }
   return res.json() as Promise<T>
 }
@@ -357,6 +367,8 @@ export const api = {
   alertEvents: () => get<AlertEvent[]>('/alerts/events'),
   testAlert: (channels?: string[]) => post<Record<string, string>>('/alerts/test', channels ?? null),
   backtestCatalog: () => get<BacktestCatalog>('/backtests/catalog'),
+  chartBacktest: (req: ChartStrategy & { symbol: string; tf: string }) =>
+    post<ChartBacktestResult>('/backtests/chart', req),
   runBacktest: (req: BacktestRequest) => post<BacktestJob>('/backtests', req),
   backtestJob: (id: string) => get<BacktestJob>(`/backtests/jobs/${id}`),
   cancelBacktest: (id: string) => post<{ cancelled: boolean }>(`/backtests/jobs/${id}/cancel`, {}),

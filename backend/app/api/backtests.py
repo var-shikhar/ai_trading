@@ -6,8 +6,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.backtest import engine, jobs, signals
 from app.deps import current_user, get_candle_service
+from app.providers.base import AuthRequired, ProviderError
 from app.services import universes
-from app.services.candles import CandleService
+from app.services.candles import TIMEFRAMES, CandleService
 
 router = APIRouter(prefix="/api/backtests", tags=["backtests"])
 
@@ -17,15 +18,9 @@ class Condition(BaseModel):
     params: dict = Field(default_factory=dict)
 
 
-class BacktestIn(BaseModel):
-    name: str = Field("Backtest", max_length=80)
-    strategy_id: str | None = Field(None, max_length=16)  # saved strategy this run belongs to
-    universe: str  # same lists as the scanner, plus "symbol"
-    symbol: str | None = None  # when universe == "symbol"
-    custom: list[str] = Field(default_factory=list, max_length=500)
-    tf: Literal["1D", "1W"] = "1D"
-    start: date
-    end: date | None = None
+class RulesIn(BaseModel):
+    """A strategy's rules: entry/exit conditions, stops, sizing and costs."""
+
     side: Literal["long", "short"] = "long"
     entry: list[Condition] = Field(..., min_length=1, max_length=10)
     exit_conditions: list[Condition] = Field(default_factory=list, max_length=10)
@@ -44,14 +39,63 @@ class BacktestIn(BaseModel):
     slippage_pct: float = Field(0.05, ge=0, le=5)
 
     @model_validator(mode="after")
-    def check(self):
-        if self.end and self.end <= self.start:
-            raise ValueError("end must be after start")
+    def check_rules(self):
         if self.sizing == "risk" and self.stop_type == "none":
             raise ValueError("Risk-based sizing needs a stop")
         if self.target_type == "r" and self.stop_type == "none":
             raise ValueError("An R-multiple target needs a stop")
         return self
+
+    def rules(self) -> engine.Rules:
+        return engine.Rules(
+            side=self.side,
+            stop_type=self.stop_type,
+            stop_value=self.stop_value,
+            target_type=self.target_type,
+            target_value=self.target_value,
+            trail_type=self.trail_type,
+            trail_value=self.trail_value,
+            max_bars=self.max_bars,
+            sizing=self.sizing,
+            size_value=self.size_value,
+            capital=self.capital,
+            max_positions=self.max_positions,
+            cost_pct=self.cost_pct,
+            slippage_pct=self.slippage_pct,
+        )
+
+    def check_conditions(self) -> None:
+        bad = [c.type for c in self.entry + self.exit_conditions if c.type not in signals.SIGNALS]
+        if bad:
+            reasons = [f"{t}: {signals.NOT_BACKTESTABLE.get(t, 'unknown condition')}" for t in bad]
+            raise HTTPException(400, "Can't backtest " + "; ".join(reasons))
+
+
+class BacktestIn(RulesIn):
+    name: str = Field("Backtest", max_length=80)
+    strategy_id: str | None = Field(None, max_length=16)  # saved strategy this run belongs to
+    universe: str  # same lists as the scanner, plus "symbol"
+    symbol: str | None = None  # when universe == "symbol"
+    custom: list[str] = Field(default_factory=list, max_length=500)
+    tf: Literal["1D", "1W"] = "1D"
+    start: date
+    end: date | None = None
+
+    @model_validator(mode="after")
+    def check(self):
+        if self.end and self.end <= self.start:
+            raise ValueError("end must be after start")
+        return self
+
+
+class ChartBacktestIn(RulesIn):
+    """Strategy applied to one chart, like TradingView's Strategy Tester:
+    runs on the chart's symbol and timeframe and returns at once."""
+
+    symbol: str
+    tf: str = "1D"
+    bars: int = Field(2000, ge=100, le=5000)
+    max_positions: int = Field(1, ge=1, le=100)
 
 
 @router.get("/catalog")
@@ -66,10 +110,7 @@ def catalog(user: str = Depends(current_user)):
 @router.post("")
 async def run(body: BacktestIn, service: CandleService = Depends(get_candle_service),
               user: str = Depends(current_user)):
-    bad = [c.type for c in body.entry + body.exit_conditions if c.type not in signals.SIGNALS]
-    if bad:
-        reasons = [f"{t}: {signals.NOT_BACKTESTABLE.get(t, 'unknown condition')}" for t in bad]
-        raise HTTPException(400, "Can't backtest " + "; ".join(reasons))
+    body.check_conditions()
     if body.universe == "symbol":
         if not body.symbol:
             raise HTTPException(400, "Pick a symbol")
@@ -82,26 +123,24 @@ async def run(body: BacktestIn, service: CandleService = Depends(get_candle_serv
             raise HTTPException(400, f"Unknown universe '{body.universe}'") from None
     if not symbols:
         raise HTTPException(400, "No symbols to test")
-    rules = engine.Rules(
-        side=body.side,
-        stop_type=body.stop_type,
-        stop_value=body.stop_value,
-        target_type=body.target_type,
-        target_value=body.target_value,
-        trail_type=body.trail_type,
-        trail_value=body.trail_value,
-        max_bars=body.max_bars,
-        sizing=body.sizing,
-        size_value=body.size_value,
-        capital=body.capital,
-        max_positions=body.max_positions,
-        cost_pct=body.cost_pct,
-        slippage_pct=body.slippage_pct,
-    )
     request = body.model_dump(mode="json")
-    request["entry"] = [c.model_dump() for c in body.entry]
-    request["exit_conditions"] = [c.model_dump() for c in body.exit_conditions]
-    return jobs.start(service, request, symbols, rules, owner=user).view()
+    return jobs.start(service, request, symbols, body.rules(), owner=user).view()
+
+
+@router.post("/chart")
+async def run_on_chart(body: ChartBacktestIn, service: CandleService = Depends(get_candle_service),
+                       _: str = Depends(current_user)):
+    body.check_conditions()
+    if body.tf not in TIMEFRAMES:
+        raise HTTPException(400, f"Unknown timeframe '{body.tf}'")
+    try:
+        return await jobs.run_chart(service, body.model_dump(mode="json"), body.rules())
+    except AuthRequired as e:
+        raise HTTPException(401, str(e)) from e
+    except ProviderError as e:
+        raise HTTPException(502, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @router.get("/jobs/{job_id}")

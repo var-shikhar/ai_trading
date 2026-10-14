@@ -164,6 +164,33 @@ async def _run(job: Job, service: CandleService, symbols: list[dict], rules: eng
         job.status, job.message = "error", str(e)
 
 
+async def run_chart(service: CandleService, req: dict, rules: engine.Rules) -> dict:
+    """One symbol on the chart's timeframe, computed straight away (not saved).
+    Uses the same bars the chart shows, so trades line up with its candles."""
+    df = await _load(service, req["symbol"], req["tf"], req["bars"])
+    if len(df) < 30:
+        raise ValueError("Not enough bars on this chart to backtest")
+    data = await asyncio.to_thread(engine.prepare, df, req["entry"], req.get("exit_conditions", []))
+    start_t, end_t = int(df["time"].iloc[0]), int(df["time"].iloc[-1])
+    result = await asyncio.to_thread(engine.run, {req["symbol"]: data}, rules, start_t, end_t)
+    trades, equity = result["trades"], result["equity"]
+    summary = metrics.summarize(trades, equity, rules.capital, req["tf"])
+    summary["exposure_pct"] = metrics.exposure_pct(trades, equity)
+    first, last = float(df["close"].iloc[0]), float(df["close"].iloc[-1])
+    summary["buy_hold_return_pct"] = round((last / first - 1) * 100, 2)
+    ticker = req["symbol"].split(":")[-1].split("-")[0]
+    return _jsonable({
+        "request": req,
+        "summary": summary,
+        "equity": [[t, v] for t, v in equity],
+        "buy_hold": [[int(t), round(rules.capital * c / first, 2)] for t, c in zip(df["time"], df["close"])],
+        "trades": [{**asdict(t), "ticker": ticker} for t in trades],
+        "bars_tested": len(df),
+        "from": start_t,
+        "to": end_t,
+    })
+
+
 def _jsonable(x):
     """JSON round-trip: numpy numbers etc. become plain types for the JSON column."""
     return json.loads(json.dumps(x, default=float))
