@@ -1,0 +1,314 @@
+﻿[1/288] none      pb<=3 d=0.2-1.0 brk=False swing stop n=18018 avgR=-0.113 win=55.8 t=-16.55 tm=-8.51
+[2/288] none      pb<=3 d=0.2-1.0 brk=False swing open n=27853 avgR=-0.193 win=36.5 t=-12.51 tm=-7.37
+[3/288] none      pb<=3 d=0.2-1.0 brk=False trail stop n=11625 avgR=+0.022 win=26.5 t=0.96 tm=-0.24
+[4/288] none      pb<=3 d=0.2-1.0 brk=False trail open n=18460 avgR=-0.079 win=17.8 t=-2.20 tm=-0.75
+[5/288] none      pb<=3 d=0.2-1.0 brk=False half  stop n=11596 avgR=-0.042 win=33.1 t=-3.12 tm=-1.79
+[6/288] none      pb<=3 d=0.2-1.0 brk=False half  open n=18409 avgR=-0.134 win=25.9 t=-5.51 tm=-2.33
+[7/288] none      pb<=3 d=0.38-0.79 brk=False swing stop n=11337 avgR=-0.113 win=56.1 t=-13.15 tm=-7.92
+[8/288] none      pb<=3 d=0.38-0.79 brk=False swing open n=18408 avgR=-0.188 win=35.6 t=-9.29 tm=-5.38
+[9/288] none      pb<=3 d=0.38-0.79 brk=False trail stop n= 8382 avgR=+0.014 win=26.4 t=0.54 tm=-0.32
+[10/288] none      pb<=3 d=0.38-0.79 brk=False trail open n=13756 avgR=-0.055 win=17.7 t=-1.21 tm=-0.27
+[11/288] none      pb<=3 d=0.38-0.79 brk=False half  stop n= 8376 avgR=-0.046 win=33.2 t=-2.91 tm=-1.87
+[12/288] none      pb<=3 d=0.38-0.79 brk=False half  open n=13733 avgR=-0.121 win=26.1 t=-4.02 tm=-1.60
+[13/288] none      pb<=3 d=0.5-1.0 brk=False swing stop n=11049 avgR=-0.110 win=54.7 t=-11.95 tm=-6.30
+[14/288] none      pb<=3 d=0.5-1.0 brk=False swing open n=18311 avgR=-0.192 win=34.3 t=-9.35 tm=-4.78
+[15/288] none      pb<=3 d=0.5-1.0 brk=False trail stop n= 8370 avgR=+0.027 win=27.0 t=1.07 tm=0.10
+[16/288] none      pb<=3 d=0.5-1.0 brk=False trail open n=13839 avgR=-0.043 win=18.4 t=-1.01 tm=0.25
+[17/288] none      pb<=3 d=0.5-1.0 brk=False half  stop n= 8343 avgR=-0.034 win=34.4 t=-2.18 tm=-1.34
+[18/288] none      pb<=3 d=0.5-1.0 brk=False half  open n=13791 avgR=-0.102 win=26.5 t=-3.46 tm=-0.87
+[19/288] none      pb<=3 d=0.2-3.0 brk=True  swing stop n=21459 avgR=-0.110 win=54.5 t=-16.74 tm=-7.49
+[20/288] none      pb<=3 d=0.2-3.0 brk=True  swing open n=33393 avgR=-0.205 win=35.2 t=-14.33 tm=-6.87
+[21/288] none      pb<=3 d=0.2-3.0 brk=True  trail stop n=14112 avgR=+0.017 win=26.1 t=0.86 tm=0.15
+[22/288] none      pb<=3 d=0.2-3.0 brk=True  trail open n=22640 avgR=-0.077 win=18.3 t=-2.39 tm=-0.08
+[23/288] none      pb<=3 d=0.2-3.0 brk=True  half  stop n=13907 avgR=-0.044 win=34.6 t=-3.60 tm=-1.34
+[24/288] none      pb<=3 d=0.2-3.0 brk=True  half  open n=22298 avgR=-0.135 win=26.1 t=-5.96 tm=-1.58
+[25/288] none      pb<=5 d=0.2-1.0 brk=False swing stop n=22590 avgR=-0.102 win=53.8 t=-15.23 tm=-7.04
+[26/288] none      pb<=5 d=0.2-1.0 brk=False swing open n=35072 avgR=-0.169 win=36.1 t=-11.69 tm=-5.96
+[27/288] none      pb<=5 d=0.2-1.0 brk=False trail stop n=13624 avgR=+0.029 win=26.5 t=1.39 tm=0.20
+[28/288] none      pb<=5 d=0.2-1.0 brk=False trail open n=21430 avgR=-0.046 win=18.6 t=-1.34 tm=-0.14
+[29/288] none      pb<=5 d=0.2-1.0 brk=False half  stop n=13559 avgR=-0.036 win=34.2 t=-2.81 tm=-1.22
+[30/288] none      pb<=5 d=0.2-1.0 brk=False half  open n=21318 avgR=-0.107 win=26.7 t=-4.43 tm=-1.49
+[31/288] none      pb<=5 d=0.38-0.79 brk=False swing stop n=14563 avgR=-0.106 win=54.3 t=-12.93 tm=-7.11
+[32/288] none      pb<=5 d=0.38-0.79 brk=False swing open n=23430 avgR=-0.169 win=35.4 t=-8.95 tm=-5.03
+[33/288] none      pb<=5 d=0.38-0.79 brk=False trail stop n=10037 avgR=+0.026 win=26.6 t=1.10 tm=0.02
+[34/288] none      pb<=5 d=0.38-0.79 brk=False trail open n=16210 avgR=-0.035 win=18.4 t=-0.84 tm=-0.03
+[35/288] none      pb<=5 d=0.38-0.79 brk=False half  stop n=10015 avgR=-0.038 win=34.5 t=-2.54 tm=-1.44
+[36/288] none      pb<=5 d=0.38-0.79 brk=False half  open n=16167 avgR=-0.102 win=26.7 t=-3.57 tm=-1.31
+[37/288] none      pb<=5 d=0.5-1.0 brk=False swing stop n=14502 avgR=-0.096 win=52.3 t=-10.88 tm=-4.93
+[38/288] none      pb<=5 d=0.5-1.0 brk=False swing open n=23490 avgR=-0.172 win=33.7 t=-9.14 tm=-4.21
+[39/288] none      pb<=5 d=0.5-1.0 brk=False trail stop n=10374 avgR=+0.034 win=26.9 t=1.49 tm=0.50
+[40/288] none      pb<=5 d=0.5-1.0 brk=False trail open n=16750 avgR=-0.039 win=18.9 t=-0.99 tm=0.32
+[41/288] none      pb<=5 d=0.5-1.0 brk=False half  stop n=10300 avgR=-0.027 win=35.3 t=-1.87 tm=-0.76
+[42/288] none      pb<=5 d=0.5-1.0 brk=False half  open n=16634 avgR=-0.092 win=26.8 t=-3.30 tm=-0.69
+[43/288] none      pb<=5 d=0.2-3.0 brk=True  swing stop n=28109 avgR=-0.090 win=51.6 t=-13.91 tm=-4.95
+[44/288] none      pb<=5 d=0.2-3.0 brk=True  swing open n=43650 avgR=-0.161 win=34.4 t=-12.04 tm=-4.43
+[45/288] none      pb<=5 d=0.2-3.0 brk=True  trail stop n=18035 avgR=+0.032 win=26.6 t=1.87 tm=1.05
+[46/288] none      pb<=5 d=0.2-3.0 brk=True  trail open n=28188 avgR=-0.014 win=19.9 t=-0.50 tm=1.31
+[47/288] none      pb<=5 d=0.2-3.0 brk=True  half  stop n=17415 avgR=-0.024 win=36.2 t=-2.11 tm=-0.07
+[48/288] none      pb<=5 d=0.2-3.0 brk=True  half  open n=27233 avgR=-0.079 win=27.1 t=-3.64 tm=0.20
+[49/288] none      pb<=8 d=0.2-1.0 brk=False swing stop n=24614 avgR=-0.082 win=53.0 t=-12.17 tm=-5.55
+[50/288] none      pb<=8 d=0.2-1.0 brk=False swing open n=37810 avgR=-0.157 win=36.3 t=-11.54 tm=-5.64
+[51/288] none      pb<=8 d=0.2-1.0 brk=False trail stop n=14673 avgR=+0.045 win=27.1 t=2.28 tm=0.52
+[52/288] none      pb<=8 d=0.2-1.0 brk=False trail open n=22648 avgR=-0.046 win=19.4 t=-1.46 tm=-0.09
+[53/288] none      pb<=8 d=0.2-1.0 brk=False half  stop n=14527 avgR=-0.018 win=35.0 t=-1.40 tm=-0.67
+[54/288] none      pb<=8 d=0.2-1.0 brk=False half  open n=22437 avgR=-0.103 win=27.1 t=-4.70 tm=-1.41
+[55/288] none      pb<=8 d=0.38-0.79 brk=False swing stop n=16076 avgR=-0.088 win=53.7 t=-10.79 tm=-5.97
+[56/288] none      pb<=8 d=0.38-0.79 brk=False swing open n=25680 avgR=-0.152 win=35.8 t=-8.57 tm=-4.74
+[57/288] none      pb<=8 d=0.38-0.79 brk=False trail stop n=10860 avgR=+0.045 win=27.3 t=1.95 tm=0.37
+[58/288] none      pb<=8 d=0.38-0.79 brk=False trail open n=17237 avgR=-0.025 win=19.1 t=-0.64 tm=0.03
+[59/288] none      pb<=8 d=0.38-0.79 brk=False half  stop n=10809 avgR=-0.017 win=35.3 t=-1.21 tm=-0.88
+[60/288] none      pb<=8 d=0.38-0.79 brk=False half  open n=17152 avgR=-0.088 win=27.2 t=-3.23 tm=-1.16
+[61/288] none      pb<=8 d=0.5-1.0 brk=False swing stop n=16250 avgR=-0.071 win=51.4 t=-7.95 tm=-3.51
+[62/288] none      pb<=8 d=0.5-1.0 brk=False swing open n=25920 avgR=-0.156 win=33.8 t=-8.94 tm=-3.87
+[63/288] none      pb<=8 d=0.5-1.0 brk=False trail stop n=11510 avgR=+0.056 win=27.5 t=2.63 tm=0.89
+[64/288] none      pb<=8 d=0.5-1.0 brk=False trail open n=18240 avgR=-0.035 win=19.6 t=-1.00 tm=0.34
+[65/288] none      pb<=8 d=0.5-1.0 brk=False half  stop n=11357 avgR=-0.001 win=36.2 t=-0.04 tm=0.02
+[66/288] none      pb<=8 d=0.5-1.0 brk=False half  open n=18027 avgR=-0.081 win=27.0 t=-3.25 tm=-0.56
+[67/288] none      pb<=8 d=0.2-3.0 brk=True  swing stop n=31266 avgR=-0.064 win=49.7 t=-9.50 tm=-2.89
+[68/288] none      pb<=8 d=0.2-3.0 brk=True  swing open n=47246 avgR=-0.144 win=34.0 t=-11.77 tm=-3.60
+[69/288] none      pb<=8 d=0.2-3.0 brk=True  trail stop n=20806 avgR=+0.043 win=27.4 t=2.83 tm=1.61
+[70/288] none      pb<=8 d=0.2-3.0 brk=True  trail open n=31404 avgR=-0.019 win=21.4 t=-0.74 tm=1.55
+[71/288] none      pb<=8 d=0.2-3.0 brk=True  half  stop n=19599 avgR=-0.008 win=36.9 t=-0.69 tm=0.75
+[72/288] none      pb<=8 d=0.2-3.0 brk=True  half  open n=29544 avgR=-0.078 win=27.4 t=-4.09 tm=0.45
+[73/288] structure pb<=3 d=0.2-1.0 brk=False swing stop n= 7696 avgR=-0.119 win=55.4 t=-11.27 tm=-8.24
+[74/288] structure pb<=3 d=0.2-1.0 brk=False swing open n=11819 avgR=-0.214 win=35.9 t=-9.49 tm=-7.25
+[75/288] structure pb<=3 d=0.2-1.0 brk=False trail stop n= 5149 avgR=-0.041 win=25.8 t=-1.31 tm=-2.92
+[76/288] structure pb<=3 d=0.2-1.0 brk=False trail open n= 8096 avgR=-0.108 win=17.6 t=-2.09 tm=-2.08
+[77/288] structure pb<=3 d=0.2-1.0 brk=False half  stop n= 5146 avgR=-0.075 win=33.1 t=-3.92 tm=-4.49
+[78/288] structure pb<=3 d=0.2-1.0 brk=False half  open n= 8092 avgR=-0.155 win=26.0 t=-4.34 tm=-3.56
+[79/288] structure pb<=3 d=0.38-0.79 brk=False swing stop n= 4799 avgR=-0.116 win=56.0 t=-8.73 tm=-7.20
+[80/288] structure pb<=3 d=0.38-0.79 brk=False swing open n= 7788 avgR=-0.183 win=35.2 t=-6.16 tm=-5.52
+[81/288] structure pb<=3 d=0.38-0.79 brk=False trail stop n= 3648 avgR=-0.042 win=26.0 t=-1.13 tm=-2.99
+[82/288] structure pb<=3 d=0.38-0.79 brk=False trail open n= 5991 avgR=-0.070 win=17.7 t=-1.07 tm=-1.52
+[83/288] structure pb<=3 d=0.38-0.79 brk=False half  stop n= 3647 avgR=-0.077 win=33.2 t=-3.39 tm=-4.50
+[84/288] structure pb<=3 d=0.38-0.79 brk=False half  open n= 5986 avgR=-0.127 win=26.0 t=-2.82 tm=-2.75
+[85/288] structure pb<=3 d=0.5-1.0 brk=False swing stop n= 4370 avgR=-0.116 win=53.7 t=-7.68 tm=-6.33
+[86/288] structure pb<=3 d=0.5-1.0 brk=False swing open n= 7326 avgR=-0.204 win=33.3 t=-6.43 tm=-4.14
+[87/288] structure pb<=3 d=0.5-1.0 brk=False trail stop n= 3431 avgR=-0.011 win=26.5 t=-0.28 tm=-1.65
+[88/288] structure pb<=3 d=0.5-1.0 brk=False trail open n= 5753 avgR=-0.075 win=18.3 t=-1.27 tm=-0.85
+[89/288] structure pb<=3 d=0.5-1.0 brk=False half  stop n= 3428 avgR=-0.051 win=34.7 t=-2.11 tm=-2.87
+[90/288] structure pb<=3 d=0.5-1.0 brk=False half  open n= 5747 avgR=-0.115 win=26.4 t=-2.57 tm=-1.67
+[91/288] structure pb<=3 d=0.2-3.0 brk=True  swing stop n= 8754 avgR=-0.113 win=54.3 t=-10.93 tm=-7.94
+[92/288] structure pb<=3 d=0.2-3.0 brk=True  swing open n=13437 avgR=-0.203 win=35.0 t=-9.19 tm=-5.20
+[93/288] structure pb<=3 d=0.2-3.0 brk=True  trail stop n= 6016 avgR=-0.030 win=25.8 t=-1.06 tm=-2.33
+[94/288] structure pb<=3 d=0.2-3.0 brk=True  trail open n= 9483 avgR=-0.079 win=18.2 t=-1.57 tm=-0.91
+[95/288] structure pb<=3 d=0.2-3.0 brk=True  half  stop n= 5988 avgR=-0.064 win=34.1 t=-3.60 tm=-3.78
+[96/288] structure pb<=3 d=0.2-3.0 brk=True  half  open n= 9444 avgR=-0.118 win=26.3 t=-3.24 tm=-1.69
+[97/288] structure pb<=5 d=0.2-1.0 brk=False swing stop n=10270 avgR=-0.096 win=53.9 t=-9.67 tm=-6.77
+[98/288] structure pb<=5 d=0.2-1.0 brk=False swing open n=15934 avgR=-0.179 win=36.0 t=-8.94 tm=-6.25
+[99/288] structure pb<=5 d=0.2-1.0 brk=False trail stop n= 6317 avgR=+0.006 win=26.5 t=0.21 tm=-1.86
+[100/288] structure pb<=5 d=0.2-1.0 brk=False trail open n= 9856 avgR=-0.074 win=18.6 t=-1.61 tm=-2.07
+[101/288] structure pb<=5 d=0.2-1.0 brk=False half  stop n= 6311 avgR=-0.039 win=34.6 t=-2.11 tm=-3.13
+[102/288] structure pb<=5 d=0.2-1.0 brk=False half  open n= 9842 avgR=-0.117 win=26.9 t=-3.59 tm=-3.30
+[103/288] structure pb<=5 d=0.38-0.79 brk=False swing stop n= 6483 avgR=-0.098 win=54.4 t=-7.97 tm=-6.32
+[104/288] structure pb<=5 d=0.38-0.79 brk=False swing open n=10368 avgR=-0.158 win=35.6 t=-5.69 tm=-5.08
+[105/288] structure pb<=5 d=0.38-0.79 brk=False trail stop n= 4576 avgR=+0.011 win=26.5 t=0.32 tm=-2.06
+[106/288] structure pb<=5 d=0.38-0.79 brk=False trail open n= 7294 avgR=-0.043 win=18.7 t=-0.75 tm=-1.58
+[107/288] structure pb<=5 d=0.38-0.79 brk=False half  stop n= 4576 avgR=-0.039 win=34.8 t=-1.82 tm=-3.40
+[108/288] structure pb<=5 d=0.38-0.79 brk=False half  open n= 7289 avgR=-0.099 win=27.0 t=-2.42 tm=-2.72
+[109/288] structure pb<=5 d=0.5-1.0 brk=False swing stop n= 6237 avgR=-0.090 win=51.9 t=-6.55 tm=-5.04
+[110/288] structure pb<=5 d=0.5-1.0 brk=False swing open n=10148 avgR=-0.194 win=33.1 t=-7.57 tm=-4.61
+[111/288] structure pb<=5 d=0.5-1.0 brk=False trail stop n= 4561 avgR=+0.025 win=27.3 t=0.75 tm=-0.98
+[112/288] structure pb<=5 d=0.5-1.0 brk=False trail open n= 7406 avgR=-0.057 win=19.0 t=-1.15 tm=-1.18
+[113/288] structure pb<=5 d=0.5-1.0 brk=False half  stop n= 4553 avgR=-0.021 win=35.9 t=-0.98 tm=-2.04
+[114/288] structure pb<=5 d=0.5-1.0 brk=False half  open n= 7389 avgR=-0.102 win=26.6 t=-2.69 tm=-1.99
+[115/288] structure pb<=5 d=0.2-3.0 brk=True  swing stop n=12432 avgR=-0.086 win=52.0 t=-8.91 tm=-5.48
+[116/288] structure pb<=5 d=0.2-3.0 brk=True  swing open n=19345 avgR=-0.168 win=34.5 t=-8.91 tm=-4.46
+[117/288] structure pb<=5 d=0.2-3.0 brk=True  trail stop n= 8159 avgR=+0.006 win=26.7 t=0.23 tm=-0.92
+[118/288] structure pb<=5 d=0.2-3.0 brk=True  trail open n=12773 avgR=-0.062 win=19.4 t=-1.53 tm=-0.89
+[119/288] structure pb<=5 d=0.2-3.0 brk=True  half  stop n= 8074 avgR=-0.034 win=35.3 t=-2.10 tm=-2.09
+[120/288] structure pb<=5 d=0.2-3.0 brk=True  half  open n=12614 avgR=-0.098 win=26.8 t=-3.25 tm=-1.68
+[121/288] structure pb<=8 d=0.2-1.0 brk=False swing stop n=11568 avgR=-0.083 win=53.1 t=-8.40 tm=-6.33
+[122/288] structure pb<=8 d=0.2-1.0 brk=False swing open n=17832 avgR=-0.156 win=36.1 t=-8.19 tm=-5.95
+[123/288] structure pb<=8 d=0.2-1.0 brk=False trail stop n= 6951 avgR=+0.018 win=27.2 t=0.64 tm=-1.39
+[124/288] structure pb<=8 d=0.2-1.0 brk=False trail open n=10683 avgR=-0.077 win=19.7 t=-1.87 tm=-2.04
+[125/288] structure pb<=8 d=0.2-1.0 brk=False half  stop n= 6935 avgR=-0.022 win=35.4 t=-1.26 tm=-2.52
+[126/288] structure pb<=8 d=0.2-1.0 brk=False half  open n=10660 avgR=-0.105 win=27.6 t=-3.55 tm=-3.15
+[127/288] structure pb<=8 d=0.38-0.79 brk=False swing stop n= 7273 avgR=-0.088 win=53.7 t=-7.21 tm=-5.92
+[128/288] structure pb<=8 d=0.38-0.79 brk=False swing open n=11583 avgR=-0.143 win=35.8 t=-5.52 tm=-4.92
+[129/288] structure pb<=8 d=0.38-0.79 brk=False trail stop n= 5024 avgR=+0.025 win=27.1 t=0.76 tm=-1.74
+[130/288] structure pb<=8 d=0.38-0.79 brk=False trail open n= 7895 avgR=-0.065 win=19.4 t=-1.25 tm=-2.01
+[131/288] structure pb<=8 d=0.38-0.79 brk=False half  stop n= 5020 avgR=-0.021 win=35.6 t=-1.01 tm=-2.87
+[132/288] structure pb<=8 d=0.38-0.79 brk=False half  open n= 7886 avgR=-0.098 win=27.5 t=-2.65 tm=-3.07
+[133/288] structure pb<=8 d=0.5-1.0 brk=False swing stop n= 7322 avgR=-0.075 win=50.8 t=-5.60 tm=-4.67
+[134/288] structure pb<=8 d=0.5-1.0 brk=False swing open n=11732 avgR=-0.155 win=33.3 t=-6.45 tm=-4.18
+[135/288] structure pb<=8 d=0.5-1.0 brk=False trail stop n= 5256 avgR=+0.027 win=27.9 t=0.88 tm=-0.72
+[136/288] structure pb<=8 d=0.5-1.0 brk=False trail open n= 8335 avgR=-0.066 win=20.0 t=-1.53 tm=-1.50
+[137/288] structure pb<=8 d=0.5-1.0 brk=False half  stop n= 5241 avgR=-0.011 win=36.6 t=-0.52 tm=-1.63
+[138/288] structure pb<=8 d=0.5-1.0 brk=False half  open n= 8307 avgR=-0.088 win=27.3 t=-2.72 tm=-2.32
+[139/288] structure pb<=8 d=0.2-3.0 brk=True  swing stop n=14819 avgR=-0.066 win=50.3 t=-6.89 tm=-3.58
+[140/288] structure pb<=8 d=0.2-3.0 brk=True  swing open n=22850 avgR=-0.143 win=34.1 t=-8.21 tm=-3.64
+[141/288] structure pb<=8 d=0.2-3.0 brk=True  trail stop n= 9917 avgR=+0.027 win=27.3 t=1.21 tm=0.03
+[142/288] structure pb<=8 d=0.2-3.0 brk=True  trail open n=15251 avgR=-0.049 win=20.7 t=-1.36 tm=-0.62
+[143/288] structure pb<=8 d=0.2-3.0 brk=True  half  stop n= 9684 avgR=-0.007 win=35.9 t=-0.46 tm=-0.70
+[144/288] structure pb<=8 d=0.2-3.0 brk=True  half  open n=14859 avgR=-0.083 win=27.2 t=-3.13 tm=-1.53
+[145/288] mom       pb<=3 d=0.2-1.0 brk=False swing stop n= 5779 avgR=-0.115 win=56.5 t=-9.82 tm=-7.29
+[146/288] mom       pb<=3 d=0.2-1.0 brk=False swing open n= 9124 avgR=-0.188 win=37.0 t=-7.75 tm=-6.28
+[147/288] mom       pb<=3 d=0.2-1.0 brk=False trail stop n= 3833 avgR=+0.051 win=27.8 t=1.30 tm=0.65
+[148/288] mom       pb<=3 d=0.2-1.0 brk=False trail open n= 6208 avgR=-0.033 win=18.8 t=-0.57 tm=0.16
+[149/288] mom       pb<=3 d=0.2-1.0 brk=False half  stop n= 3823 avgR=-0.028 win=34.5 t=-1.19 tm=-0.87
+[150/288] mom       pb<=3 d=0.2-1.0 brk=False half  open n= 6187 avgR=-0.103 win=27.0 t=-2.62 tm=-1.25
+[151/288] mom       pb<=3 d=0.38-0.79 brk=False swing stop n= 3582 avgR=-0.127 win=55.9 t=-8.54 tm=-7.07
+[152/288] mom       pb<=3 d=0.38-0.79 brk=False swing open n= 5973 avgR=-0.199 win=35.7 t=-6.54 tm=-5.13
+[153/288] mom       pb<=3 d=0.38-0.79 brk=False trail stop n= 2712 avgR=-0.005 win=27.0 t=-0.11 tm=0.06
+[154/288] mom       pb<=3 d=0.38-0.79 brk=False trail open n= 4563 avgR=-0.071 win=18.2 t=-1.02 tm=-0.19
+[155/288] mom       pb<=3 d=0.38-0.79 brk=False half  stop n= 2710 avgR=-0.067 win=33.5 t=-2.47 tm=-1.50
+[156/288] mom       pb<=3 d=0.38-0.79 brk=False half  open n= 4551 avgR=-0.138 win=26.7 t=-2.96 tm=-1.60
+[157/288] mom       pb<=3 d=0.5-1.0 brk=False swing stop n= 3302 avgR=-0.120 win=54.9 t=-7.33 tm=-5.12
+[158/288] mom       pb<=3 d=0.5-1.0 brk=False swing open n= 5537 avgR=-0.172 win=35.1 t=-5.29 tm=-4.31
+[159/288] mom       pb<=3 d=0.5-1.0 brk=False trail stop n= 2580 avgR=+0.008 win=27.5 t=0.19 tm=0.64
+[160/288] mom       pb<=3 d=0.5-1.0 brk=False trail open n= 4287 avgR=-0.056 win=19.6 t=-0.96 tm=0.35
+[161/288] mom       pb<=3 d=0.5-1.0 brk=False half  stop n= 2572 avgR=-0.050 win=35.6 t=-1.85 tm=-0.78
+[162/288] mom       pb<=3 d=0.5-1.0 brk=False half  open n= 4270 avgR=-0.101 win=27.8 t=-2.42 tm=-0.71
+[163/288] mom       pb<=3 d=0.2-3.0 brk=True  swing stop n= 6661 avgR=-0.107 win=55.6 t=-9.35 tm=-6.66
+[164/288] mom       pb<=3 d=0.2-3.0 brk=True  swing open n=10554 avgR=-0.188 win=36.2 t=-8.42 tm=-6.01
+[165/288] mom       pb<=3 d=0.2-3.0 brk=True  trail stop n= 4443 avgR=+0.059 win=27.9 t=1.64 tm=1.22
+[166/288] mom       pb<=3 d=0.2-3.0 brk=True  trail open n= 7253 avgR=-0.047 win=19.3 t=-0.95 tm=0.62
+[167/288] mom       pb<=3 d=0.2-3.0 brk=True  half  stop n= 4391 avgR=-0.016 win=36.2 t=-0.76 tm=-0.15
+[168/288] mom       pb<=3 d=0.2-3.0 brk=True  half  open n= 7174 avgR=-0.100 win=27.5 t=-2.85 tm=-0.56
+[169/288] mom       pb<=5 d=0.2-1.0 brk=False swing stop n= 7473 avgR=-0.103 win=54.9 t=-9.09 tm=-6.27
+[170/288] mom       pb<=5 d=0.2-1.0 brk=False swing open n=11590 avgR=-0.156 win=37.2 t=-6.93 tm=-5.62
+[171/288] mom       pb<=5 d=0.2-1.0 brk=False trail stop n= 4632 avgR=+0.042 win=27.4 t=1.18 tm=0.85
+[172/288] mom       pb<=5 d=0.2-1.0 brk=False trail open n= 7273 avgR=-0.037 win=19.5 t=-0.73 tm=0.25
+[173/288] mom       pb<=5 d=0.2-1.0 brk=False half  stop n= 4615 avgR=-0.033 win=35.1 t=-1.51 tm=-0.63
+[174/288] mom       pb<=5 d=0.2-1.0 brk=False half  open n= 7233 avgR=-0.092 win=28.0 t=-2.53 tm=-1.02
+[175/288] mom       pb<=5 d=0.38-0.79 brk=False swing stop n= 4761 avgR=-0.116 win=54.4 t=-8.30 tm=-6.41
+[176/288] mom       pb<=5 d=0.38-0.79 brk=False swing open n= 7645 avgR=-0.161 win=36.2 t=-5.36 tm=-4.63
+[177/288] mom       pb<=5 d=0.38-0.79 brk=False trail stop n= 3372 avgR=+0.024 win=27.2 t=0.59 tm=0.37
+[178/288] mom       pb<=5 d=0.38-0.79 brk=False trail open n= 5403 avgR=-0.024 win=19.1 t=-0.38 tm=0.43
+[179/288] mom       pb<=5 d=0.38-0.79 brk=False half  stop n= 3368 avgR=-0.048 win=34.6 t=-1.89 tm=-1.19
+[180/288] mom       pb<=5 d=0.38-0.79 brk=False half  open n= 5387 avgR=-0.100 win=27.8 t=-2.34 tm=-0.96
+[181/288] mom       pb<=5 d=0.5-1.0 brk=False swing stop n= 4472 avgR=-0.104 win=53.0 t=-6.77 tm=-4.11
+[182/288] mom       pb<=5 d=0.5-1.0 brk=False swing open n= 7220 avgR=-0.148 win=35.1 t=-5.19 tm=-3.72
+[183/288] mom       pb<=5 d=0.5-1.0 brk=False trail stop n= 3312 avgR=-0.001 win=27.1 t=-0.01 tm=0.48
+[184/288] mom       pb<=5 d=0.5-1.0 brk=False trail open n= 5304 avgR=-0.061 win=20.2 t=-1.19 tm=0.31
+[185/288] mom       pb<=5 d=0.5-1.0 brk=False half  stop n= 3293 avgR=-0.053 win=36.1 t=-2.17 tm=-0.75
+[186/288] mom       pb<=5 d=0.5-1.0 brk=False half  open n= 5267 avgR=-0.094 win=28.3 t=-2.48 tm=-0.59
+[187/288] mom       pb<=5 d=0.2-3.0 brk=True  swing stop n= 8900 avgR=-0.086 win=53.6 t=-7.79 tm=-4.87
+[188/288] mom       pb<=5 d=0.2-3.0 brk=True  swing open n=13797 avgR=-0.138 win=36.2 t=-6.34 tm=-4.36
+[189/288] mom       pb<=5 d=0.2-3.0 brk=True  trail stop n= 5698 avgR=+0.061 win=28.0 t=1.99 tm=1.87
+[190/288] mom       pb<=5 d=0.2-3.0 brk=True  trail open n= 8900 avgR=-0.017 win=20.8 t=-0.39 tm=1.35
+[191/288] mom       pb<=5 d=0.2-3.0 brk=True  half  stop n= 5553 avgR=-0.007 win=37.4 t=-0.36 tm=0.61
+[192/288] mom       pb<=5 d=0.2-3.0 brk=True  half  open n= 8682 avgR=-0.068 win=28.6 t=-2.09 tm=0.38
+[193/288] mom       pb<=8 d=0.2-1.0 brk=False swing stop n= 8186 avgR=-0.076 win=54.6 t=-6.71 tm=-4.80
+[194/288] mom       pb<=8 d=0.2-1.0 brk=False swing open n=12586 avgR=-0.133 win=37.6 t=-6.24 tm=-4.83
+[195/288] mom       pb<=8 d=0.2-1.0 brk=False trail stop n= 5008 avgR=+0.067 win=28.4 t=1.96 tm=1.35
+[196/288] mom       pb<=8 d=0.2-1.0 brk=False trail open n= 7740 avgR=-0.032 win=20.6 t=-0.69 tm=0.36
+[197/288] mom       pb<=8 d=0.2-1.0 brk=False half  stop n= 4968 avgR=-0.006 win=36.3 t=-0.28 tm=0.18
+[198/288] mom       pb<=8 d=0.2-1.0 brk=False half  open n= 7666 avgR=-0.086 win=28.8 t=-2.62 tm=-0.91
+[199/288] mom       pb<=8 d=0.38-0.79 brk=False swing stop n= 5281 avgR=-0.088 win=54.2 t=-6.29 tm=-4.89
+[200/288] mom       pb<=8 d=0.38-0.79 brk=False swing open n= 8471 avgR=-0.135 win=36.7 t=-4.78 tm=-3.97
+[201/288] mom       pb<=8 d=0.38-0.79 brk=False trail stop n= 3663 avgR=+0.046 win=28.1 t=1.17 tm=0.73
+[202/288] mom       pb<=8 d=0.38-0.79 brk=False trail open n= 5827 avgR=-0.032 win=19.9 t=-0.56 tm=0.35
+[203/288] mom       pb<=8 d=0.38-0.79 brk=False half  stop n= 3649 avgR=-0.022 win=36.1 t=-0.92 tm=-0.51
+[204/288] mom       pb<=8 d=0.38-0.79 brk=False half  open n= 5799 avgR=-0.097 win=28.4 t=-2.50 tm=-0.96
+[205/288] mom       pb<=8 d=0.5-1.0 brk=False swing stop n= 5054 avgR=-0.070 win=52.8 t=-4.57 tm=-2.64
+[206/288] mom       pb<=8 d=0.5-1.0 brk=False swing open n= 8039 avgR=-0.122 win=35.5 t=-4.56 tm=-3.00
+[207/288] mom       pb<=8 d=0.5-1.0 brk=False trail stop n= 3684 avgR=+0.032 win=28.4 t=0.89 tm=1.01
+[208/288] mom       pb<=8 d=0.5-1.0 brk=False trail open n= 5815 avgR=-0.046 win=21.3 t=-0.99 tm=0.60
+[209/288] mom       pb<=8 d=0.5-1.0 brk=False half  stop n= 3644 avgR=-0.017 win=37.4 t=-0.73 tm=0.12
+[210/288] mom       pb<=8 d=0.5-1.0 brk=False half  open n= 5749 avgR=-0.072 win=28.9 t=-2.02 tm=-0.08
+[211/288] mom       pb<=8 d=0.2-3.0 brk=True  swing stop n= 9949 avgR=-0.057 win=52.5 t=-5.12 tm=-2.72
+[212/288] mom       pb<=8 d=0.2-3.0 brk=True  swing open n=14986 avgR=-0.101 win=36.6 t=-4.83 tm=-2.78
+[213/288] mom       pb<=8 d=0.2-3.0 brk=True  trail stop n= 6526 avgR=+0.067 win=28.8 t=2.41 tm=2.20
+[214/288] mom       pb<=8 d=0.2-3.0 brk=True  trail open n= 9817 avgR=-0.008 win=22.6 t=-0.19 tm=1.64
+[215/288] mom       pb<=8 d=0.2-3.0 brk=True  half  stop n= 6258 avgR=+0.007 win=38.1 t=0.36 tm=1.40
+[216/288] mom       pb<=8 d=0.2-3.0 brk=True  half  open n= 9378 avgR=-0.045 win=29.7 t=-1.51 tm=1.12
+[217/288] both      pb<=3 d=0.2-1.0 brk=False swing stop n= 2878 avgR=-0.132 win=55.3 t=-7.75 tm=-6.65
+[218/288] both      pb<=3 d=0.2-1.0 brk=False swing open n= 4561 avgR=-0.236 win=35.4 t=-7.66 tm=-5.63
+[219/288] both      pb<=3 d=0.2-1.0 brk=False trail stop n= 2008 avgR=-0.071 win=24.7 t=-1.45 tm=-2.63
+[220/288] both      pb<=3 d=0.2-1.0 brk=False trail open n= 3241 avgR=-0.117 win=17.3 t=-1.50 tm=-2.19
+[221/288] both      pb<=3 d=0.2-1.0 brk=False half  stop n= 2006 avgR=-0.101 win=32.5 t=-3.36 tm=-4.06
+[222/288] both      pb<=3 d=0.2-1.0 brk=False half  open n= 3239 avgR=-0.168 win=25.7 t=-3.19 tm=-3.41
+[223/288] both      pb<=3 d=0.38-0.79 brk=False swing stop n= 1762 avgR=-0.127 win=55.3 t=-5.80 tm=-5.74
+[224/288] both      pb<=3 d=0.38-0.79 brk=False swing open n= 2976 avgR=-0.189 win=34.7 t=-4.41 tm=-3.26
+[225/288] both      pb<=3 d=0.38-0.79 brk=False trail stop n= 1382 avgR=-0.093 win=25.3 t=-1.63 tm=-3.11
+[226/288] both      pb<=3 d=0.38-0.79 brk=False trail open n= 2367 avgR=-0.057 win=17.8 t=-0.57 tm=-1.43
+[227/288] both      pb<=3 d=0.38-0.79 brk=False half  stop n= 1381 avgR=-0.117 win=32.6 t=-3.32 tm=-4.49
+[228/288] both      pb<=3 d=0.38-0.79 brk=False half  open n= 2364 avgR=-0.118 win=26.0 t=-1.71 tm=-2.22
+[229/288] both      pb<=3 d=0.5-1.0 brk=False swing stop n= 1494 avgR=-0.138 win=52.7 t=-5.44 tm=-4.88
+[230/288] both      pb<=3 d=0.5-1.0 brk=False swing open n= 2572 avgR=-0.219 win=32.7 t=-5.54 tm=-5.07
+[231/288] both      pb<=3 d=0.5-1.0 brk=False trail stop n= 1215 avgR=-0.051 win=25.3 t=-0.80 tm=-1.82
+[232/288] both      pb<=3 d=0.5-1.0 brk=False trail open n= 2099 avgR=-0.087 win=18.3 t=-1.10 tm=-1.51
+[233/288] both      pb<=3 d=0.5-1.0 brk=False half  stop n= 1213 avgR=-0.092 win=34.6 t=-2.28 tm=-2.97
+[234/288] both      pb<=3 d=0.5-1.0 brk=False half  open n= 2096 avgR=-0.142 win=25.8 t=-2.59 tm=-2.61
+[235/288] both      pb<=3 d=0.2-3.0 brk=True  swing stop n= 3191 avgR=-0.127 win=54.4 t=-7.60 tm=-7.46
+[236/288] both      pb<=3 d=0.2-3.0 brk=True  swing open n= 5059 avgR=-0.211 win=34.9 t=-6.77 tm=-5.96
+[237/288] both      pb<=3 d=0.2-3.0 brk=True  trail stop n= 2251 avgR=-0.060 win=24.7 t=-1.32 tm=-2.36
+[238/288] both      pb<=3 d=0.2-3.0 brk=True  trail open n= 3658 avgR=-0.102 win=18.0 t=-1.43 tm=-1.80
+[239/288] both      pb<=3 d=0.2-3.0 brk=True  half  stop n= 2245 avgR=-0.086 win=33.5 t=-3.01 tm=-3.82
+[240/288] both      pb<=3 d=0.2-3.0 brk=True  half  open n= 3648 avgR=-0.129 win=26.1 t=-2.51 tm=-2.69
+[241/288] both      pb<=5 d=0.2-1.0 brk=False swing stop n= 3959 avgR=-0.101 win=54.4 t=-6.44 tm=-5.67
+[242/288] both      pb<=5 d=0.2-1.0 brk=False swing open n= 6212 avgR=-0.181 win=36.5 t=-6.34 tm=-5.37
+[243/288] both      pb<=5 d=0.2-1.0 brk=False trail stop n= 2519 avgR=+0.005 win=26.0 t=0.11 tm=-1.05
+[244/288] both      pb<=5 d=0.2-1.0 brk=False trail open n= 3966 avgR=-0.051 win=18.5 t=-0.72 tm=-1.19
+[245/288] both      pb<=5 d=0.2-1.0 brk=False half  stop n= 2516 avgR=-0.046 win=34.4 t=-1.58 tm=-2.24
+[246/288] both      pb<=5 d=0.2-1.0 brk=False half  open n= 3963 avgR=-0.097 win=27.3 t=-1.92 tm=-2.16
+[247/288] both      pb<=5 d=0.38-0.79 brk=False swing stop n= 2467 avgR=-0.101 win=54.4 t=-5.02 tm=-5.03
+[248/288] both      pb<=5 d=0.38-0.79 brk=False swing open n= 4010 avgR=-0.128 win=36.1 t=-2.84 tm=-3.13
+[249/288] both      pb<=5 d=0.38-0.79 brk=False trail stop n= 1791 avgR=-0.014 win=25.9 t=-0.26 tm=-1.85
+[250/288] both      pb<=5 d=0.38-0.79 brk=False trail open n= 2908 avgR=+0.032 win=18.7 t=0.34 tm=-0.66
+[251/288] both      pb<=5 d=0.38-0.79 brk=False half  stop n= 1791 avgR=-0.054 win=34.6 t=-1.60 tm=-2.88
+[252/288] both      pb<=5 d=0.38-0.79 brk=False half  open n= 2906 avgR=-0.039 win=27.7 t=-0.60 tm=-1.37
+[253/288] both      pb<=5 d=0.5-1.0 brk=False swing stop n= 2198 avgR=-0.091 win=52.3 t=-3.97 tm=-3.99
+[254/288] both      pb<=5 d=0.5-1.0 brk=False swing open n= 3640 avgR=-0.192 win=33.5 t=-5.75 tm=-5.40
+[255/288] both      pb<=5 d=0.5-1.0 brk=False trail stop n= 1685 avgR=-0.013 win=26.7 t=-0.24 tm=-1.30
+[256/288] both      pb<=5 d=0.5-1.0 brk=False trail open n= 2770 avgR=-0.074 win=19.1 t=-1.09 tm=-1.11
+[257/288] both      pb<=5 d=0.5-1.0 brk=False half  stop n= 1681 avgR=-0.053 win=36.1 t=-1.53 tm=-2.29
+[258/288] both      pb<=5 d=0.5-1.0 brk=False half  open n= 2765 avgR=-0.124 win=26.7 t=-2.58 tm=-2.14
+[259/288] both      pb<=5 d=0.2-3.0 brk=True  swing stop n= 4593 avgR=-0.093 win=53.2 t=-6.06 tm=-5.48
+[260/288] both      pb<=5 d=0.2-3.0 brk=True  swing open n= 7212 avgR=-0.156 win=35.7 t=-5.66 tm=-5.07
+[261/288] both      pb<=5 d=0.2-3.0 brk=True  trail stop n= 3034 avgR=+0.020 win=26.4 t=0.49 tm=-0.43
+[262/288] both      pb<=5 d=0.2-3.0 brk=True  trail open n= 4799 avgR=-0.034 win=19.6 t=-0.54 tm=-0.53
+[263/288] both      pb<=5 d=0.2-3.0 brk=True  half  stop n= 3012 avgR=-0.031 win=35.6 t=-1.15 tm=-1.67
+[264/288] both      pb<=5 d=0.2-3.0 brk=True  half  open n= 4759 avgR=-0.070 win=27.7 t=-1.53 tm=-1.39
+[265/288] both      pb<=8 d=0.2-1.0 brk=False swing stop n= 4476 avgR=-0.082 win=54.1 t=-5.26 tm=-4.91
+[266/288] both      pb<=8 d=0.2-1.0 brk=False swing open n= 6992 avgR=-0.159 win=37.0 t=-5.90 tm=-5.42
+[267/288] both      pb<=8 d=0.2-1.0 brk=False trail stop n= 2770 avgR=+0.030 win=27.3 t=0.68 tm=-0.23
+[268/288] both      pb<=8 d=0.2-1.0 brk=False trail open n= 4327 avgR=-0.067 win=19.9 t=-1.07 tm=-1.38
+[269/288] both      pb<=8 d=0.2-1.0 brk=False half  stop n= 2764 avgR=-0.020 win=35.8 t=-0.73 tm=-1.20
+[270/288] both      pb<=8 d=0.2-1.0 brk=False half  open n= 4320 avgR=-0.095 win=28.5 t=-2.21 tm=-2.25
+[271/288] both      pb<=8 d=0.38-0.79 brk=False swing stop n= 2809 avgR=-0.076 win=54.4 t=-3.84 tm=-4.13
+[272/288] both      pb<=8 d=0.38-0.79 brk=False swing open n= 4551 avgR=-0.105 win=36.7 t=-2.53 tm=-3.03
+[273/288] both      pb<=8 d=0.38-0.79 brk=False trail stop n= 1987 avgR=+0.013 win=27.2 t=0.25 tm=-1.28
+[274/288] both      pb<=8 d=0.38-0.79 brk=False trail open n= 3197 avgR=+0.005 win=19.7 t=0.06 tm=-0.93
+[275/288] both      pb<=8 d=0.38-0.79 brk=False half  stop n= 1986 avgR=-0.024 win=36.2 t=-0.75 tm=-2.04
+[276/288] both      pb<=8 d=0.38-0.79 brk=False half  open n= 3194 avgR=-0.042 win=28.6 t=-0.73 tm=-1.64
+[277/288] both      pb<=8 d=0.5-1.0 brk=False swing stop n= 2611 avgR=-0.066 win=52.0 t=-2.96 tm=-3.25
+[278/288] both      pb<=8 d=0.5-1.0 brk=False swing open n= 4263 avgR=-0.159 win=34.2 t=-5.00 tm=-4.89
+[279/288] both      pb<=8 d=0.5-1.0 brk=False trail stop n= 1947 avgR=+0.005 win=28.2 t=0.10 tm=-0.74
+[280/288] both      pb<=8 d=0.5-1.0 brk=False trail open n= 3159 avgR=-0.056 win=20.7 t=-0.91 tm=-0.89
+[281/288] both      pb<=8 d=0.5-1.0 brk=False half  stop n= 1941 avgR=-0.030 win=37.6 t=-0.92 tm=-1.49
+[282/288] both      pb<=8 d=0.5-1.0 brk=False half  open n= 3153 avgR=-0.089 win=27.7 t=-2.01 tm=-1.67
+[283/288] both      pb<=8 d=0.2-3.0 brk=True  swing stop n= 5411 avgR=-0.063 win=52.5 t=-4.18 tm=-3.30
+[284/288] both      pb<=8 d=0.2-3.0 brk=True  swing open n= 8440 avgR=-0.126 win=36.2 t=-4.97 tm=-3.93
+[285/288] both      pb<=8 d=0.2-3.0 brk=True  trail stop n= 3586 avgR=+0.047 win=27.4 t=1.26 tm=0.66
+[286/288] both      pb<=8 d=0.2-3.0 brk=True  trail open n= 5586 avgR=-0.010 win=21.2 t=-0.18 tm=0.10
+[287/288] both      pb<=8 d=0.2-3.0 brk=True  half  stop n= 3528 avgR=+0.003 win=36.8 t=0.13 tm=-0.06
+[288/288] both      pb<=8 d=0.2-3.0 brk=True  half  open n= 5501 avgR=-0.047 win=29.0 t=-1.16 tm=-0.54
+       context  mom_min  max_pb_bars  depth_min  depth_max  allow_break   exit  max_bars  max_risk  index_filter  min_room entry  is_t_month   is_n    is_win%   is_avgR   is_medR   is_avg%     is_PF  is_avg_bars  is_t_stat
+212        mom      0.7            8       0.20       3.00         True  trail        30      0.08         False       0.0  stop    2.202036   6526  28.792522  0.067098 -0.870434  0.168467  1.066590    10.741342   2.409050
+194        mom      0.7            8       0.20       1.00        False  trail        30      0.08         False       0.0  stop    1.348528   5008  28.354633  0.066749 -1.040254  0.098274  1.038928    10.659944   1.960129
+188        mom      0.7            5       0.20       3.00         True  trail        30      0.08         False       0.0  stop    1.870286   5698  28.044928  0.061050 -0.995757  0.097639  1.038855    10.490874   1.989443
+164        mom      0.7            3       0.20       3.00         True  trail        30      0.08         False       0.0  stop    1.221434   4443  27.886563  0.058506 -1.033237  0.028025  1.011467    10.465901   1.642464
+62        none      0.7            8       0.50       1.00        False  trail        30      0.08         False       0.0  stop    0.890393  11510  27.506516  0.056448 -1.044929  0.166303  1.069382    10.535274   2.628513
+146        mom      0.7            3       0.20       1.00        False  trail        30      0.08         False       0.0  stop    0.652689   3833  27.785025  0.051110 -1.048104 -0.002969  0.998791    10.464649   1.301100
+284       both      0.7            8       0.20       3.00         True  trail        30      0.08         False       0.0  stop    0.656739   3586  27.412158  0.047120 -0.979261  0.100436  1.039866    10.610708   1.258027
+200        mom      0.7            8       0.38       0.79        False  trail        30      0.08         False       0.0  stop    0.731911   3663  28.146328  0.046209 -1.042370  0.016151  1.006365    10.544636   1.174244
+50        none      0.7            8       0.20       1.00        False  trail        30      0.08         False       0.0  stop    0.523235  14673  27.097390  0.044992 -1.048277  0.119846  1.049996    10.331016   2.282487
+56        none      0.7            8       0.38       0.79        False  trail        30      0.08         False       0.0  stop    0.368975  10860  27.348066  0.044782 -1.049495  0.142719  1.059789    10.303775   1.947995
+68        none      0.7            8       0.20       3.00         True  trail        30      0.08         False       0.0  stop    1.606699  20806  27.419975  0.043118 -0.872386  0.121734  1.050815    10.285543   2.829818
+170        mom      0.7            5       0.20       1.00        False  trail        30      0.08         False       0.0  stop    0.853154   4632  27.439551  0.042252 -1.045255 -0.009259  0.996339    10.441062   1.182616
+38        none      0.7            5       0.50       1.00        False  trail        30      0.08         False       0.0  stop    0.501147  10374  26.865240  0.033927 -1.049532  0.088675  1.036799    10.412473   1.490688
+206        mom      0.7            8       0.50       1.00        False  trail        30      0.08         False       0.0  stop    1.012529   3684  28.365907  0.032007 -1.035453  0.021686  1.008501    10.874864   0.892060
+249       both      0.7            5       0.38       0.79        False  trail        30      0.08         False       0.0  open   -0.660096   2908  18.741403  0.031922 -1.098649 -0.176535  0.909968     7.144429   0.339386
+44        none      0.7            5       0.20       3.00         True  trail        30      0.08         False       0.0  stop    1.051213  18035  26.553923  0.031556 -0.990315  0.068502  1.028734    10.101968   1.874734
+266       both      0.7            8       0.20       1.00        False  trail        30      0.08         False       0.0  stop   -0.226311   2770  27.256318  0.029505 -1.041299  0.026437  1.010447    10.515884   0.679110
+26        none      0.7            5       0.20       1.00        False  trail        30      0.08         False       0.0  stop    0.198067  13624  26.490018  0.028800 -1.051766  0.069359  1.028929    10.220860   1.394451
+134  structure      0.7            8       0.50       1.00        False  trail        30      0.08         False       0.0  stop   -0.721428   5256  27.910959  0.027091 -1.043580  0.074023  1.030692    10.576484   0.876472
+14        none      0.7            3       0.50       1.00        False  trail        30      0.08         False       0.0  stop    0.099500   8370  27.001195  0.026928 -1.051320  0.058876  1.024590    10.419833   1.067560
+140  structure      0.7            8       0.20       3.00         True  trail        30      0.08         False       0.0  stop    0.027791   9917  27.326813  0.026909 -0.998150  0.087223  1.036721    10.302309   1.213145
+32        none      0.7            5       0.38       0.79        False  trail        30      0.08         False       0.0  stop    0.022182  10037  26.641427  0.026462 -1.052540  0.077427  1.032263    10.191292   1.095031
+110  structure      0.7            5       0.50       1.00        False  trail        30      0.08         False       0.0  stop   -0.981422   4561  27.296645  0.025238 -1.046574  0.045683  1.018726    10.530147   0.750072
+128  structure      0.7            8       0.38       0.79        False  trail        30      0.08         False       0.0  stop   -1.742891   5024  27.129777  0.025177 -1.049766  0.096635  1.039536    10.328025   0.764371
+176        mom      0.7            5       0.38       0.79        False  trail        30      0.08         False       0.0  stop    0.371157   3372  27.194543  0.024313 -1.046426 -0.092765  0.963758    10.329478   0.585485
