@@ -91,7 +91,7 @@ export function TopBar(p: Props) {
       {favoriteTfs.map((i) => (
         <button
           key={i.tf}
-          className={`tool-button tf ${p.tf === i.tf ? 'selected' : ''}`}
+          className={`tool-button tf fav-tf ${p.tf === i.tf ? 'selected' : ''}`}
           title={i.name}
           onClick={() => p.onTf(i.tf)}
         >
@@ -99,7 +99,8 @@ export function TopBar(p: Props) {
         </button>
       ))}
       <Dropdown
-        label={favoriteTfs.some((i) => i.tf === p.tf) ? '' : <b className="tf selected">{p.tf}</b>}
+        // The current interval shows here when it isn't a favorite, and always on phones (no favorites row).
+        label={<b className={`tf selected ${favoriteTfs.some((i) => i.tf === p.tf) ? 'in-favs' : ''}`}>{p.tf}</b>}
         title="Interval"
       >
         {(close) => (
@@ -165,7 +166,7 @@ export function TopBar(p: Props) {
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
           <path d="M2 14c2.5 0 3-9 5.5-9S10 12 12 12s2.5-5 4-5" />
         </svg>
-        Indicators
+        <span className="btn-label">Indicators</span>
       </button>
       {p.layoutMenu}
 

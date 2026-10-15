@@ -79,6 +79,8 @@ select {
 .app {
   display: flex;
   height: 100vh;
+  height: 100dvh; /* mobile: excludes the browser toolbars */
+  padding-top: env(safe-area-inset-top);
 }
 
 .app-main {
@@ -2088,4 +2090,249 @@ a.menu-main {
 .tester-body.stale {
   opacity: 0.55;
   transition: opacity 0.15s;
+}
+
+/* --- install prompt (PWA) --- */
+
+.install-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(520px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  animation: install-in 0.25s ease-out;
+}
+.install-prompt img {
+  flex-shrink: 0;
+  border-radius: 9px;
+}
+.install-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.install-text > b {
+  font-size: 13px;
+  color: var(--fg);
+}
+.install-text svg {
+  vertical-align: -2px;
+}
+.install-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.secondary-button.small {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+@keyframes install-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+
+/* --- touch screens: no hover, so show what hover reveals --- */
+
+@media (hover: none) {
+  .legend-row.study .legend-actions,
+  .watch-row .watch-actions {
+    display: inline-flex;
+  }
+}
+
+/* The current interval in the dropdown: hidden on desktop when the
+   favorites row already shows it. */
+.tf.in-favs {
+  display: none;
+}
+
+/* --- phones and small tablets --- */
+
+@media (max-width: 767px) {
+  /* The nav rail becomes a bottom tab bar. */
+  .app {
+    flex-direction: column;
+  }
+  .nav-rail {
+    order: 2;
+    flex-direction: row;
+    justify-content: space-around;
+    gap: 0;
+    width: auto;
+    height: auto;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-right: 0;
+    border-top: 1px solid var(--border);
+  }
+  .nav-brand,
+  .nav-rail > .spacer {
+    display: none;
+  }
+  .nav-item {
+    width: auto;
+    flex: 1;
+    min-width: 0;
+    max-width: 84px;
+    padding: 6px 2px 4px;
+    font-size: 10px;
+  }
+  .nav-item span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .nav-dropdown .tool-button {
+    min-height: 44px;
+    padding: 4px 6px;
+  }
+  .menu.side {
+    top: auto;
+    left: auto;
+    right: 0;
+    bottom: calc(100% + 8px);
+  }
+  .install-prompt {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    flex-wrap: wrap;
+  }
+  .install-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* Chart page: one chart, compact toolbar, panels over the chart. */
+  .topbar {
+    height: 44px;
+    padding: 0 4px;
+    border-bottom-width: 1px;
+  }
+  .topbar .fav-tf,
+  .topbar .btn-label,
+  .drawing-toolbar {
+    display: none;
+  }
+  .tf.in-favs {
+    display: inline;
+  }
+  .topbar .divider {
+    margin: 0 2px;
+  }
+  .workspace {
+    position: relative;
+  }
+  .right-rail {
+    width: 42px;
+  }
+  .rail-button {
+    width: 34px;
+    height: 34px;
+  }
+  .dock {
+    position: absolute;
+    inset: 0 42px 0 0;
+    z-index: 30;
+  }
+  .dock > .pattern-panel {
+    width: 100%;
+    border-left: 0;
+  }
+  .strategy-report {
+    max-height: 55%;
+  }
+  .strategy-report .tabs.inline button {
+    padding: 6px;
+  }
+  .bottombar {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .bottombar .clock,
+  .bottombar .status {
+    display: none;
+  }
+  .bottombar .goto {
+    position: static;
+  }
+  .goto-popover {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(120px + env(safe-area-inset-bottom));
+  }
+
+  /* Pages */
+  .scanner-panel.page .panel-head,
+  .tester.lab .tester-head,
+  .tester.lab .tester-body {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .scanner-panel.page .panel-body {
+    padding: 8px 12px 0;
+  }
+  .tester.lab .tester-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tester-setup {
+    grid-template-columns: 1fr;
+  }
+  .page-inner {
+    padding: 14px 12px;
+  }
+  .kpis {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+  .kpi-value {
+    font-size: 16px;
+  }
+  .stats {
+    font-size: 12px;
+  }
+  .tester-body,
+  .scan-output {
+    overflow-x: auto;
+  }
+
+  /* Dialogs use the whole screen width. */
+  .modal-backdrop {
+    padding: 12px 8px;
+    align-items: flex-end;
+  }
+  .modal {
+    width: 100% !important;
+    max-height: 88vh;
+  }
+
+  /* iOS zooms into inputs with text under 16px. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .toasts {
+    top: calc(8px + env(safe-area-inset-top));
+    right: 8px;
+    left: 8px;
+    max-width: none;
+  }
 }

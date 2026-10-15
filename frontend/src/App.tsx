@@ -23,6 +23,7 @@ import { LAYOUTS, LayoutMenu, MAX_PANELS, type SyncSettings } from './layout/lay
 import { patternKey } from './patterns/chartPatterns'
 import { PatternPanel, type PatternSettings } from './patterns/PatternPanel'
 import { loadPref, usePref } from './prefs'
+import { MOBILE_QUERY, useMediaQuery } from './pwa'
 import { ScannerPanel } from './scanner/ScannerPanel'
 import { WatchlistPanel } from './watchlist/WatchlistPanel'
 import { StrategyTester } from './backtest/StrategyTester'
@@ -43,6 +44,7 @@ import { IndicatorDialog } from './studies/IndicatorDialog'
 import { defaultStudies, newStudy } from './studies/model'
 import { StudySettings } from './studies/StudySettings'
 import { BottomBar } from './ui/BottomBar'
+import { InstallPrompt } from './ui/InstallPrompt'
 import { NavRail, type Page } from './ui/NavRail'
 import { RightRail, type Dock } from './ui/RightRail'
 import { TopBar } from './ui/TopBar'
@@ -115,7 +117,8 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
   })
   const [panels, setPanels] = usePref<PanelConfig[]>('panels', initialPanels)
   const [activeIndex, setActiveIndex] = useState(0)
-  const layout = LAYOUTS.find((l) => l.id === layoutId) ?? LAYOUTS[0]
+  const mobile = useMediaQuery(MOBILE_QUERY)
+  const layout = (!mobile && LAYOUTS.find((l) => l.id === layoutId)) || LAYOUTS[0]
   const active = Math.min(activeIndex, layout.count - 1)
   const activeConfig = panels[active]
 
@@ -142,7 +145,10 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
     },
     [setPage],
   )
-  const [dock, setDock] = usePref<Dock | null>('dock', 'watchlist')
+  const [desktopDock, setDesktopDock] = usePref<Dock | null>('dock', 'watchlist')
+  const [mobileDock, setMobileDock] = useState<Dock | null>(null)
+  const dock = mobile ? mobileDock : desktopDock
+  const setDock = mobile ? setMobileDock : setDesktopDock
   const [alertRequest, setAlertRequest] = useState<Partial<AlertIn> | null>(null)
   const clearAlertRequest = useCallback(() => setAlertRequest(null), [])
   // Lab backtest trades shown on the chart for the symbol last opened from its results.
@@ -303,6 +309,11 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
     if (dock === 'patterns' && d === null) updateActive({ showPatterns: false })
     setDock(d)
   }
+  // Picking a symbol in a panel: on a phone, close the panel to show the chart.
+  const openFromDock = (symbol: InstrumentHit) => {
+    updateActive({ symbol })
+    if (mobile) setMobileDock(null)
+  }
   const openOnChart = (symbol: InstrumentHit) => {
     updateActive({ symbol })
     goTo('chart')
@@ -350,7 +361,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
             chartType={activeConfig.chartType}
             onChartType={(chartType) => updateActive({ chartType })}
             onIndicators={() => setIndicatorsOpen(true)}
-            layoutMenu={<LayoutMenu layout={layout} onLayout={setLayoutId} sync={sync} onSync={setSync} />}
+            layoutMenu={mobile ? undefined : <LayoutMenu layout={layout} onLayout={setLayoutId} sync={sync} onSync={setSync} />}
             hotkeys={page === 'chart'}
             extra={
               <button
@@ -364,7 +375,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
                 <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
                   <path d="M2 15h14M4 12l3-4 3 2 5-6" />
                 </svg>
-                {chartStrategy.enabled ? chartStrategy.name : 'Strategy'}
+                <span className="btn-label">{chartStrategy.enabled ? chartStrategy.name : 'Strategy'}</span>
               </button>
             }
           />
@@ -479,14 +490,14 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
                     symbol={activeConfig.symbol}
                     createRequest={alertRequest}
                     onCreateHandled={clearAlertRequest}
-                    onOpen={(symbol) => updateActive({ symbol })}
+                    onOpen={openFromDock}
                   />
                 )}
                 {dock === 'watchlist' && (
                   <WatchlistPanel
                     current={activeConfig.symbol}
                     activeSymbol={activeConfig.symbol.symbol}
-                    onOpen={(symbol) => updateActive({ symbol })}
+                    onOpen={openFromDock}
                   />
                 )}
                 {dock === 'strategy' && (
@@ -563,6 +574,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
       </div>
 
       <AlertToasts />
+      <InstallPrompt />
 
       {indicatorsOpen && catalog && (
         <IndicatorDialog
