@@ -64,19 +64,24 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
 4. **Tooling added:** `portfolio.trade_stats` reports `t_month` (month-clustered; use it, since the per-trade t overstates significance by up to 2.5×). There's a context-matched random baseline (`random_pool(..., matched=True)`, 50 seeds), `backtest.benchmarks()` (NIFTY, equal-weight rebalanced and buy & hold), `select_params.py` (a pre-registered selection rule) and `reconcile_portfolio.py`.
 
 ## Next steps
-1. **Get the user's answers to the open questions below**, then propose strategy 002. Write its `spec.md` before testing.
+1. **Propose strategy 002** within the decisions below (long + F&O shorts, Yahoo for research, daily first). Get the user's go-ahead, then write its `spec.md` before testing.
 2. **Leading candidate for 002, given 001 and the analysis:** a low-turnover momentum book, where 001's pullback-failure trigger only decides when to buy a top-momentum name, and exits are a trail or a rank drop. Judge it against equal-weight buy & hold and against random-timing entries into the same names.
 3. **Other candidates:**
    - Short-term reversal inside strong stocks (decaying after 2019; costs are the hurdle).
    - A 1h/15m entry inside a daily setup, YTC-style (needs Fyers intraday data in bulk).
 4. **Portfolio realism for any strategy:** the 20% weight cap together with 1% risk under-uses risk when stops are wide. Report both per-trade and portfolio results, and how much risk was actually used.
 
-## Open questions for the user (ask, don't assume)
-1. **Long only (cash market),** or also short through F&O?
-2. **Is Yahoo daily data acceptable,** or should the research be redone on Fyers
-   history?
-3. **Should strategy 002 use 1h/15m entries?** That needs a bulk download of
-   Fyers intraday data.
+## Decisions from the user (answered 2026-10-15)
+1. **Direction: long, plus shorts through F&O.** Shorts must be modelled as
+   stock futures (or index futures for hedging), only on F&O-eligible names,
+   with lot sizes, margin, monthly rollover and F&O costs. Indian cash
+   equities can't be held short overnight.
+2. **Data: research on Yahoo is fine; implementation will be on Fyers.** Plan
+   and test on Yahoo daily. Before anything goes into the app, re-check the
+   chosen rules on Fyers data, since that's what the app trades on.
+3. **Intraday: daily first, intraday later.** Strategy 002 is a daily study.
+   Prepare the Fyers 1h/15m bulk download for a later strategy (003). The user
+   runs anything that needs the shared Fyers login.
 
 ## Environment and rules
 - **Work only in the worktree** `C:\Users\varsh\Downloads\indicator-research`
