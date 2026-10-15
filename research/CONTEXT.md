@@ -48,67 +48,28 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
 - **A strategy that passes** goes into the app later: as scanner and backtester
   conditions, saved as a strategy, and run by agents that post signals.
 
-## Where things stand (2026-10-15)
-Commits on `trading_research`: `d641e3b`, `06c3b81`.
-
-1. **Market analysis is done.** Raw numbers are in
-   `01_market_analysis/out/summary.txt` and the CSVs. **`report.md` was never
-   written**: write it from `summary.txt`, with the key numbers and what they
-   imply for strategy design.
-   - **Data:** 132 NSE stocks, daily bars from Yahoo, 2005–2026. Checked
-     against the Fyers cache, daily returns correlate 0.98–0.997.
-   - **Holding is the bar to beat:** being in a stock earns +1.84% per 20 days.
-     The median stock compounded 17% a year, the NIFTY 50 9%. Survivorship bias
-     flatters long results.
-   - **Little edge in:** regime filters (being above or below the 200-day
-     average changes returns very little), YTC's up/range/down structure (about
-     0.35% per 20 days, and the state barely persists), and breakouts beyond
-     20/55/250-day highs (0–0.1% extra; 46% fail within 3 bars, and trading the
-     failure loses too).
-   - **YTC pullbacks point the right way, but the edge is thin:**
-     - Chance the next leg makes a new high: 89% after pullbacks under 25%
-       deep, 61% at 50–62%, 32% when the prior low breaks.
-     - By duration: 64% after pullbacks of 3 bars or less, 35% after 6–8 bars.
-     - The tradeable extra return is only +0.3–0.6% per 20 days, about equal to
-       costs.
-   - **What holds up:**
-     - 12-month momentum: about +0.4% a month, stable in both halves of the data.
-     - Short-term reversal is real but fading: about 0.7% per 5 days before
-       2019, 0.18% after.
-     - Gap-ups fade during the day (2–4% gaps lose −0.73% from open to close):
-       don't chase gap opens. This could become a separate intraday idea.
-2. **Strategy 001: buying a failed pullback** (`strategies/001_pullback_failure/`).
-   - **Rules:** daily bars, long only.
-     - Setup: after a confirmed swing high, a pullback of 8 bars or less with
-       depth 20–300%, in a stock in the top 30% by 6-month return.
-     - Entry: buy-stop above the previous bar's high.
-     - Stop: 0.2% below the pullback low.
-     - Exit: trail under each new confirmed swing low, or a 30-bar time exit.
-     - Sizing: 1% risk per trade, at most 10 positions.
-   - **In-sample grid (2005–18) only:** 41 of 288 combinations are positive.
-     - With the momentum filter: 6,113 trades, +0.10R per trade, t = 3.4.
-     - Without it: 19,548 trades, +0.07R per trade, t = 4.5.
-     - The win rate is about 27%, so the edge comes from large trailed winners.
-   - **Didn't work:**
-     - YTC's fixed first target at the prior swing high: −0.20R per trade.
-     - Entering at the next open instead of the buy-stop.
-     - YTC's up-structure filter: no improvement.
-   - **Not validated yet.** It could just be the market's drift plus a trailing
-     stop.
+## Where things stand (2026-10-15, end of session 2)
+1. **Market analysis is done**, with `01_market_analysis/report.md` written from `out/summary.txt`.
+   - **Data:** 132 NSE stocks, Yahoo daily, 2005–2026. NIFTY 50 before 2007-09 comes from the Fyers cache (Yahoo's ^NSEI starts then).
+   - **Holding is the bar to beat:** +1.84% per 20 days for any stock-day. The median stock compounded 17% a year, the NIFTY 50 11.8%. Survivorship flatters long results.
+   - **Little edge in:** regime filters (the index regime flips sign between periods), YTC structure state (about 0.35% per 20 days, and it barely persists), breakouts and BOF.
+   - **Pullbacks:** the depth/duration continuation tables are descriptive only. **Measured causally, buying at the pullback-low confirmation earns −0.02% excess per 20 days.** The +0.19% figure in the hand-off came from ex-post swings.
+   - **What holds up:** 12-1 month momentum, about +0.4% a month in both periods. Short-term reversal is real but decaying (0.7% → 0.18% D1–D10 per 5 days). Gap-ups fade during the day.
+2. **Swing lookahead found and fixed.** `structure.find_swings` de-duplicates its list ex-post, dropping 19% of swings. Bar-by-bar code must use `structure.raw_swings` and rebuild the alternating sequence as known on each bar, as `trend_state` and 001's `symbol_features` now do. Truncation tests: `common/test_structure.py` and `strategies/001_pullback_failure/test_no_lookahead.py`. **Re-run both tests for any new structure code.**
+3. **Strategy 001 (failed-pullback buy): DROP as a stand-alone strategy.** See `strategies/001_pullback_failure/results.md`.
+   - **Per trade, out-of-sample:** +0.161R (n = 4,706, t_month 2.56). In-sample: +0.061R (t_month 1.87).
+   - **Against random entries with the same exits** (context-matched, 50 seeds): +0.07R out-of-sample, +0.10R in-sample, p ≈ 0.02. The pullback-failure *timing* adds a little.
+   - **As a portfolio** (1% risk, 10 slots): −10% CAGR and −89% drawdown in-sample; +1.5% CAGR out-of-sample. NIFTY returned 10–12% and equal-weight buy & hold 19–24%.
+   - **The edge is in the trailing exit plus momentum.** The YTC T1 target loses.
+4. **Tooling added:** `portfolio.trade_stats` reports `t_month` (month-clustered; use it, since the per-trade t overstates significance by up to 2.5×). There's a context-matched random baseline (`random_pool(..., matched=True)`, 50 seeds), `backtest.benchmarks()` (NIFTY, equal-weight rebalanced and buy & hold), `select_params.py` (a pre-registered selection rule) and `reconcile_portfolio.py`.
 
 ## Next steps
-1. **Fix the chosen parameters** in `strategies/001_pullback_failure/chosen_params.json`.
-   Pick from a broad region of the grid that holds up, not the single best cell.
-2. **Run `backtest.py final`** on 2019–2026 out-of-sample. Compare with the
-   NIFTY 50, equal-weight buy & hold, and **a random-entry baseline that uses the
-   same exits**; that baseline decides whether the edge is real. Run it once.
-3. **Run `backtest.py sens`:** move each parameter one at a time, in both
-   periods.
-4. **Update `results.md`** with a clear verdict (pursue, revise or drop) and the
-   reasons. Write `01_market_analysis/report.md`.
-5. **Then propose strategy 002.** Candidates: momentum combined with
-   pullback-entry timing; short-term reversal in strong stocks; and a 1h/15m
-   entry inside a daily setup, YTC-style (needs Fyers intraday data in bulk).
+1. **Get the user's answers to the open questions below**, then propose strategy 002. Write its `spec.md` before testing.
+2. **Leading candidate for 002, given 001 and the analysis:** a low-turnover momentum book, where 001's pullback-failure trigger only decides when to buy a top-momentum name, and exits are a trail or a rank drop. Judge it against equal-weight buy & hold and against random-timing entries into the same names.
+3. **Other candidates:**
+   - Short-term reversal inside strong stocks (decaying after 2019; costs are the hurdle).
+   - A 1h/15m entry inside a daily setup, YTC-style (needs Fyers intraday data in bulk).
+4. **Portfolio realism for any strategy:** the 20% weight cap together with 1% risk under-uses risk when stops are wide. Report both per-trade and portfolio results, and how much risk was actually used.
 
 ## Open questions for the user (ask, don't assume)
 1. **Long only (cash market),** or also short through F&O?

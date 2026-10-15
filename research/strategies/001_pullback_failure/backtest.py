@@ -131,19 +131,26 @@ def symbol_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def build_features() -> dict[str, pd.DataFrame]:
     if CACHE.exists():
-        return pickle.loads(CACHE.read_bytes())
+        feats = pickle.loads(CACHE.read_bytes())
+        add_index_regime(feats)  # cheap; recomputed so index-data fixes apply without a rebuild
+        return feats
     pan = data.panel(start="2005-01-01")
     feats = {s: symbol_features(df) for s, df in pan.items()}
     # cross-sectional momentum percentile per date
     r = pd.DataFrame({s: f["ret126"] for s, f in feats.items()})
     pct = r.rank(axis=1, pct=True)
-    idx = data.bars("NIFTY50")
-    idx_up = (idx["close"] > idx["close"].rolling(200).mean())
     for s, f in feats.items():
         f["mom_pct"] = pct[s].reindex(f.index)
-        f["idx_up"] = idx_up.reindex(f.index, method="ffill").fillna(False).astype(bool)
+    add_index_regime(feats)
     CACHE.write_bytes(pickle.dumps(feats))
     return feats
+
+
+def add_index_regime(feats: dict[str, pd.DataFrame]) -> None:
+    idx = data.bars("NIFTY50")
+    idx_up = idx["close"] > idx["close"].rolling(200).mean()
+    for f in feats.values():
+        f["idx_up"] = idx_up.reindex(f.index, method="ffill").fillna(False).astype(bool)
 
 
 # --- signals & trade simulation ------------------------------------------------------------------
@@ -378,6 +385,25 @@ def grid(workers: int = 4):
     print(g.sort_values("is_avgR", ascending=False).head(25).to_string())
 
 
+def benchmarks(feats, a: str, b: str) -> dict:
+    """NIFTY 50 and equal-weight universe (rebalanced daily, and buy & hold of
+    the stocks trading on day one), each over its own dates in [a, b]."""
+    def cagr_dd(eq):
+        yrs = (eq.index[-1] - eq.index[0]).days / 365.25
+        return ((eq.iloc[-1] / eq.iloc[0]) ** (1 / yrs) - 1) * 100, (eq / eq.cummax() - 1).min() * 100
+
+    px = pd.DataFrame({s: f["close"] for s, f in feats.items()}).loc[a:b]
+    first = px.iloc[0].dropna().index
+    out = {}
+    for k, eq in {
+        "nifty50": data.bars("NIFTY50", a, b)["close"],
+        "equal_weight_rebalanced": (1 + px.pct_change().mean(axis=1).fillna(0)).cumprod(),
+        "equal_weight_buy_hold": (px[first] / px[first].iloc[0]).ffill().mean(axis=1),
+    }.items():
+        out[f"{k}_cagr%"], out[f"{k}_maxdd%"] = cagr_dd(eq)
+    return out
+
+
 def evaluate(p: Params, label: str):
     feats = build_features()
     closes = {s: f["close"] for s, f in feats.items()}
@@ -416,16 +442,7 @@ def evaluate(p: Params, label: str):
         pf["equity"].to_csv(OUT / f"equity_{label}_{name}.csv")
     # benchmarks over the same windows
     for name, (a, b) in {"in_sample": ("2005-01-01", IS_END), "out_of_sample": (OOS_START, "2026-12-31")}.items():
-        nifty = data.bars("NIFTY50", a, b)["close"]
-        yrs = (nifty.index[-1] - nifty.index[0]).days / 365.25
-        ew = pd.DataFrame({s: f["close"] for s, f in feats.items()}).loc[a:b].pct_change().mean(axis=1).fillna(0)
-        ew_eq = (1 + ew).cumprod()
-        res[name]["benchmarks"] = {
-            "nifty50_cagr%": ((nifty.iloc[-1] / nifty.iloc[0]) ** (1 / yrs) - 1) * 100,
-            "nifty50_maxdd%": (nifty / nifty.cummax() - 1).min() * 100,
-            "equal_weight_universe_cagr%": (ew_eq.iloc[-1] ** (1 / yrs) - 1) * 100,
-            "equal_weight_universe_maxdd%": (ew_eq / ew_eq.cummax() - 1).min() * 100,
-        }
+        res[name]["benchmarks"] = benchmarks(feats, a, b)
     (OUT / f"eval_{label}.json").write_text(json.dumps({"params": asdict(p), **res}, indent=2, default=float))
     print(json.dumps({"params": asdict(p), **res}, indent=1, default=lambda x: round(float(x), 3)))
     return res

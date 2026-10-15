@@ -11,7 +11,7 @@ The goal is to find swing-trading strategies for NSE stocks: research them first
 6. **Decision.** Pursue (paper trade, then wire into the app's scanner/backtester), revise, or drop. Record the reasons in `results.md`.
 
 ## Rules of the road
-- No lookahead. Swings count only once confirmed, and orders are placed for the next bar.
+- No lookahead. Swings count only once confirmed, and orders are placed for the next bar. Bar-by-bar code uses `structure.raw_swings` (never `find_swings`, which cleans its list ex-post), and every feature set gets a truncation test.
 - **Costs:** 0.1% per side, plus 0.05% slippage per side.
 - **Risk:** 1% per trade, at most 10 positions, no leverage.
 - Long only, unless a strategy uses F&O.
@@ -28,6 +28,9 @@ research/.venv/Scripts/python.exe research/common/fetch_yf.py          # daily N
 # analysis and backtests use the app's venv (pandas, numpy, TA-Lib)
 <app>/backend/.venv/Scripts/python.exe research/01_market_analysis/analyze.py
 <app>/backend/.venv/Scripts/python.exe research/strategies/001_pullback_failure/backtest.py grid|final|sens
+<app>/backend/.venv/Scripts/python.exe research/strategies/001_pullback_failure/select_params.py      # grid -> chosen_params.json (pre-registered rule)
+<app>/backend/.venv/Scripts/python.exe research/strategies/001_pullback_failure/test_no_lookahead.py  # truncation test for the features
+<app>/backend/.venv/Scripts/python.exe research/common/test_structure.py                             # truncation test for trend_state
 ```
 
 ## Index
@@ -35,8 +38,8 @@ research/.venv/Scripts/python.exe research/common/fetch_yf.py          # daily N
 |---|---|
 | `notes/ytc.md` | YTC Price Action Trader concepts, mapped to daily/weekly swing trading, with page refs |
 | `common/` | data loading (`data.py`, `fetch_yf.py`, `universe.py`), YTC swings/trend (`structure.py`), portfolio simulation and stats (`portfolio.py`) |
-| `01_market_analysis/` | base rates: drift, regimes, structure state, volatility, pullback depth/duration, breakouts/BOF, reversal and momentum, gaps. Output in `out/summary.txt` |
-| `strategies/001_pullback_failure/` | strategy 001: YTC PB/CPB failure in strong stocks. `spec.md`, `backtest.py`, `results.md` |
+| `01_market_analysis/` | base rates: drift, regimes, structure state, volatility, pullback depth/duration, breakouts/BOF, reversal and momentum, gaps. Findings in `report.md`, raw output in `out/summary.txt` |
+| `strategies/001_pullback_failure/` | strategy 001: YTC PB/CPB failure in strong stocks. `spec.md`, `backtest.py`, `results.md`. **Verdict: dropped** (small timing edge over random entries; loses to buy & hold as a portfolio) |
 
 ## Sources
 - Lance Beggs, *YTC Price Action Trader* (6 volumes in 1). The main source for 001. The PDF stays local.

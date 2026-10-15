@@ -28,6 +28,7 @@ def simulate(trades: pd.DataFrame, closes: dict[str, pd.Series], capital: float 
     cash = capital
     open_pos: dict[int, dict] = {}
     taken = []
+    qtys: dict[int, tuple] = {}
     curve = []
     last_px: dict[str, float] = {}
     for d in dates:
@@ -54,13 +55,17 @@ def simulate(trades: pd.DataFrame, closes: dict[str, pd.Series], capital: float 
             open_pos[k] = {"symbol": row.symbol, "qty": qty, "entry_px": row.entry_px, "exit_date": row.exit_date,
                            "exit_px_net": row.exit_px_net}
             taken.append(k)
+            qtys[k] = (qty, eq)
         for p in open_pos.values():
             s = closes[p["symbol"]]
             if d in s.index:
                 last_px[p["symbol"]] = s.loc[d]
         curve.append((d, cash + sum(p["qty"] * last_px.get(p["symbol"], p["entry_px"]) for p in open_pos.values())))
     eq = pd.Series(dict(curve)).sort_index()
-    return {"equity": eq, "taken": t.loc[taken]}
+    out = t.loc[taken].copy()
+    out["qty"] = [qtys[k][0] for k in taken]
+    out["equity_at_entry"] = [qtys[k][1] for k in taken]
+    return {"equity": eq, "taken": out}
 
 
 def stats(equity: pd.Series, trades: pd.DataFrame) -> dict:

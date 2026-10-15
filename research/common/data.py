@@ -36,6 +36,12 @@ def bars(symbol: str, start: str | None = None, end: str | None = None) -> pd.Da
     stale rows that Yahoo sometimes carries (holidays, suspensions)."""
     df = _all()
     df = df[df["symbol"] == symbol].drop(columns="symbol").set_index("ts")
+    if symbol == "NIFTY50" and APP_DB.exists():
+        # Yahoo's ^NSEI only starts 2007-09-17. The Fyers cache has it from 1998
+        # and matches Yahoo exactly on the overlap (common/check_index.py).
+        early = app_bars("NSE:NIFTY50-INDEX")
+        early.index = pd.to_datetime(early.index).normalize()
+        df = pd.concat([early[early.index < df.index[0]], df])
     if symbol not in INDEX_NAMES:
         df = df[~((df["high"] == df["low"]) & (df["volume"] == 0))]
         # Yahoo misses some old splits/demergers (VOLTAS +932% in 2006, ABB

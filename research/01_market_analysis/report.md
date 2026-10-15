@@ -10,14 +10,14 @@ Source: `analyze.py`, with raw output in `out/summary.txt` and the CSVs in `out/
 | | value |
 |---|---|
 | Median stock buy & hold CAGR | **17.0%** (10th–90th percentile 8.1–27.9%; 3 of 132 negative) |
-| NIFTY 50 CAGR since 2005 | 9.1% |
+| NIFTY 50 CAGR since 2005 | 11.8% (price index, no dividends) |
 | Average stock-day forward return, 5 / 10 / 20 days | 0.46% / 0.91% / **1.84%** |
 | Forward 20-day win rate | 56.4% |
 
 **Implication:** a long-only rule that is simply in the market earns about +1.8% per 20 days with no skill. Any strategy has to be judged by its *excess* over random entries with the same exposure, not by being profitable. Profitable is the default here, and it's inflated by survivorship.
 
 ## 2. Regime filters (B) and YTC structure (C): little edge
-- **200-day average:** stocks above vs below their 200-day SMA, with NIFTY up, earn 1.98% vs 1.96% per 20 days. The index regime (NIFTY above or below its 200-day) flips sign between periods: in 2005–18 "index up" was better (1.96% vs 1.15%); in 2019–26 it was worse (1.42% vs 2.37%). **Not a reliable filter.**
+- **200-day average:** being above your own 200-day SMA doesn't help. With NIFTY up, stocks above vs below it earn 2.00% vs 1.46% per 20 days. With NIFTY down, it's 1.24% vs 2.15%, the opposite way. The index regime (NIFTY above or below its 200-day) flips sign between periods: in 2005–18 "index up" was better (2.12% vs 1.51%); in 2019–26 it was worse (1.42% vs 2.37%). **Not a reliable filter.** In strategy 001 it raised in-sample avgR (mostly by skipping 2008) but not out-of-sample.
 - **YTC daily structure** (2-bar swings, HH+HL = up): up 2.01%, range 1.81%, down 1.67% per 20 days. The spread is about 0.35%, about one round-trip cost. In 2019–26 it all but vanishes (1.67 / 1.61 / 1.73).
 - **The structure state barely persists:** after 20 bars, an "up" stock is still "up" 33% of the time, against 31% for any stock. On daily bars the label is closer to noise than to a regime.
 - **Weekly + daily alignment:** weekly up + daily up gives 2.07%, weekly down + daily down 1.71%. Small, and survivorship-flattered on the long side.
@@ -83,9 +83,10 @@ The long side (D1, +0.22% per 5 days) is below the ~0.3% round trip. The effect 
 **Implication:** don't chase gap opens with market orders. Buy-stop entries that fill at a gap-up open get the worst intraday price, which is relevant for 001's entry. Fading opening gaps is a possible separate intraday idea, but it needs intraday data and intraday costs.
 
 ## 8. Calendar and index (I, J)
-- NIFTY 50 mean daily return by weekday ranges from −0.11% (Saturday, special sessions, tiny sample) to +0.11% (Wednesday). It's noise-sized; no edge.
-- Daily-return autocorrelation: NIFTY 0.036, median stock 0.021. Essentially a random walk at lag 1.
-- NIFTY breakouts underperform the index's own drift (20-day: +0.67% vs +0.82% base).
+- NIFTY 50 mean daily return by weekday: Monday −0.01%, Tuesday +0.04%, Wednesday +0.17%, Thursday +0.02%, Friday +0.04%. Weekend rows are a handful of special sessions (6 since 2005). It's noise-sized; no edge.
+- Daily-return autocorrelation: NIFTY 0.037, median stock 0.021. Essentially a random walk at lag 1.
+- NIFTY breakouts underperform the index's own drift (20-day: +0.89% vs +1.10% base).
+- NIFTY by its own weekly trend: forward 20 days, up 0.47%, range 1.73%, down 0.81%. "Up" is the *worst* state for the index.
 
 ## What this means for strategy design
 1. **Benchmark against random entries with the same exits and exposure.** Drift plus survivorship makes almost any long rule look profitable.
@@ -99,3 +100,5 @@ The long side (D1, +0.22% per 5 days) is below the ~0.3% round trip. The effect 
 - Section C barely changed.
 - The pullback-low excess fell from +0.19% to −0.02%.
 - The depth and duration continuation tables are unchanged. They are descriptive by design.
+
+Yahoo's NIFTY 50 (^NSEI) history starts 2007-09-17, so "since 2005" index figures (CAGR, the index regime in B, section J) previously covered only 2007-09 onward, and the index regime was missing for 2005–07. `common/data.py` now fills the earlier part from the app's Fyers cache, which is identical on the overlap (`common/check_index.py`). The NIFTY CAGR since 2005 moved from 9.1% to 11.8%. The B regime tables changed, but the conclusion (the regime flips between periods) didn't.
