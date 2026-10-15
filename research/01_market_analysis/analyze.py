@@ -71,6 +71,21 @@ def features(df: pd.DataFrame, idx: pd.DataFrame) -> pd.DataFrame:
     return f
 
 
+def causal_pullback_lows(pan: dict) -> list[dict]:
+    rows = []
+    for sym, df in pan.items():
+        c = df["close"].to_numpy()
+        base = np.nanmean(c[20:] / c[:-20] - 1)
+        last = None
+        for s in structure.raw_swings(df["high"].to_numpy(), df["low"].to_numpy(), 2):
+            if s.kind == "L" and last is not None and last.kind == "H" and s.known_at + 20 < len(c):
+                rows.append({"symbol": sym, "date": df.index[s.known_at], "pb_bars": s.i - last.i,
+                             "fwd20": c[s.known_at + 20] / c[s.known_at] - 1, "base20": base})
+            if last is None or last.kind != s.kind or ((s.price > last.price) if s.kind == "H" else (s.price < last.price)):
+                last = s
+    return rows
+
+
 def summarize(groups, col="fwd20"):
     g = groups[col]
     return pd.DataFrame({"n": g.count(), "mean%": g.mean() * 100, "median%": g.median() * 100, "win%": g.apply(lambda x: (x > 0).mean() * 100)})
@@ -200,6 +215,15 @@ def main():
           f"uptrend {S[S.trend_up].x20.mean():.2f}, not uptrend {S[~S.trend_up].x20.mean():.2f}")
     xt = S.groupby([S.trend_up, pd.cut(S.pb_bars, [0, 3, 5, 8, 1000])], observed=True)["x20"].agg(["count", "mean"])
     print("excess fwd20% by trend_up x pullback bars:\n", xt.round(2).to_string())
+    # The legs above come from find_swings' ex-post H/L clean-up: a pullback low that was
+    # later undercut before the next high is merged away, so x20 is biased upward and is
+    # NOT tradeable. Causal version: every swing low confirmed while the real-time
+    # sequence's last swing was a high (the first low of a pullback), as known then.
+    cx = pd.DataFrame(causal_pullback_lows(pan))
+    cx["x20"] = (cx.fwd20 - cx.base20) * 100
+    print(f"CAUSAL excess fwd20% from first pullback-low confirmation: all {cx.x20.mean():.2f} (n={cx.x20.notna().sum()}), "
+          f"2005-18 {cx[cx.date < SPLIT].x20.mean():.2f}, 2019-26 {cx[cx.date >= SPLIT].x20.mean():.2f}; "
+          f"by bars since the high: " + str(cx.groupby(pd.cut(cx.pb_bars, [0, 3, 5, 8, 1000]), observed=True).x20.mean().round(2).to_dict()))
     S.to_csv(OUT / "pullback_sequences.csv", index=False)
     t.to_csv(OUT / "pullback_depth_continuation.csv")
     dd = S.groupby(pd.cut(S.pb_bars, [0, 3, 5, 8, 13, 21, 1000]), observed=True)["cont"].agg(["size", "mean"])

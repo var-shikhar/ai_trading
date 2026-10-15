@@ -24,7 +24,7 @@ import data  # noqa: E402
 import portfolio  # noqa: E402
 import structure  # noqa: E402
 
-CACHE = HERE.parents[1] / "data" / "s001_features.pkl"
+CACHE = HERE.parents[1] / "data" / "s001_features_v2.pkl"  # v2: causal swing sequence (v1 leaked swing de-dup)
 OUT = HERE / "out"
 OUT.mkdir(exist_ok=True)
 IS_END = "2018-12-31"
@@ -32,6 +32,7 @@ OOS_START = "2019-01-01"
 COST = 0.001  # per side: brokerage + STT + exchange charges (delivery)
 SLIP = 0.0005  # per side
 STOP_BUFFER = 0.002  # stop this far below the pullback low ("a couple of ticks")
+N_SEEDS = 50  # random-entry baseline runs per period
 MIN_TRADED_VALUE = 5e7  # Rs 5 crore/day (20-day average), so early-year thin names are skipped
 
 
@@ -54,36 +55,68 @@ class Params:
 # --- features (computed once, cached) -------------------------------------------------------------
 
 
+def raw_swings(h: np.ndarray, l: np.ndarray, n: int = 2) -> list[structure.Swing]:
+    """Every confirmed 2-bar pivot, *before* structure.find_swings' H/L
+    alternation clean-up. That clean-up drops a swing when a more extreme
+    one of the same kind follows, which is only known later (19% of swings
+    on this data). Using its output bar by bar leaks the future, so the
+    alternating sequence is rebuilt here as it was known on each bar."""
+    out = []
+    for kind, arr, better in (("H", h, np.greater), ("L", l, np.less)):
+        size = len(arr)
+        for i in range(n, size - n):
+            v = arr[i]
+            if not better(v, arr[i - n:i]).all():
+                continue
+            j = i
+            while j + 1 < size and arr[j + 1] == v:
+                j += 1
+            if j + n < size and better(v, arr[j + 1:j + 1 + n]).all():
+                out.append(structure.Swing(kind, j, float(v), j + n))
+    uniq = {(s.kind, s.i): s for s in out}
+    return sorted(uniq.values(), key=lambda s: (s.known_at, s.i))
+
+
 def symbol_features(df: pd.DataFrame) -> pd.DataFrame:
-    h, l, c = df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
+    """Per bar t, using only swings confirmed by t:
+    sh/l0 = the latest swing high and the swing low before it, from the
+    alternating H/L sequence *as known at t* (a new same-kind swing replaces
+    the last one only if more extreme, from the bar it is confirmed);
+    trail_sl = the latest confirmed swing low of any kind (a real-time
+    trailing stop moves under every new confirmed low)."""
+    h, l = df["high"].to_numpy(), df["low"].to_numpy()
     n = len(df)
-    swings = structure.find_swings(h, l, 2)
-    sh = [s for s in swings if s.kind == "H"]
-    sl = [s for s in swings if s.kind == "L"]
-    out = {k: np.full(n, np.nan) for k in ("sh", "sh_i", "l0", "prev_sh", "prev_l0", "pl", "legs")}
-    sl_i = np.array([x.i for x in sl])
-    sl_known = np.array([x.known_at for x in sl])
-    sl_price = np.array([x.price for x in sl])
-
-    def low_before(i):  # price of the last swing low whose bar is before bar i
-        k = np.searchsorted(sl_i, i) - 1
-        return sl_price[k] if k >= 0 else np.nan
-
-    sh_l0 = [low_before(s.i) for s in sh]
-    sh_k = -1
+    raw = raw_swings(h, l, 2)
+    out = {k: np.full(n, np.nan) for k in ("sh", "sh_i", "l0", "prev_sh", "prev_l0", "pl", "legs", "trail_sl")}
+    seq: list[structure.Swing] = []
+    k = 0
+    last_low = np.nan
     for t in range(n):
-        while sh_k + 1 < len(sh) and sh[sh_k + 1].known_at <= t:
-            sh_k += 1
-        if sh_k < 0 or np.isnan(sh_l0[sh_k]):
+        while k < len(raw) and raw[k].known_at <= t:
+            s = raw[k]
+            k += 1
+            if s.kind == "L":
+                last_low = s.price
+            if seq and seq[-1].kind == s.kind:
+                prev = seq[-1]
+                if (s.price > prev.price) if s.kind == "H" else (s.price < prev.price):
+                    seq[-1] = s
+            else:
+                seq.append(s)
+        out["trail_sl"][t] = last_low
+        hi = [j for j in range(len(seq) - 1, -1, -1) if seq[j].kind == "H"][:2]
+        if not hi or hi[0] == 0:
             continue
-        s = sh[sh_k]
-        out["sh"][t], out["sh_i"][t], out["l0"][t] = s.price, s.i, sh_l0[sh_k]
-        if sh_k >= 1:
-            out["prev_sh"][t] = sh[sh_k - 1].price
-            out["prev_l0"][t] = sh_l0[sh_k - 1]
+        s = seq[hi[0]]
+        out["sh"][t], out["sh_i"][t], out["l0"][t] = s.price, s.i, seq[hi[0] - 1].price
+        if len(hi) > 1 and hi[1] >= 1:
+            out["prev_sh"][t], out["prev_l0"][t] = seq[hi[1]].price, seq[hi[1] - 1].price
         if t > s.i:
             out["pl"][t] = l[s.i + 1:t + 1].min()
-        out["legs"][t] = int(((sl_i > s.i) & (sl_known <= t)).sum()) if len(sl_i) else 0
+        out["legs"][t] = len(seq) - 1 - hi[0]  # confirmed swing lows since SH (0 or 1)
+        # keep the sequence short; only the last four swings are ever read
+        if len(seq) > 8:
+            del seq[:-6]
     f = pd.DataFrame(out, index=df.index)
     f["bars_since"] = np.arange(n) - f["sh_i"]
     f["depth"] = (f["sh"] - f["pl"]) / (f["sh"] - f["l0"])
@@ -93,16 +126,6 @@ def symbol_features(df: pd.DataFrame) -> pd.DataFrame:
     f["ret126"] = df["close"] / df["close"].shift(126) - 1
     for k in ("open", "high", "low", "close"):
         f[k] = df[k]
-    # last confirmed swing low known at t (for trailing)
-    sl_px = np.full(n, np.nan)
-    k = -1
-    by_known = sorted(sl, key=lambda x: x.known_at)
-    for t in range(n):
-        while k + 1 < len(by_known) and by_known[k + 1].known_at <= t:
-            k += 1
-        if k >= 0:
-            sl_px[t] = by_known[k].price
-    f["trail_sl"] = sl_px
     return f
 
 
@@ -207,7 +230,9 @@ def simulate_symbol(sym: str, f: pd.DataFrame, p: Params, start: str, end: str, 
                     # Entry fills on the way up through the trigger. On an O-L-H-C bar the low
                     # printed before the fill, so it can't stop us; on O-H-L-C it comes after.
                     gap_fill = o[k] >= trigger
-                    if (high_first or gap_fill) and l[k] <= cur_stop:
+                    # O-L-H-C after the fill: the path ends at the close, so a close
+                    # below the stop means it was crossed after the fill as well.
+                    if ((high_first or gap_fill) and l[k] <= cur_stop) or c[k] <= cur_stop:
                         exit_px, exit_i, reason = cur_stop, k, "stop"
                         break
                     if mode == "swing" and h[k] >= target:
@@ -262,7 +287,27 @@ def run(feats, p: Params, start: str, end: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def random_baseline(feats, trades: pd.DataFrame, p: Params, start: str, end: str, seed: int = 7) -> pd.DataFrame:
+def random_pool(feats, p: Params, start: str, end: str, matched: bool) -> pd.DataFrame:
+    """Liquid stock-days in the window. matched=True also applies the
+    strategy's context filters (momentum / structure / index), so the
+    baseline differs from the strategy only in the pullback-entry timing."""
+    parts = []
+    for s, f in feats.items():
+        ok = (f["tv20"] >= MIN_TRADED_VALUE) & (f.index >= start) & (f.index <= end)
+        if matched:
+            if p.context in ("mom", "both"):
+                ok &= f["mom_pct"] >= p.mom_min
+            if p.context in ("structure", "both"):
+                ok &= f["struct_up"]
+            if p.index_filter:
+                ok &= f["idx_up"]
+        i = np.flatnonzero(ok.fillna(False).to_numpy())
+        parts.append(pd.DataFrame({"symbol": s, "i": i, "year": f.index[i].year}))
+    return pd.concat(parts, ignore_index=True)
+
+
+def random_baseline(feats, trades: pd.DataFrame, p: Params, start: str, end: str, seed: int = 7,
+                    pool: pd.DataFrame | None = None) -> pd.DataFrame:
     """Same number of entries per year, random liquid stock-days, the same
     entry trigger mechanics (buy-stop above the signal bar's high), same
     risk distance (as % of price) and the same exit rules. Isolates the
@@ -273,12 +318,8 @@ def random_baseline(feats, trades: pd.DataFrame, p: Params, start: str, end: str
     per_year = trades.groupby(trades.entry_date.dt.year).size()
     risks = trades["risk_frac"].to_numpy()
     t1r = (trades["room_r"]).clip(lower=0.2).to_numpy()
-    pool = []
-    for s, f in feats.items():
-        ok = ((f["tv20"] >= MIN_TRADED_VALUE) & (f.index >= start) & (f.index <= end)).to_numpy()
-        for i in np.flatnonzero(ok):
-            pool.append((s, i, f.index[i].year))
-    pool = pd.DataFrame(pool, columns=["symbol", "i", "year"])
+    if pool is None:
+        pool = random_pool(feats, p, start, end, matched=False)
     rows = []
     for y, k in per_year.items():
         cand = pool[pool.year == y]
@@ -331,7 +372,7 @@ def grid(workers: int = 4):
             rows.append(r)
             print(f"[{i + 1}/{len(params)}] {r['context']:9s} pb<={r['max_pb_bars']} d={r['depth_min']}-{r['depth_max']} "
                   f"brk={r['allow_break']!s:5s} {r['exit']:5s} {r['entry']:4s} n={r.get('is_n', 0):5d} avgR={r.get('is_avgR', np.nan):+.3f} "
-                  f"win={r.get('is_win%', np.nan):.1f} t={r.get('is_t_stat', np.nan):.2f}", flush=True)
+                  f"win={r.get('is_win%', np.nan):.1f} t={r.get('is_t_stat', np.nan):.2f} tm={r.get('is_t_month', np.nan):.2f}", flush=True)
     g = pd.DataFrame(rows)
     g.to_csv(OUT / "grid_in_sample.csv", index=False)
     print(g.sort_values("is_avgR", ascending=False).head(25).to_string())
@@ -343,11 +384,30 @@ def evaluate(p: Params, label: str):
     res = {}
     for name, (a, b) in {"in_sample": ("2005-01-01", IS_END), "out_of_sample": (OOS_START, "2026-12-31")}.items():
         tr = run(feats, p, a, b)
-        rb = random_baseline(feats, tr, p, a, b)
         pf = portfolio.simulate(tr, closes, risk_pct=1.0, max_pos=10, max_weight=0.2)
+        base = {}
+        for kind, matched in (("random_any", False), ("random_matched", True)):
+            pool = random_pool(feats, p, a, b, matched)
+            dist = []
+            for seed in range(N_SEEDS):
+                rb = random_baseline(feats, tr, p, a, b, seed=seed, pool=pool)
+                st = portfolio.trade_stats(rb)
+                dist.append(st)
+                if seed == 0:
+                    rpf = portfolio.simulate(rb, closes, risk_pct=1.0, max_pos=10, max_weight=0.2)
+                    base[f"{kind}_portfolio_seed0"] = portfolio.stats(rpf["equity"], rpf["taken"])
+                    rb.to_csv(OUT / f"trades_{label}_{name}_{kind}_seed0.csv", index=False)
+            d = pd.DataFrame(dist)
+            base[kind] = {
+                "seeds": N_SEEDS, "n_mean": d["n"].mean(),
+                "avgR_mean": d["avgR"].mean(), "avgR_p05": d["avgR"].quantile(0.05), "avgR_p95": d["avgR"].quantile(0.95),
+                "win%_mean": d["win%"].mean(), "avg%_mean": d["avg%"].mean(),
+                # share of random runs with avgR at least the strategy's (one-sided empirical p-value)
+                "p_value": float((d["avgR"] >= tr["r"].mean()).mean()),
+            }
         res[name] = {
             "trades": portfolio.trade_stats(tr),
-            "random_baseline": portfolio.trade_stats(rb),
+            **base,
             "portfolio": portfolio.stats(pf["equity"], pf["taken"]),
             "by_year": tr.groupby(tr.entry_date.dt.year).agg(n=("r", "size"), avgR=("r", "mean"), win=("pnl_pct", lambda x: (x > 0).mean() * 100)).round(3).to_dict("index"),
             "exit_reasons": tr["reason"].value_counts().to_dict(),
@@ -374,26 +434,36 @@ def evaluate(p: Params, label: str):
 def sensitivity(p: Params):
     """One-at-a-time perturbations around the chosen parameters, both periods."""
     feats = build_features()
-    variants = {
+    pb_steps = [3, 5, 8, 13]
+    i = pb_steps.index(p.max_pb_bars) if p.max_pb_bars in pb_steps else 1
+    cand = {
         "chosen": p,
-        "mom_min 0.6": replace(p, mom_min=0.6), "mom_min 0.8": replace(p, mom_min=0.8),
-        "max_pb_bars 3": replace(p, max_pb_bars=3), "max_pb_bars 8": replace(p, max_pb_bars=8),
+        f"mom_min {p.mom_min - 0.1:.1f}": replace(p, mom_min=round(p.mom_min - 0.1, 2)),
+        f"mom_min {p.mom_min + 0.1:.1f}": replace(p, mom_min=round(p.mom_min + 0.1, 2)),
+        **{f"max_pb_bars {b}": replace(p, max_pb_bars=b) for b in pb_steps[max(0, i - 1):i + 2]},
         "depth_min 0": replace(p, depth_min=0.0), "depth_min 0.38": replace(p, depth_min=0.38),
-        "depth_max 0.79": replace(p, depth_max=0.79),
+        "depth_max 1.0 (no break)": replace(p, depth_max=1.0, allow_break=False),
+        "depth_max 1.5": replace(p, depth_max=1.5), "depth_max 5.0": replace(p, depth_max=5.0),
         "max_bars 15": replace(p, max_bars=15), "max_bars 60": replace(p, max_bars=60),
         "max_risk 0.05": replace(p, max_risk=0.05), "max_risk 0.12": replace(p, max_risk=0.12),
-        "index_filter": replace(p, index_filter=True),
+        f"index_filter {not p.index_filter}": replace(p, index_filter=not p.index_filter),
         "min_room 0": replace(p, min_room=0.0), "min_room 1": replace(p, min_room=1.0),
         "min_room 2": replace(p, min_room=2.0),
-        "exit swing": replace(p, exit="swing"), "exit half": replace(p, exit="half"), "exit trail": replace(p, exit="trail"),
-        "context none": replace(p, context="none"), "context structure": replace(p, context="structure"),
+        **{f"exit {e}": replace(p, exit=e) for e in ("swing", "trail", "half")},
+        **{f"context {c}": replace(p, context=c) for c in ("none", "structure", "mom", "both")},
+        **{f"entry {e}": replace(p, entry=e) for e in ("stop", "open")},
     }
+    variants, seen = {}, set()
+    for name, v in cand.items():  # drop variants identical to one already listed
+        if v not in seen:
+            seen.add(v)
+            variants[name] = v
     rows = []
     for name, v in variants.items():
         r = {"variant": name}
         for per, (a, b) in {"is": ("2005-01-01", IS_END), "oos": (OOS_START, "2026-12-31")}.items():
             st = portfolio.trade_stats(run(feats, v, a, b))
-            r.update({f"{per}_{k}": st.get(k) for k in ("n", "avgR", "win%", "PF", "t_stat")})
+            r.update({f"{per}_{k}": st.get(k) for k in ("n", "avgR", "win%", "PF", "t_stat", "t_month")})
         rows.append(r)
         print(r, flush=True)
     s = pd.DataFrame(rows)

@@ -1,27 +1,20 @@
-# Strategy 001: results (IN PROGRESS, paused 14 Oct 2026)
+# Strategy 001: results (IN PROGRESS, 15 Oct 2026)
 
-Status: the in-sample grid is done. **The out-of-sample run and the sensitivity analysis have not been run yet.** Nothing below has been validated out of sample.
+Status: the backtester had a lookahead bug (below). It is fixed and the in-sample grid is being re-run. **The out-of-sample run has not been looked at.**
 
-## In-sample grid, 2005–2018 (`out/grid_in_sample.csv`, log in `out/grid_log.txt`)
-- **Coverage:** 288 cells: context × pullback duration × depth/break × exit × entry. Costs and slippage included; daily OHLC path rule for intrabar order.
-- **Mostly negative:** only **41 of 288 cells are positive**. Median avgR by exit: trail −0.03, half −0.11, swing (all at prior swing high) −0.20. By entry: stop −0.06, open −0.16.
-- **Best region:** stop entry (break of the pullback bar's high), a swing-low **trailing** exit, and pullbacks of **up to 8 bars**.
+## Lookahead found and fixed (15 Oct 2026)
+- `structure.find_swings` keeps the swing list alternating H/L. When two same-kind swings come in a row, it keeps only the more extreme one. That is an ex-post clean-up. **19% of swing highs and 19% of swing lows** on this data are dropped by it, and 94% of the dropped lows were traded through later.
+- The v1 features read that cleaned list bar by bar. The trailing stop therefore never "saw" a confirmed swing low that was later undercut, so it held through declines that a real-time trailing stop would have exited. The setup's swing high and L0 were affected the same way.
+- **Fix:** `structure.raw_swings` plus rebuilding the alternating sequence as it was known on each bar. The trail moves under every newly confirmed swing low. `test_no_lookahead.py` recomputes the features on data truncated at random bars and requires identical values: 150 of 150 bars matched. `structure.trend_state` (used by the market analysis) got the same fix, with `common/test_structure.py`: 200 of 200 bars matched.
+- Also fixed: on the entry bar, a close below the stop after the fill now counts as stopped out.
+- **Added:** `t_month`, a t-stat of the mean R per entry month. Trades open at the same time share market moves, so the per-trade t overstates significance.
+- **Added:** two random baselines with 50 seeds each. `random_any` takes random liquid stock-days. `random_matched` takes random stock-days that pass the same context filter (momentum ≥ 70th percentile), so it isolates the value of the pullback timing itself.
+- The v1 grid is kept as `out/grid_*_v1_lookahead.*` for reference only.
 
-| context | ≤ bars | depth | broke L0 allowed | n | avgR | win% | PF | t |
-|---|---|---|---|---|---|---|---|---|
-| mom | 8 | 0.2–3.0 | yes | 6,113 | +0.102 | 28.5 | 1.12 | 3.40 |
-| mom | 8 | 0.2–1.0 | no | 4,530 | +0.097 | 27.6 | 1.08 | 2.60 |
-| both | 8 | 0.2–3.0 | yes | 3,324 | +0.080 | 27.2 | 1.09 | 1.96 |
-| mom | 5 | 0.2–3.0 | yes | 5,294 | +0.075 | 27.4 | 1.08 | 2.27 |
-| none | 8 | 0.2–3.0 | yes | 19,548 | +0.074 | 27.4 | 1.11 | 4.55 |
-
-Early reading:
-- **Expectancy is small:** at most about +0.1R per trade. It comes from a low win rate (≈27%) with large trailed winners, i.e. trend capture, not from the setup's precision.
-- **YTC's fixed T1 at the prior swing high loses money** on daily NSE bars. The room to the prior high is typically under 1R (median ≈ 0.8R).
-- **Momentum context adds little** over no context (+0.10 vs +0.07R), and YTC up-structure adds nothing.
-- The open-ended edge (+0.07R even with no context) may mostly be the long-only drift plus a trailing exit. **The random-entry baseline is the key test**, and it hasn't run yet.
-
-## Next steps (when resuming)
-1. Fix `chosen_params.json` from the broad region (mom, ≤8 bars, depth 0.2–3.0 with break allowed, trail, stop entry), then run `backtest.py final`: out-of-sample 2019–26, random-entry baseline, portfolio CAGR/drawdown vs NIFTY 50 and equal-weight buy & hold.
-2. Run `backtest.py sens`, including `max_bars` 60, `min_room` 1–2 and the index filter.
-3. If it doesn't beat the random baseline out of sample, mark H1 falsified for daily bars. Candidates for 002: a 1h lower-timeframe trigger, room to weekly S/R instead of the prior swing high, and a plain momentum + short-term-reversal hybrid suggested by the market analysis.
+## Parameter selection rule (written before seeing the v2 grid)
+1. Entry `stop`: the pullback-failure entry, which is the hypothesis.
+2. Exit: the one with the highest median avgR across all stop-entry cells.
+3. Within that exit, take the (context, depth set) rows that are positive at **all three** `max_pb_bars` values (3, 5, 8). Choose the row with the highest mean `t_month` across those three.
+4. `max_pb_bars` = 5, the middle of the range, unless it is negative there. In that case take the cell with the highest `t_month`.
+5. If no row qualifies in step 3, H1 has no robust in-sample region. Record that, and still run the out-of-sample test on the v1 hand-off choice (mom, ≤ 8 bars, depth 0.2–3.0 with break, trail, stop) for completeness.
+6. Everything else stays at the defaults (`mom_min` 0.7, `max_bars` 30, `max_risk` 8%, no index filter, `min_room` 0).

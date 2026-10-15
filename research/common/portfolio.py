@@ -90,7 +90,11 @@ def trade_stats(trades: pd.DataFrame) -> dict:
     if trades.empty:
         return {"n": 0}
     r = trades["r"]
+    # Trades open at the same time share market moves, so the per-trade t
+    # overstates significance. t_month: t-stat of the mean R per entry month.
+    m = r.groupby(pd.to_datetime(trades["entry_date"]).dt.to_period("M")).mean()
     return {
+        "t_month": m.mean() / (m.std() / np.sqrt(len(m))) if len(m) > 1 and m.std() > 0 else np.nan,
         "n": len(trades),
         "win%": (trades.pnl_pct > 0).mean() * 100,
         "avgR": r.mean(),

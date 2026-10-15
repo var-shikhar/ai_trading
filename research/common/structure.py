@@ -8,7 +8,7 @@ coarser swings on daily data.
 A swing at bar i is only KNOWN at bar i+n (when the n following bars have
 printed). Everything here records both the swing bar and the bar on which
 it became known (`known_at`), and the structure state uses only swings
-known by that bar.
+known by that bar, in the order and form they were known (raw_swings).
 """
 
 from dataclasses import dataclass
@@ -28,7 +28,10 @@ class Swing:
 def find_swings(high: np.ndarray, low: np.ndarray, n: int = 2) -> list[Swing]:
     """Alternating swing highs/lows. Plateaus (equal extremes) are treated as
     one swing at the last bar of the plateau. When two same-kind swings come
-    in a row, the more extreme one is kept (so the list alternates H/L)."""
+    in a row, the more extreme one is kept (so the list alternates H/L).
+
+    The clean-up uses later bars, so this is an ex-post description (fine
+    for legs() statistics). Bar-by-bar logic must use raw_swings()."""
     size = len(high)
     raw: list[Swing] = []
     for i in range(n, size - n):
@@ -63,6 +66,28 @@ def find_swings(high: np.ndarray, low: np.ndarray, n: int = 2) -> list[Swing]:
     return out
 
 
+def raw_swings(high: np.ndarray, low: np.ndarray, n: int = 2) -> list[Swing]:
+    """Every confirmed pivot, ordered by the bar it became known, *without*
+    find_swings' H/L alternation clean-up. That clean-up drops a swing when
+    a more extreme one of the same kind follows, which is only known later
+    (about 19% of daily swings), so it must not be read bar by bar. Callers
+    rebuild the alternating sequence as known on each bar instead."""
+    out = []
+    for kind, arr, better in (("H", high, np.greater), ("L", low, np.less)):
+        size = len(arr)
+        for i in range(n, size - n):
+            v = arr[i]
+            if not better(v, arr[i - n:i]).all():
+                continue
+            j = i
+            while j + 1 < size and arr[j + 1] == v:
+                j += 1
+            if j + n < size and better(v, arr[j + 1:j + 1 + n]).all():
+                out.append(Swing(kind, j, float(v), j + n))
+    uniq = {(s.kind, s.i): s for s in out}
+    return sorted(uniq.values(), key=lambda s: (s.known_at, s.i))
+
+
 def trend_state(df: pd.DataFrame, n: int = 2) -> pd.DataFrame:
     """Per bar, using only swings known by that bar:
     last two swing highs/lows, and the YTC trend label:
@@ -71,7 +96,7 @@ def trend_state(df: pd.DataFrame, n: int = 2) -> pd.DataFrame:
       range otherwise.
     """
     h, l, c = df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
-    swings = find_swings(h, l, n)
+    by_known = raw_swings(h, l, n)
     size = len(df)
     sh1 = np.full(size, np.nan)  # latest known swing high
     sh2 = np.full(size, np.nan)  # the one before
@@ -79,14 +104,21 @@ def trend_state(df: pd.DataFrame, n: int = 2) -> pd.DataFrame:
     sl2 = np.full(size, np.nan)
     sh1_i = np.full(size, -1)
     sl1_i = np.full(size, -1)
-    by_known = sorted(swings, key=lambda s: s.known_at)
     k = 0
     cur = {"H": [], "L": []}
+    last_kind = None
     for t in range(size):
+        # the alternating H/L sequence as known at t (see raw_swings)
         while k < len(by_known) and by_known[k].known_at <= t:
             s = by_known[k]
-            cur[s.kind].append(s)
             k += 1
+            if last_kind == s.kind:
+                prev = cur[s.kind][-1]
+                if (s.price > prev.price) if s.kind == "H" else (s.price < prev.price):
+                    cur[s.kind][-1] = s
+            else:
+                cur[s.kind].append(s)
+                last_kind = s.kind
         if len(cur["H"]) >= 1:
             sh1[t], sh1_i[t] = cur["H"][-1].price, cur["H"][-1].i
         if len(cur["H"]) >= 2:
