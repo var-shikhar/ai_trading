@@ -20,32 +20,32 @@ period  idx_up
         True    186143   1.42     0.95  55.05
 
 ## C. YTC structure (daily swings n=2; weekly state lagged one week)
-time share daily: {'range': 45.5, 'up': 31.5, 'down': 23.1}
-time share weekly: {'range': 44.2, 'up': 36.4, 'down': 19.5}
+time share daily: {'range': 45.2, 'up': 31.6, 'down': 23.2}
+time share weekly: {'range': 43.5, 'up': 36.6, 'down': 19.8}
             n  mean%  median%   win%
 trend                               
-down   147733   1.65     1.35  56.37
-range  291188   1.82     1.29  56.19
-up     201605   2.02     1.35  56.58
+down   148674   1.67     1.36  56.41
+range  289245   1.81     1.28  56.14
+up     202607   2.01     1.36  56.63
                    n  mean%  median%   win%
 wtrend trend                               
-down   down    34358   1.70     1.28  55.55
-       range   58441   1.63     1.13  55.08
-       up      31761   1.61     1.13  54.91
-range  down    66632   1.55     1.40  56.72
-       range  124871   1.83     1.28  56.21
-       up      90880   2.07     1.40  56.90
-up     down    46743   1.76     1.32  56.48
-       range  106792   1.88     1.37  56.76
-       up      78964   2.11     1.39  56.89
-2005-18 {'down': {'n': 76213, 'mean%': 1.65, 'win%': 54.59}, 'range': {'n': 174151, 'mean%': 1.98, 'win%': 56.68}, 'up': {'n': 140554, 'mean%': 2.08, 'win%': 57.55}}
-2019-26 {'down': {'n': 48347, 'mean%': 1.64, 'win%': 56.08}, 'range': {'n': 108232, 'mean%': 1.62, 'win%': 56.35}, 'up': {'n': 91945, 'mean%': 1.71, 'win%': 55.52}}
+down   down    35162   1.71     1.35  55.65
+       range   58897   1.56     1.13  55.05
+       up      32616   1.59     1.18  55.18
+range  down    66590   1.61     1.42  56.87
+       range  122331   1.83     1.23  56.00
+       up      89494   2.11     1.42  57.02
+up     down    46922   1.72     1.30  56.32
+       range  106933   1.91     1.40  56.87
+       up      80497   2.07     1.37  56.78
+2005-18 {'down': {'n': 77535, 'mean%': 1.53, 'win%': 54.45}, 'range': {'n': 171590, 'mean%': 2.03, 'win%': 56.72}, 'up': {'n': 141793, 'mean%': 2.1, 'win%': 57.59}}
+2019-26 {'down': {'n': 49140, 'mean%': 1.73, 'win%': 56.51}, 'range': {'n': 106825, 'mean%': 1.61, 'win%': 56.24}, 'up': {'n': 92559, 'mean%': 1.67, 'win%': 55.42}}
 P(state in 20 bars | state now):
  trend  down  range    up
 trend                   
-down   24.0   45.3  30.7
-range  23.4   45.7  30.9
-up     22.5   44.5  33.0
+down   23.9   45.1  31.0
+range  23.6   45.2  31.2
+up     22.8   44.4  32.9
 
 ## D. Volatility (ATR14 % of price, per-date cross-sectional quintile)
            n  mean    win   atr  fwd_vol
@@ -94,6 +94,7 @@ True     (0, 3]     11819  0.28
          (3, 5]      5963  0.06
          (5, 8]      4391  0.07
          (8, 1000]   2396  0.32
+CAUSAL excess fwd20% from first pullback-low confirmation: all -0.02 (n=71107), 2005-18 0.09, 2019-26 -0.21; by bars since the high: {Interval(0, 3, closed='right'): 0.03, Interval(3, 5, closed='right'): 0.0, Interval(5, 8, closed='right'): -0.37, Interval(8, 1000, closed='right'): 0.06}
 by pullback duration (bars):
               size  mean
 pb_bars                
@@ -116,7 +117,7 @@ pb_bars
 Breakout failure (BOF) / follow-through, N=20:
  up: n=27357, failed within 3 bars 46.4%; fwd20 if held 4.20% vs if failed -0.64%; fwd10 measured from the failure bar 0.90%
  dn: n=18520, failed within 3 bars 51.7%; fwd20 if held -1.65% vs if failed 4.27%; fwd10 measured from the failure bar 0.81%
- up-breakouts by weekly trend: {'down': {'n': 5064, 'fail': 0.46, 'fwd20': 0.018}, 'range': {'n': 11783, 'fail': 0.472, 'fwd20': 0.019}, 'up': {'n': 10510, 'fail': 0.458, 'fwd20': 0.02}}
+ up-breakouts by weekly trend: {'down': {'n': 5171, 'fail': 0.46, 'fwd20': 0.017}, 'range': {'n': 11509, 'fail': 0.473, 'fwd20': 0.02}, 'up': {'n': 10677, 'fail': 0.457, 'fwd20': 0.02}}
 
 ## G. Short-term: 5-day return decile (per date) -> next 5 days
 excess fwd5% by decile (1 = biggest 5d losers): {1.0: 0.22, 2.0: 0.17, 3.0: 0.12, 4.0: 0.1, 5.0: 0.03, 6.0: 0.01, 7.0: -0.03, 8.0: -0.12, 9.0: -0.19, 10.0: -0.28}
@@ -138,7 +139,7 @@ period
 ## I. NIFTY 50 mean daily return by weekday %: {0: 0.004, 1: 0.064, 2: 0.109, 3: -0.023, 4: 0.06, 5: -0.112}
 
 ## J. Index
- NIFTY 50 by weekly trend: {'down': {'n': 876, 'mean%': 0.88, 'win%': 62.67}, 'range': {'n': 2198, 'mean%': 1.18, 'win%': 63.15}, 'up': {'n': 1577, 'mean%': 0.22, 'win%': 53.27}}
+ NIFTY 50 by weekly trend: {'down': {'n': 948, 'mean%': 0.8, 'win%': 62.55}, 'range': {'n': 2098, 'mean%': 1.21, 'win%': 62.92}, 'up': {'n': 1605, 'mean%': 0.26, 'win%': 53.83}}
  NIFTY up-breakout 20: n=291, fwd20 0.67% (base 0.82%)
  NIFTY up-breakout 55: n=215, fwd20 0.82% (base 0.82%)
  index legs: up median 3.7% / 4 bars, down -3.1% / 3 bars
