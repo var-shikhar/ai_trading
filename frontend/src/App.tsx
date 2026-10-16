@@ -46,7 +46,8 @@ import { StudySettings } from './studies/StudySettings'
 import { BottomBar } from './ui/BottomBar'
 import { InstallPrompt } from './ui/InstallPrompt'
 import { NavRail, type Page } from './ui/NavRail'
-import { RightRail, type Dock } from './ui/RightRail'
+import { MobileChartTabs, RightRail, type Dock } from './ui/RightRail'
+import { AccountPage } from './ui/AccountPage'
 import { TopBar } from './ui/TopBar'
 
 const DEFAULT_FAVORITES = ['15m', '1h', '4h', '1D', '1W']
@@ -135,16 +136,30 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
     chartError: null,
   })
   const [highlight, setHighlight] = useState<string | null>(null)
-  const [page, setPage] = usePref<Page>('page', 'chart')
+  // Desktop opens on the chart; a phone opens on the watchlist (as broker
+  // apps do) and a stock's chart is a screen with a back arrow.
+  const [desktopPage, setDesktopPage] = usePref<Page>('page', 'chart')
+  const [mobilePage, setMobilePage] = usePref<Page>('pageMobile', 'watchlist')
+  const phoneOnly = (p: Page) => p === 'watchlist' || p === 'account'
+  const page: Page = mobile ? mobilePage : phoneOnly(desktopPage) ? 'chart' : desktopPage
+  // The tab a stock's chart was opened from (where "back" returns).
+  const [chartFrom, setChartFrom] = usePref<Page>('chartFrom', 'watchlist')
   // Pages stay mounted once opened, so a scan or a backtest survives a trip to the chart.
   const [visited, setVisited] = useState<Set<Page>>(() => new Set([page]))
   const goTo = useCallback(
     (p: Page) => {
-      setPage(p)
+      if (mobile) {
+        if (p === 'chart' && mobilePage !== 'chart') setChartFrom(mobilePage)
+        setMobilePage(p)
+      } else setDesktopPage(phoneOnly(p) ? 'chart' : p)
       setVisited((v) => (v.has(p) ? v : new Set(v).add(p)))
     },
-    [setPage],
+    [mobile, mobilePage, setMobilePage, setDesktopPage, setChartFrom],
   )
+  useEffect(() => {
+    // Turning a desktop window narrow (or the reverse) lands on a page that exists there.
+    setVisited((v) => (v.has(page) ? v : new Set(v).add(page)))
+  }, [page])
   const [desktopDock, setDesktopDock] = usePref<Dock | null>('dock', 'watchlist')
   const [mobileDock, setMobileDock] = useState<Dock | null>(null)
   const dock = mobile ? mobileDock : desktopDock
@@ -312,15 +327,21 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
     updateActive({ symbol })
     if (mobile) setMobileDock(null)
   }
+  const dockBadges = {
+    patterns: activeConfig.showPatterns && patterns.result ? patterns.result.hits.length : null,
+    strategy: chartStrategy.enabled ? 'on' : null,
+  }
   const openOnChart = (symbol: InstrumentHit) => {
     updateActive({ symbol })
     goTo('chart')
   }
 
   return (
-    <div className="app">
+    <div className={`app ${mobile && page === 'chart' ? 'stock-screen' : ''}`}>
       <NavRail
-        page={page}
+        mobile={mobile}
+        // On a phone, a stock's chart belongs to the tab it was opened from.
+        page={mobile && page === 'chart' ? chartFrom : page}
         onPage={goTo}
         user={user}
         onSignOut={onSignOut}
@@ -361,6 +382,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
             onIndicators={() => setIndicatorsOpen(true)}
             layoutMenu={mobile ? undefined : <LayoutMenu layout={layout} onLayout={setLayoutId} sync={sync} onSync={setSync} />}
             hotkeys={page === 'chart'}
+            onBack={mobile ? () => goTo(chartFrom === 'chart' ? 'watchlist' : chartFrom) : undefined}
             extra={
               <button
                 className={`tool-button ${chartStrategy.enabled ? 'selected' : ''}`}
@@ -511,15 +533,9 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
                 )}
               </div>
             )}
-            <RightRail
-              dock={dock}
-              onDock={onDock}
-              badges={{
-                patterns: activeConfig.showPatterns && patterns.result ? patterns.result.hits.length : null,
-                strategy: chartStrategy.enabled ? 'on' : null,
-              }}
-            />
+            {!mobile && <RightRail dock={dock} onDock={onDock} badges={dockBadges} />}
           </div>
+          {mobile && <MobileChartTabs dock={dock} onDock={onDock} badges={dockBadges} />}
 
           {chartStrategy.enabled && (
             <ChartStrategyReport
@@ -569,6 +585,23 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
         {visited.has('signals') && (
           <div className="page" hidden={page !== 'signals'}>
             <SignalsPage onOpen={openOnChart} />
+          </div>
+        )}
+        {mobile && visited.has('watchlist') && (
+          <div className="page" hidden={page !== 'watchlist'}>
+            <WatchlistPanel page current={activeConfig.symbol} activeSymbol={activeConfig.symbol.symbol} onOpen={openOnChart} />
+          </div>
+        )}
+        {mobile && visited.has('account') && (
+          <div className="page" hidden={page !== 'account'}>
+            <AccountPage
+              user={user}
+              onSignOut={onSignOut}
+              auth={auth}
+              onFyersChanged={refreshAuth}
+              themeMode={themeMode}
+              onThemeMode={setThemeMode}
+            />
           </div>
         )}
       </div>

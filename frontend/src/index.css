@@ -2262,9 +2262,9 @@ a.menu-main {
   .dock {
     position: absolute;
     left: 0;
-    right: 42px;
+    right: 0;
     bottom: 0;
-    height: 52%;
+    height: 55%;
     z-index: 30;
     border-top: 1px solid var(--border);
     border-radius: 12px 12px 0 0;
@@ -2513,5 +2513,173 @@ a.menu-main {
   }
   .nav-item {
     padding: 6px 2px;
+  }
+}
+
+/* --- phones: watchlist-first app --- */
+
+.mobile-chart-tabs {
+  display: flex;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.mobile-chart-tabs button {
+  position: relative;
+  flex: 1;
+  padding: 10px 4px;
+  border: 0;
+  border-top: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.mobile-chart-tabs button.active {
+  color: var(--accent);
+  border-top-color: var(--accent);
+}
+.tab-badge {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 10px;
+  font-style: normal;
+  vertical-align: 1px;
+}
+.back-button {
+  color: var(--fg);
+}
+
+/* Watchlist as the home screen: big two-line rows like a broker app. */
+.watchlist-panel.page {
+  flex: 1;
+  width: auto;
+  min-height: 0;
+  border-left: 0;
+}
+.watchlist-panel.page .watch-head {
+  padding: 10px 8px 10px 6px;
+}
+.watchlist-panel.page .watch-head b {
+  font-size: 17px;
+}
+.watchlist-panel.page .watch-columns {
+  display: none;
+}
+.watchlist-panel.page .watch-main {
+  grid-template-columns: 1fr auto;
+  row-gap: 2px;
+  padding: 12px 14px;
+}
+.watchlist-panel.page .watch-main > :nth-child(1) {
+  grid-row: 1 / span 2;
+}
+.watchlist-panel.page .watch-main > :nth-child(2) {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.watchlist-panel.page .watch-main > :nth-child(3) {
+  display: none;
+}
+.watchlist-panel.page .watch-main > :nth-child(4) {
+  font-size: 12px;
+}
+.watchlist-panel.page .watch-symbol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.watchlist-panel.page .watch-symbol b {
+  font-size: 15px;
+}
+.watchlist-panel.page .watch-symbol .muted {
+  font-size: 11px;
+}
+
+/* "Me" page */
+.account-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.user-chip.large {
+  width: 48px;
+  height: 48px;
+  font-size: 20px;
+}
+.list-heading {
+  margin: 18px 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.settings-list {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+.settings-row:last-child {
+  border-bottom: 0;
+}
+.settings-row.link {
+  cursor: pointer;
+}
+.settings-row.link:active {
+  background: var(--hover);
+}
+.settings-row svg {
+  color: var(--muted);
+}
+.settings-row.danger {
+  color: var(--err);
+}
+
+@media (max-width: 767px) {
+  /* A stock's screen uses the whole height; the back arrow replaces the tabs. */
+  .app.stock-screen .nav-rail {
+    display: none;
+  }
+  .app.stock-screen .bottombar {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .page-title {
+    font-size: 17px;
+  }
+}
+
+/* Phones: a quick slide when switching screens, like a native app. */
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  .page:not([hidden]) {
+    animation: page-in 0.18s ease-out;
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
   }
 }

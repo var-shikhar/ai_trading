@@ -25,6 +25,42 @@ const ITEMS: { id: Dock; title: string; icon: ReactNode }[] = [
   { id: 'strategy', title: 'Strategy on chart (backtest live)', icon: icon(<path d="M3 16h14M5 13l3-4 3 2 5-6" />) },
 ]
 
+const MOBILE_TABS: { id: Dock | null; label: string }[] = [
+  { id: null, label: 'Chart' },
+  { id: 'patterns', label: 'Patterns' },
+  { id: 'strategy', label: 'Strategy' },
+  { id: 'alerts', label: 'Alerts' },
+]
+
+/** Phones: the stock screen's tabs under the chart (instead of the right
+ * rail). Each opens its panel as a sheet over the lower part of the chart. */
+export function MobileChartTabs({
+  dock,
+  onDock,
+  badges,
+}: {
+  dock: Dock | null
+  onDock: (d: Dock | null) => void
+  badges: Partial<Record<Dock, string | number | null>>
+}) {
+  return (
+    <div className="mobile-chart-tabs" role="tablist" aria-label="Stock">
+      {MOBILE_TABS.map((t) => (
+        <button
+          key={t.label}
+          role="tab"
+          aria-selected={dock === t.id}
+          className={dock === t.id ? 'active' : ''}
+          onClick={() => onDock(t.id === dock ? null : t.id)}
+        >
+          {t.label}
+          {t.id && badges[t.id] != null && <em className="tab-badge">{badges[t.id]}</em>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** Icon strip on the chart's right edge (as TradingView): each opens a panel
  * docked beside the chart, which stays until it's clicked again. */
 export function RightRail({

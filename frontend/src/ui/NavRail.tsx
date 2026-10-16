@@ -5,7 +5,9 @@ import { ProfileDialog } from '../auth/ProfileDialog'
 import type { ThemeMode } from '../chart/theme'
 import { Dropdown } from './Dropdown'
 
-export type Page = 'chart' | 'screener' | 'lab' | 'signals'
+// watchlist and account are phone-only pages (desktop shows them in the
+// chart's right rail and the nav rail's menus).
+export type Page = 'chart' | 'screener' | 'lab' | 'signals' | 'watchlist' | 'account'
 
 const icon = (d: ReactNode) => (
   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
@@ -52,6 +54,33 @@ export const PAGES: { id: Page; label: string; short?: string; title: string; ic
   },
 ]
 
+const pageDef = (id: Page) => PAGES.find((p) => p.id === id)!
+
+/** Phone tab bar, watchlist first (as in broker apps): a stock opens its
+ * chart from the watchlist, screener or signals, with a back arrow. */
+export const MOBILE_PAGES: typeof PAGES = [
+  {
+    id: 'watchlist',
+    label: 'Watchlist',
+    title: 'Your watchlists with live prices',
+    icon: icon(<path d="M4 6h14M4 11h14M4 16h9" />),
+  },
+  pageDef('screener'),
+  { ...pageDef('lab'), label: 'Strategies', short: undefined },
+  pageDef('signals'),
+  {
+    id: 'account',
+    label: 'Me',
+    title: 'Account, market data and theme',
+    icon: icon(
+      <>
+        <circle cx="11" cy="8" r="3.5" />
+        <path d="M4.5 19a6.5 6.5 0 0 1 13 0" />
+      </>,
+    ),
+  },
+]
+
 /** App-level navigation down the left edge: the chart is one section of the
  * app; screening, strategy research and signals sit beside it. */
 export function NavRail({
@@ -65,6 +94,7 @@ export function NavRail({
   themeMode,
   onThemeMode,
   dark,
+  mobile,
 }: {
   page: Page
   onPage: (p: Page) => void
@@ -76,6 +106,7 @@ export function NavRail({
   themeMode: ThemeMode
   onThemeMode: (m: ThemeMode) => void
   dark: boolean
+  mobile: boolean
 }) {
   const [accountDialog, setAccountDialog] = useState<'users' | 'password' | 'profile' | null>(null)
   const fyers = auth?.fyers
@@ -102,7 +133,7 @@ export function NavRail({
           <path d="M6 17l4.5-5 3.5 3 6-7" fill="none" stroke="var(--accent-fg)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
-      {PAGES.map((p) => (
+      {(mobile ? MOBILE_PAGES : PAGES).map((p) => (
         <button
           key={p.id}
           className={`nav-item ${page === p.id ? 'active' : ''}`}
@@ -116,98 +147,103 @@ export function NavRail({
         </button>
       ))}
 
-      <span className="spacer" />
+      {!mobile && (
+        <>
+        <span className="spacer" />
 
-      {error && (
-        <span className="nav-dot err" title="Backend unreachable">
-          ●
-        </span>
-      )}
-      {fyers && !admin && (
-        <span
-          className={`nav-dot ${fyers.authenticated ? 'ok' : 'err'}`}
-          title={fyers.authenticated ? 'Live market data connected' : 'Market data paused: an admin needs to connect Fyers.'}
-        >
-          ●<small>{fyers.authenticated ? 'Live' : 'Paused'}</small>
-        </span>
-      )}
-      {fyers && admin && (
+        {error && (
+          <span className="nav-dot err" title="Backend unreachable">
+            ●
+          </span>
+        )}
+        {fyers && !admin && (
+          <span
+            className={`nav-dot ${fyers.authenticated ? 'ok' : 'err'}`}
+            title={fyers.authenticated ? 'Live market data connected' : 'Market data paused: an admin needs to connect Fyers.'}
+          >
+            ●<small>{fyers.authenticated ? 'Live' : 'Paused'}</small>
+          </span>
+        )}
+        {fyers && admin && (
+          <Dropdown
+            align="side"
+            className="nav-dropdown"
+            title={fyers.authenticated ? 'Fyers connected (until end of day)' : 'Fyers not connected'}
+            label={
+              <span className={`nav-dot ${fyers.authenticated ? 'ok' : 'err'}`}>
+                ●<small>Fyers</small>
+              </span>
+            }
+          >
+            {(close) => (
+              <div className="menu-list">
+                <div className="menu-heading">
+                  {fyers.authenticated ? 'Fyers connected until end of day' : fyers.configured ? 'Fyers not connected' : 'Fyers keys missing'}
+                </div>
+                {fyers.configured ? (
+                  <div className="menu-item">
+                    <a className="menu-main" href={fyers.login_url}>
+                      {fyers.authenticated ? 'Reconnect Fyers' : 'Connect Fyers'}
+                    </a>
+                  </div>
+                ) : (
+                  <p className="note pad">Add FYERS_APP_ID and FYERS_SECRET to backend/.env.</p>
+                )}
+                {fyers.authenticated && item('Disconnect', () => api.fyersLogout().finally(onFyersChanged), close)}
+              </div>
+            )}
+          </Dropdown>
+        )}
+
+        <Dropdown align="side" className="nav-dropdown" title="Theme" label={<ThemeIcon dark={dark} />}>
+          {(close) => (
+            <div className="menu-list">
+              <div className="menu-heading">Theme</div>
+              {(
+                [
+                  ['dark', 'Dark'],
+                  ['light', 'Light'],
+                  ['system', 'Same as Windows'],
+                ] as const
+              ).map(([mode, name]) => (
+                <div key={mode} className={`menu-item ${themeMode === mode ? 'selected' : ''}`}>
+                  <button
+                    className="menu-main"
+                    onClick={() => {
+                      onThemeMode(mode)
+                      close()
+                    }}
+                  >
+                    {name}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Dropdown>
+
         <Dropdown
           align="side"
           className="nav-dropdown"
-          title={fyers.authenticated ? 'Fyers connected (until end of day)' : 'Fyers not connected'}
-          label={
-            <span className={`nav-dot ${fyers.authenticated ? 'ok' : 'err'}`}>
-              ●<small>Fyers</small>
-            </span>
-          }
+          title="Account"
+          label={<span className="user-chip">{user.username.slice(0, 1).toUpperCase()}</span>}
         >
           {(close) => (
             <div className="menu-list">
               <div className="menu-heading">
-                {fyers.authenticated ? 'Fyers connected until end of day' : fyers.configured ? 'Fyers not connected' : 'Fyers keys missing'}
+                Signed in as {user.username}
+                {admin ? ' · admin' : ''}
               </div>
-              {fyers.configured ? (
-                <div className="menu-item">
-                  <a className="menu-main" href={fyers.login_url}>
-                    {fyers.authenticated ? 'Reconnect Fyers' : 'Connect Fyers'}
-                  </a>
-                </div>
-              ) : (
-                <p className="note pad">Add FYERS_APP_ID and FYERS_SECRET to backend/.env.</p>
-              )}
-              {fyers.authenticated && item('Disconnect', () => api.fyersLogout().finally(onFyersChanged), close)}
+              {admin && item('Manage users & invites', () => setAccountDialog('users'), close)}
+              {item('Profile, notifications & API keys', () => setAccountDialog('profile'), close)}
+              {item('Change password', () => setAccountDialog('password'), close)}
+              {item('Sign out', onSignOut, close)}
             </div>
           )}
         </Dropdown>
+
+        </>
       )}
-
-      <Dropdown align="side" className="nav-dropdown" title="Theme" label={<ThemeIcon dark={dark} />}>
-        {(close) => (
-          <div className="menu-list">
-            <div className="menu-heading">Theme</div>
-            {(
-              [
-                ['dark', 'Dark'],
-                ['light', 'Light'],
-                ['system', 'Same as Windows'],
-              ] as const
-            ).map(([mode, name]) => (
-              <div key={mode} className={`menu-item ${themeMode === mode ? 'selected' : ''}`}>
-                <button
-                  className="menu-main"
-                  onClick={() => {
-                    onThemeMode(mode)
-                    close()
-                  }}
-                >
-                  {name}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </Dropdown>
-
-      <Dropdown
-        align="side"
-        className="nav-dropdown"
-        title="Account"
-        label={<span className="user-chip">{user.username.slice(0, 1).toUpperCase()}</span>}
-      >
-        {(close) => (
-          <div className="menu-list">
-            <div className="menu-heading">
-              Signed in as {user.username}
-              {admin ? ' · admin' : ''}
-            </div>
-            {admin && item('Manage users & invites', () => setAccountDialog('users'), close)}
-            {item('Profile, notifications & API keys', () => setAccountDialog('profile'), close)}
-            {item('Change password', () => setAccountDialog('password'), close)}
-            {item('Sign out', onSignOut, close)}
-          </div>
-        )}
-      </Dropdown>
 
       {accountDialog === 'users' && <UsersDialog me={user} onClose={() => setAccountDialog(null)} />}
       {accountDialog === 'password' && <PasswordDialog onClose={() => setAccountDialog(null)} />}

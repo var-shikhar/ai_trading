@@ -56,6 +56,8 @@ interface Props {
   extra?: ReactNode
   /** Keyboard shortcuts on (off while another page is showing). */
   hotkeys: boolean
+  /** Phones: back to the tab the stock was opened from. */
+  onBack?: () => void
 }
 
 /** The chart's own toolbar: symbol, interval, chart type, indicators, layout.
@@ -79,6 +81,13 @@ export function TopBar(p: Props) {
 
   return (
     <header className="topbar">
+      {p.onBack && (
+        <button className="icon-button back-button" aria-label="Back" onClick={p.onBack}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+            <path d="M12.5 4l-6 6 6 6" />
+          </svg>
+        </button>
+      )}
       <button className="tool-button symbol-button" title="Symbol search" onClick={() => setSearchOpen(true)}>
         <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
           <circle cx="7.5" cy="7.5" r="5" />

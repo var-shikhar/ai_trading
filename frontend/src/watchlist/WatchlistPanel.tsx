@@ -25,10 +25,13 @@ export function WatchlistPanel({
   current,
   activeSymbol,
   onOpen,
+  page = false,
 }: {
   current: InstrumentHit
   activeSymbol: string
   onOpen: (s: InstrumentHit) => void
+  /** Full screen (the phone home tab) rather than a side panel. */
+  page?: boolean
 }) {
   const [lists, setLists] = useState<Watchlist[] | null>(null)
   const [activeId, setActiveId] = usePref<string | null>('watchlistId', null)
@@ -108,7 +111,7 @@ export function WatchlistPanel({
   const inList = list?.items.some((i) => i.symbol === current.symbol) ?? false
 
   return (
-    <aside className="pattern-panel watchlist-panel" aria-label="Watchlist">
+    <aside className={`pattern-panel watchlist-panel ${page ? 'page' : ''}`} aria-label="Watchlist">
       <div className="watch-head">
         <Dropdown label={<b>{list?.name ?? 'Watchlist'}</b>} title="Choose watchlist">
           {(close) => (
