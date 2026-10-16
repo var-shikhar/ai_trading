@@ -30,6 +30,8 @@ import type { ChartPatternResult } from '../patterns/chartPatterns'
 import { PatternOverlayPrimitive } from '../patterns/PatternOverlayPrimitive'
 import type { StudyInstance } from '../studies/model'
 import { studyTitle } from '../studies/model'
+import { usePref } from '../prefs'
+import { MOBILE_QUERY, useMediaQuery } from '../pwa'
 import { formatCrosshairTime } from './format'
 import { resolveColor, type ChartTheme } from './theme'
 
@@ -81,6 +83,8 @@ interface Props {
   isLive?: boolean
   /** "Alert on this line" from the selected drawing's toolbar. */
   onDrawingAlert?: (d: Drawing) => void
+  /** Phone-sized: smaller axis text and fewer decimals (set internally). */
+  compact?: boolean
 }
 
 interface StudySeries {
@@ -101,7 +105,15 @@ interface Built {
 
 const t = (time: number) => time as UTCTimestamp
 
-export function PriceChart(props: Props) {
+export function PriceChart(outer: Props) {
+  const compact = useMediaQuery(MOBILE_QUERY)
+  const props = { ...outer, compact }
+  // The legend (OHLC and indicator values) can be folded away; on a phone it
+  // starts folded so it doesn't cover the candles.
+  const [legendDesktop, setLegendDesktop] = usePref<boolean>('legendOpen', true)
+  const [legendMobile, setLegendMobile] = usePref<boolean>('legendOpenMobile', false)
+  const legendOpen = compact ? legendMobile : legendDesktop
+  const toggleLegend = () => (compact ? setLegendMobile : setLegendDesktop)(!legendOpen)
   const { data, datasetKey, title, intraday, theme, chartType, scaleMode, showVolume, studies, catalog } = props
   const { markers, focus, range, onStudyAction, onHideVolume } = props
   const containerRef = useRef<HTMLDivElement>(null)
@@ -133,7 +145,7 @@ export function PriceChart(props: Props) {
 
   useLayoutEffect(() => {
     const p = propsRef.current
-    const chart = createChart(containerRef.current!, { autoSize: true, ...chartOptions(p.theme, p.intraday) })
+    const chart = createChart(containerRef.current!, { autoSize: true, ...chartOptions(p.theme, p.intraday, p.compact) })
     const b = buildSeries(chart, p)
     builtRef.current = b
     applyData(b, p, candlesRef.current)
@@ -180,7 +192,7 @@ export function PriceChart(props: Props) {
     if (previous) b.chart.timeScale().setVisibleRange(previous)
     else showLatest(b.chart, candles.length)
     loadedKeyRef.current = datasetKey
-  }, [candles, data.studies, datasetKey, theme])
+  }, [candles, data.studies, datasetKey, theme, compact])
 
   // Colors, visibility, scale mode, time-axis format. Effects read the live
   // chart from builtRef: in a render where the layout changed, `built` state
@@ -188,7 +200,7 @@ export function PriceChart(props: Props) {
   useEffect(() => {
     const b = builtRef.current
     if (b) applyStyles(b, propsRef.current)
-  }, [built, theme, studies, scaleMode, intraday, chartType])
+  }, [built, theme, studies, scaleMode, intraday, chartType, compact])
 
   useEffect(() => {
     builtRef.current?.markers.setMarkers(markers)
@@ -326,12 +338,18 @@ export function PriceChart(props: Props) {
       {built && paneTops.length > 0 && (
         <>
           <div className="pane-legend" style={{ top: paneTops[0] + 6 }}>
-            <MainLegend title={title} candles={display} index={index} live={props.isLive ?? false} />
-            {studies
-              .filter((s) => catalog[s.id]?.overlay)
-              .map((s) => (
-                <StudyLegend key={s.uid} inst={s} def={catalog[s.id]} {...legendProps} />
-              ))}
+            <MainLegend
+              title={title}
+              candles={display}
+              index={index}
+              live={props.isLive ?? false}
+              open={legendOpen}
+              onToggle={toggleLegend}
+            />
+            {legendOpen &&
+              studies
+                .filter((s) => catalog[s.id]?.overlay)
+                .map((s) => <StudyLegend key={s.uid} inst={s} def={catalog[s.id]} {...legendProps} />)}
           </div>
           {built.volumePane !== null && paneTops[built.volumePane] !== undefined && (
             <div className="pane-legend" style={{ top: paneTops[built.volumePane] + 4 }}>
@@ -389,19 +407,19 @@ export function PriceChart(props: Props) {
 
 // --- chart construction -----------------------------------------------------------
 
-function chartOptions(theme: ChartTheme, intraday: boolean) {
+function chartOptions(theme: ChartTheme, intraday: boolean, compact = false) {
   const label = theme.dark ? '#363a45' : '#131722'
   return {
     layout: {
       background: { color: theme.surface },
       textColor: theme.muted,
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif",
-      fontSize: 12,
+      fontSize: compact ? 10 : 12,
       panes: { separatorColor: theme.border, separatorHoverColor: theme.grid, enableResize: true },
     },
     grid: { vertLines: { color: theme.grid }, horzLines: { color: theme.grid } },
     rightPriceScale: { borderColor: theme.border },
-    timeScale: { borderColor: theme.border, timeVisible: intraday, secondsVisible: false, rightOffset: 8 },
+    timeScale: { borderColor: theme.border, timeVisible: intraday, secondsVisible: false, rightOffset: compact ? 3 : 8 },
     crosshair: {
       mode: CrosshairMode.Normal,
       vertLine: { color: theme.crosshair, labelBackgroundColor: label },
@@ -498,8 +516,22 @@ function addMainSeries(chart: IChartApi, type: ChartType): ISeriesApi<SeriesType
   }
 }
 
+/** Decimals on the price axis: 2 normally; on a phone fewer for big prices
+ * (147417 instead of 147417.00) so the axis takes less of the screen. */
+function pricePrecision(candles: Candle[], compact: boolean): number {
+  if (!compact) return 2
+  const last = Math.abs(candles[candles.length - 1]?.close ?? 0)
+  return last >= 10000 ? 0 : last >= 1000 ? 1 : 2
+}
+
 function applyData(b: Built, p: Props, candles: Candle[]) {
   const { theme } = p
+  const precision = pricePrecision(candles, p.compact ?? false)
+  const priceFormat = { type: 'price' as const, precision, minMove: 1 / 10 ** precision }
+  b.main.applyOptions({ priceFormat })
+  for (const st of Object.values(b.studies)) {
+    if (st.pane === 0) for (const series of Object.values(st.outputs)) series.applyOptions({ priceFormat })
+  }
   if (p.chartType === 'line' || p.chartType === 'area') {
     b.main.setData(candles.map((c) => ({ time: t(c.time), value: c.close })))
   } else {
@@ -535,7 +567,7 @@ function applyData(b: Built, p: Props, candles: Candle[]) {
 function applyStyles(b: Built, p: Props) {
   const { theme } = p
   const { up, down } = theme
-  b.chart.applyOptions(chartOptions(theme, p.intraday))
+  b.chart.applyOptions(chartOptions(theme, p.intraday, p.compact))
   switch (p.chartType) {
     case 'hollow':
       b.main.applyOptions({
@@ -642,7 +674,21 @@ function valueAt(points: LinePoint[] | undefined, time: number | undefined): num
   return undefined
 }
 
-function MainLegend({ title, candles, index, live }: { title: string; candles: Candle[]; index: number; live: boolean }) {
+function MainLegend({
+  title,
+  candles,
+  index,
+  live,
+  open,
+  onToggle,
+}: {
+  title: string
+  candles: Candle[]
+  index: number
+  live: boolean
+  open: boolean
+  onToggle: () => void
+}) {
   const bar = candles[index]
   if (!bar) return null
   const prev = candles[index - 1]
@@ -650,21 +696,39 @@ function MainLegend({ title, candles, index, live }: { title: string; candles: C
   const pct = prev ? (change / prev.close) * 100 : 0
   const sign = change >= 0 ? '+' : ''
   return (
-    <div className="legend-row main">
+    <div className={`legend-row main ${open ? '' : 'folded'}`}>
+      <button
+        className="legend-fold"
+        onClick={onToggle}
+        aria-expanded={open}
+        title={open ? 'Hide legend (prices and indicator values)' : 'Show legend'}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+          <path d={open ? 'M3 7.5l3-3 3 3' : 'M3 4.5l3 3 3-3'} />
+        </svg>
+      </button>
       <span className="legend-symbol">{title}</span>
       {live && (
         <span className="live-dot" title="Live prices streaming">
           ● LIVE
         </span>
       )}
-      <span className={`ohlc ${change >= 0 ? 'up' : 'down'}`}>
-        O<b>{fmt(bar.open)}</b> H<b>{fmt(bar.high)}</b> L<b>{fmt(bar.low)}</b> C<b>{fmt(bar.close)}</b>{' '}
-        <b>
-          {sign}
-          {fmt(change)} ({sign}
-          {pct.toFixed(2)}%)
+      {open && (
+        <span className={`ohlc ${change >= 0 ? 'up' : 'down'}`}>
+          O<b>{fmt(bar.open)}</b> H<b>{fmt(bar.high)}</b> L<b>{fmt(bar.low)}</b> C<b>{fmt(bar.close)}</b>{' '}
+          <b>
+            {sign}
+            {fmt(change)} ({sign}
+            {pct.toFixed(2)}%)
+          </b>
+        </span>
+      )}
+      {!open && (
+        <b className={change >= 0 ? 'up-text' : 'down-text'}>
+          {fmt(bar.close)} {sign}
+          {pct.toFixed(2)}%
         </b>
-      </span>
+      )}
     </div>
   )
 }

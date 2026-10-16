@@ -2245,17 +2245,27 @@ a.menu-main {
     width: 34px;
     height: 34px;
   }
+  /* Panels slide up over the lower part of the chart, so the chart (and
+     the patterns drawn on it) stays visible above. */
   .dock {
     position: absolute;
-    inset: 0 42px 0 0;
+    left: 0;
+    right: 42px;
+    bottom: 0;
+    height: 52%;
     z-index: 30;
+    border-top: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+    animation-name: sheet-in;
   }
   .dock > .pattern-panel {
     width: 100%;
     border-left: 0;
   }
   .strategy-report {
-    max-height: 55%;
+    max-height: 45%;
   }
   .strategy-report .tabs.inline button {
     padding: 6px;
@@ -2312,14 +2322,60 @@ a.menu-main {
     overflow-x: auto;
   }
 
-  /* Dialogs use the whole screen width. */
+  /* Dialogs fill the screen, with their body scrolling under the header. */
   .modal-backdrop {
-    padding: 12px 8px;
-    align-items: flex-end;
+    padding: 0;
+    align-items: stretch;
   }
   .modal {
     width: 100% !important;
-    max-height: 88vh;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  .modal-head {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-body {
+    padding: 10px 14px 16px;
+  }
+
+  /* Indicators: categories become a row of chips above a full-width list. */
+  .indicator-columns {
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+  }
+  .indicator-categories {
+    flex-direction: row;
+    width: auto;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .indicator-categories button {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    white-space: nowrap;
+  }
+  .indicator-list button {
+    gap: 12px;
+    align-items: baseline;
+    padding: 11px 6px;
+  }
+  .indicator-list button .muted {
+    flex-shrink: 0;
+    font-size: 12px;
+  }
+  .symbol-results button {
+    grid-template-columns: 90px 1fr auto;
+  }
+  .symbol-results .exchange {
+    display: none;
   }
 
   /* iOS zooms into inputs with text under 16px. */
@@ -2334,5 +2390,47 @@ a.menu-main {
     right: 8px;
     left: 8px;
     max-width: none;
+  }
+}
+
+/* --- legend fold and touch handling on the chart --- */
+
+.legend-fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.legend-fold:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+.legend-row.main.folded {
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+}
+.up-text {
+  color: var(--ok);
+}
+.down-text {
+  color: var(--err);
+}
+/* The chart handles its own drag and pinch; the browser should not scroll or
+   zoom the page for touches on it. */
+.chart {
+  touch-action: none;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
   }
 }

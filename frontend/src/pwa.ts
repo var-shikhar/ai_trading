@@ -21,6 +21,9 @@ export function registerPwa() {
     deferred = null
     notify()
   })
+  // iOS Safari ignores user-scalable=no: stop its page pinch-zoom here so a
+  // pinch only zooms the chart (the chart handles its own touch gestures).
+  document.addEventListener('gesturestart', (e) => e.preventDefault())
   // Dev builds skip the service worker so Vite's hot reload isn't cached.
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
