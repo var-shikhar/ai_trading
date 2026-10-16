@@ -210,8 +210,8 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
 
   const anyPatterns = panels.slice(0, layout.count).some((p) => p.showPatterns)
   useEffect(() => {
-    if (anyPatterns && !patternCatalog) api.patternCatalog().then(setPatternCatalog).catch(() => {})
-  }, [anyPatterns, patternCatalog])
+    if ((anyPatterns || dock === 'patterns') && !patternCatalog) api.patternCatalog().then(setPatternCatalog).catch(() => {})
+  }, [anyPatterns, dock, patternCatalog])
 
   const catalogById = useMemo(
     () => Object.fromEntries((catalog ?? []).map((d) => [d.id, d])) as Record<string, StudyDef>,
@@ -301,12 +301,10 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
     return { symbol: r.request.symbol, tf: r.request.tf, markers: tradeMarkers(r.trades, theme) }
   }, [chartStrategy.enabled, strategyState.result, theme])
 
-  // The patterns panel shows the active chart's patterns, so opening it turns them on.
-  useEffect(() => {
-    if (dock === 'patterns' && !activeConfig.showPatterns) updateActive({ showPatterns: true })
-  }, [dock, activeConfig.showPatterns]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Opening the patterns panel turns patterns on for the active chart. Closing
+  // the panel leaves them drawn; its "Show on chart" switch removes them.
   const onDock = (d: Dock | null) => {
-    if (dock === 'patterns' && d === null) updateActive({ showPatterns: false })
+    if (d === 'patterns' && dock !== 'patterns' && !activeConfig.showPatterns) updateActive({ showPatterns: true })
     setDock(d)
   }
   // Picking a symbol in a panel: on a phone, close the panel to show the chart.
@@ -478,6 +476,8 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
                     chartLoading={patterns.chartLoading}
                     chartError={patterns.chartError}
                     highlight={highlight}
+                    shown={activeConfig.showPatterns}
+                    onShown={(showPatterns) => updateActive({ showPatterns })}
                     onPickPattern={(pat) => {
                       const k = patternKey(pat)
                       setHighlight((h) => (h === k ? null : k))

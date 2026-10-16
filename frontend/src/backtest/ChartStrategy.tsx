@@ -208,7 +208,7 @@ export function ChartStrategyReport({
             <path d={open ? 'M3 5l4 4 4-4' : 'M3 9l4-4 4 4'} />
           </svg>
         </button>
-        <b>Strategy Tester</b>
+        <b className="report-title">Strategy Tester</b>
         <button className="link-button" onClick={onSettings} title="Edit the rules">
           {strategy.name}
         </button>

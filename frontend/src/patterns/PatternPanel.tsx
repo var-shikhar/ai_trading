@@ -35,6 +35,9 @@ interface Props {
   chartError: string | null
   highlight: string | null
   onPickPattern: (p: ChartPattern) => void
+  /** Patterns drawn on the chart. Independent of this panel being open. */
+  shown: boolean
+  onShown: (shown: boolean) => void
 }
 
 const KIND_LABELS: Record<PatternInfo['kind'], string> = {
@@ -68,17 +71,29 @@ export function PatternPanel({
   chartError,
   highlight,
   onPickPattern,
+  shown,
+  onShown,
 }: Props) {
   const mode = patternMode(settings)
   const modeTabs = (
-    <div className="tabs mode-tabs" role="tablist" aria-label="Pattern type">
-      <button role="tab" className={mode === 'candles' ? 'active' : ''} onClick={() => onSettings({ ...settings, mode: 'candles' })}>
-        Candlestick
-      </button>
-      <button role="tab" className={mode === 'chart' ? 'active' : ''} onClick={() => onSettings({ ...settings, mode: 'chart' })}>
-        Chart patterns
-      </button>
-    </div>
+    <>
+      <div className="watch-head">
+        <b>Patterns</b>
+        <span className="spacer" />
+        <label className="switch" title={shown ? 'Remove the patterns from the chart' : 'Draw the patterns on the chart'}>
+          <input type="checkbox" checked={shown} onChange={(e) => onShown(e.target.checked)} />
+          <span>Show on chart</span>
+        </label>
+      </div>
+      <div className="tabs mode-tabs" role="tablist" aria-label="Pattern type">
+        <button role="tab" className={mode === 'candles' ? 'active' : ''} onClick={() => onSettings({ ...settings, mode: 'candles' })}>
+          Candlestick
+        </button>
+        <button role="tab" className={mode === 'chart' ? 'active' : ''} onClick={() => onSettings({ ...settings, mode: 'chart' })}>
+          Chart patterns
+        </button>
+      </div>
+    </>
   )
   if (mode === 'chart') {
     return (

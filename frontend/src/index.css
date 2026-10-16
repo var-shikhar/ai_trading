@@ -2151,10 +2151,22 @@ a.menu-main {
 /* --- touch screens: no hover, so show what hover reveals --- */
 
 @media (hover: none) {
-  .legend-row.study .legend-actions,
-  .watch-row .watch-actions {
+  .legend-row.study .legend-actions {
     display: inline-flex;
   }
+  .watch-row:hover .watch-actions {
+    display: none;
+  }
+  .watch-row.active .watch-actions {
+    display: inline-flex;
+    left: auto;
+    right: 8px;
+  }
+}
+
+/* Short nav labels are for the phone tab bar only. */
+.nav-label.short {
+  display: none;
 }
 
 /* The current interval in the dropdown: hidden on desktop when the
@@ -2432,5 +2444,74 @@ a.menu-main {
   from {
     transform: translateY(40px);
     opacity: 0;
+  }
+}
+
+/* --- phones: remaining screens (audit) --- */
+
+@media (max-width: 767px) {
+  /* Items with a short label (Strategy Lab -> Lab) use it in the tab bar. */
+  .nav-item:has(.short) .nav-label:not(.short) {
+    display: none;
+  }
+  .nav-item .nav-label.short {
+    display: block;
+  }
+
+  /* Label above the field instead of beside it (study settings, alerts,
+     profile, password). */
+  .form-grid label {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .form-grid input:not([type='checkbox']):not([type='color']),
+  .form-grid select {
+    width: 100%;
+  }
+
+  /* Wide tables in dialogs (users, invites, API keys) scroll sideways. */
+  .modal-body .stats {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .modal-foot {
+    flex-wrap: wrap;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  /* Strategy Tester under the chart: one compact row. */
+  .strategy-report .report-title {
+    display: none;
+  }
+  .strategy-report .tester-head {
+    gap: 6px;
+    padding: 4px 8px;
+  }
+  .strategy-report .tester-head .link-button {
+    max-width: 30vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Lab results: side tables under the equity curve. */
+  .tester-columns {
+    grid-template-columns: 1fr;
+  }
+
+  /* Condition cards in narrow panels: one field per row when cramped. */
+  .condition-fields {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+}
+
+/* Phone held sideways: little height, so the tab bar shows icons only. */
+@media (max-width: 950px) and (max-height: 500px) {
+  .nav-item span {
+    display: none !important;
+  }
+  .nav-item {
+    padding: 6px 2px;
   }
 }

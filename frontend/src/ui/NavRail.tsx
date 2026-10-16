@@ -13,7 +13,7 @@ const icon = (d: ReactNode) => (
   </svg>
 )
 
-export const PAGES: { id: Page; label: string; title: string; icon: ReactNode }[] = [
+export const PAGES: { id: Page; label: string; short?: string; title: string; icon: ReactNode }[] = [
   {
     id: 'chart',
     label: 'Charts',
@@ -35,6 +35,7 @@ export const PAGES: { id: Page; label: string; title: string; icon: ReactNode }[
   {
     id: 'lab',
     label: 'Strategy Lab',
+    short: 'Lab',
     title: 'Backtest strategies over many symbols; saved results',
     icon: icon(
       <>
@@ -110,7 +111,8 @@ export function NavRail({
           onClick={() => onPage(p.id)}
         >
           {p.icon}
-          <span>{p.label}</span>
+          <span className="nav-label">{p.label}</span>
+          {p.short && <span className="nav-label short">{p.short}</span>}
         </button>
       ))}
 
