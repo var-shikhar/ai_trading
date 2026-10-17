@@ -26,6 +26,8 @@ import { loadPref, usePref } from './prefs'
 import { MOBILE_QUERY, useMediaQuery } from './pwa'
 import { ScannerPanel } from './scanner/ScannerPanel'
 import { WatchlistPanel } from './watchlist/WatchlistPanel'
+import { MobileHome } from './watchlist/MobileHome'
+import { MobileSearchBar } from './ui/MobileSearchBar'
 import { StrategyTester } from './backtest/StrategyTester'
 import {
   ChartStrategyPanel,
@@ -124,6 +126,8 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
   const activeConfig = panels[active]
 
   const [tool, setTool] = useState<DrawingTool>('cursor')
+  // Phones: drawing tools are hidden until the pencil in the top bar is on.
+  const [drawOpen, setDrawOpen] = useState(false)
   const [commands, setCommands] = useState<Record<number, PanelCommand>>({})
   const commandSeq = useRef(0)
   const [status, setStatus] = useState({ text: '', activeRange: null as string | null })
@@ -384,19 +388,36 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
             hotkeys={page === 'chart'}
             onBack={mobile ? () => goTo(chartFrom === 'chart' ? 'watchlist' : chartFrom) : undefined}
             extra={
-              <button
-                className={`tool-button ${chartStrategy.enabled ? 'selected' : ''}`}
-                title="Backtest a strategy on this chart"
-                onClick={() => {
-                  if (!chartStrategy.enabled) patchStrategy({ enabled: true })
-                  setDock('strategy')
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-                  <path d="M2 15h14M4 12l3-4 3 2 5-6" />
-                </svg>
-                <span className="btn-label">{chartStrategy.enabled ? chartStrategy.name : 'Strategy'}</span>
-              </button>
+              <>
+                {mobile && (
+                  <button
+                    className={`tool-button ${drawOpen ? 'selected' : ''}`}
+                    title="Drawing tools"
+                    aria-pressed={drawOpen}
+                    onClick={() => {
+                      if (drawOpen) setTool('cursor')
+                      setDrawOpen(!drawOpen)
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+                      <path d="M3 15l1-4 8.5-8.5 3 3L7 14z M11 4l3 3" />
+                    </svg>
+                  </button>
+                )}
+                <button
+                  className={`tool-button ${chartStrategy.enabled ? 'selected' : ''}`}
+                  title="Backtest a strategy on this chart"
+                  onClick={() => {
+                    if (!chartStrategy.enabled) patchStrategy({ enabled: true })
+                    setDock('strategy')
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+                    <path d="M2 15h14M4 12l3-4 3 2 5-6" />
+                  </svg>
+                  <span className="btn-label">{chartStrategy.enabled ? chartStrategy.name : 'Strategy'}</span>
+                </button>
+              </>
             }
           />
 
@@ -406,6 +427,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
               onTool={setTool}
               hasDrawings={(drawings[activeConfig.symbol.symbol] ?? []).length > 0}
               onClearAll={() => onDrawingsChange(activeConfig.symbol.symbol, [])}
+              open={!mobile || drawOpen}
             />
             <main
               className={`chart-grid ${layout.count > 1 ? 'multi' : ''}`}
@@ -589,7 +611,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
         )}
         {mobile && visited.has('watchlist') && (
           <div className="page" hidden={page !== 'watchlist'}>
-            <WatchlistPanel page current={activeConfig.symbol} activeSymbol={activeConfig.symbol.symbol} onOpen={openOnChart} />
+            <MobileHome current={activeConfig.symbol} onOpen={openOnChart} />
           </div>
         )}
         {mobile && visited.has('account') && (
@@ -604,6 +626,7 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
             />
           </div>
         )}
+        {mobile && page !== 'chart' && <MobileSearchBar current={activeConfig.symbol} onOpen={openOnChart} />}
       </div>
 
       <AlertToasts />

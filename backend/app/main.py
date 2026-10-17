@@ -24,8 +24,8 @@ from app.api import (
 )
 from app.config import get_settings
 from app.db import close_conn, get_conn
-from app.deps import get_fyers
-from app.services import accounts, cache
+from app.deps import get_candle_service, get_fyers
+from app.services import accounts, cache, market_sync
 from app.services.instruments import refresh_if_stale
 
 logging.basicConfig(level=logging.INFO)
@@ -66,11 +66,13 @@ async def lifespan(_: FastAPI):
     # Symbol master is public (no login needed); refresh in the background.
     task = asyncio.create_task(refresh_if_stale(get_fyers()))
     trimmer = asyncio.create_task(cache.trim_forever())
+    syncer = asyncio.create_task(market_sync.auto_sync_forever(get_candle_service()))
     if get_settings().alerts_enabled:
         await alerts.get_engine().start()
     yield
     task.cancel()
     trimmer.cancel()
+    syncer.cancel()
     if get_settings().alerts_enabled:
         await alerts.get_engine().stop()
     await live.get_hub().close()

@@ -1,0 +1,52 @@
+/* Tailwind, added screen by screen. No preflight (base reset): the older
+   screens keep their own styles from index.css. Utilities use the same
+   color tokens, so light/dark switching works without dark: variants.
+   Note: unlayered rules in index.css beat utilities, so new components
+   use utilities only, not the old class names. */
+@layer theme, base, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--border);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-up: var(--ok);
+  --color-down: var(--err);
+  --color-up-soft: var(--ok-soft);
+  --color-down-soft: var(--err-soft);
+  --shadow-card: var(--shadow-card);
+}
+
+/* Tailwind's reset, but only inside screens built with Tailwind (root has
+   class "tw"), so the older screens are untouched. */
+@layer base {
+  .tw,
+  .tw *,
+  .tw ::before,
+  .tw ::after {
+    box-sizing: border-box;
+    border: 0 solid;
+  }
+  .tw button {
+    padding: 0;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+  }
+  .tw :is(p, h1, h2, h3, h4, ul, ol) {
+    margin: 0;
+  }
+  .tw :is(ul, ol) {
+    padding: 0;
+    list-style: none;
+  }
+}

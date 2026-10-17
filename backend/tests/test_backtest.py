@@ -132,6 +132,11 @@ def test_signals_have_no_lookahead():
         "high_low_52w": {"kind": "high", "within_pct": 5},
         "candle_pattern": {"within": 2, "direction": "any", "in_context": False},
         "chart_pattern": {"within": 1},
+        "new_high": {"bars": 100},
+        "narrow_range": {"bars": 7, "inside": True},
+        "trend_template": {},
+        "ma_pullback": {"length": 20, "trend": 100},
+        "day_change": {"op": ">", "value": 1},
     }
     assert set(params) == set(signals.SIGNALS)
     for name, p in params.items():

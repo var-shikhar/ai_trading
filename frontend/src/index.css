@@ -1,24 +1,33 @@
 /* TradingView-like chrome. Colors are tokens; dark values apply for the
    system setting unless the user picked light, or when they picked dark. */
+/* Color tokens shared by the old stylesheet and Tailwind utilities
+   (tailwind.css maps them to bg-surface, text-muted, ...). Dark values apply
+   for the system setting unless the user picked light, or when they picked
+   dark. */
 :root {
   color-scheme: light;
-  --bg: #ffffff;
-  --fg: #131722;
-  --muted: #787b86;
-  --border: #e0e3eb;
+  --bg: #f4f6fb; /* app canvas behind cards */
+  --fg: #0f172a;
+  --muted: #64748b;
+  --border: #e3e7ef;
   --surface: #ffffff;
   --raised: #ffffff;
-  --hover: #f0f3fa;
-  --selected: #e3effd;
-  --accent: #2962ff;
+  --hover: #f1f4fa;
+  --selected: #e7eeff;
+  --accent: #2f6bff;
   --accent-fg: #ffffff;
-  --ok: #089981;
-  --err: #f23645;
-  --star: #f7a600;
-  --shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12);
-  --backdrop: rgba(19, 23, 34, 0.45);
-  font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
+  --accent-soft: rgba(47, 107, 255, 0.1);
+  --ok: #0a9f7a;
+  --err: #e5484d;
+  --ok-soft: rgba(10, 159, 122, 0.1);
+  --err-soft: rgba(229, 72, 77, 0.1);
+  --star: #f5a524;
+  --shadow: 0 2px 6px rgba(15, 23, 42, 0.06), 0 12px 32px rgba(15, 23, 42, 0.12);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --backdrop: rgba(15, 23, 42, 0.45);
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif;
   font-size: 13px;
+  -webkit-font-smoothing: antialiased;
   color: var(--fg);
   background: var(--bg);
 }
@@ -26,34 +35,44 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --bg: #131722;
-    --fg: #d1d4dc;
-    --muted: #868993;
-    --border: #2a2e39;
-    --surface: #131722;
-    --raised: #1e222d;
-    --hover: #2a2e39;
-    --selected: #142e61;
-    --ok: #22ab94;
-    --err: #f7525f;
-    --shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.5);
+    --bg: #0a0d13;
+    --fg: #e4e8f0;
+    --muted: #8a93a6;
+    --border: #212737;
+    --surface: #0f131b;
+    --raised: #161b26;
+    --hover: #1b2130;
+    --selected: #18284d;
+    --accent: #4d84ff;
+    --accent-soft: rgba(77, 132, 255, 0.14);
+    --ok: #22c08f;
+    --err: #f2555c;
+    --ok-soft: rgba(34, 192, 143, 0.13);
+    --err-soft: rgba(242, 85, 92, 0.13);
+    --shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.55);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
     --backdrop: rgba(0, 0, 0, 0.6);
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #131722;
-  --fg: #d1d4dc;
-  --muted: #868993;
-  --border: #2a2e39;
-  --surface: #131722;
-  --raised: #1e222d;
-  --hover: #2a2e39;
-  --selected: #142e61;
-  --ok: #22ab94;
-  --err: #f7525f;
-  --shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --bg: #0a0d13;
+  --fg: #e4e8f0;
+  --muted: #8a93a6;
+  --border: #212737;
+  --surface: #0f131b;
+  --raised: #161b26;
+  --hover: #1b2130;
+  --selected: #18284d;
+  --accent: #4d84ff;
+  --accent-soft: rgba(77, 132, 255, 0.14);
+  --ok: #22c08f;
+  --err: #f2555c;
+  --ok-soft: rgba(34, 192, 143, 0.13);
+  --err-soft: rgba(242, 85, 92, 0.13);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
   --backdrop: rgba(0, 0, 0, 0.6);
 }
 
@@ -88,6 +107,9 @@ select {
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  /* Pages scroll inside; a tall page must not push the tab bar off screen. */
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* One section of the app (charts, screener, lab, signals). Visited pages
@@ -542,6 +564,34 @@ select {
   display: none;
   gap: 2px;
 }
+.legend-row.study:focus {
+  outline: none;
+}
+/* Folded indicators ("3 indicators") and the fold button under the rows. */
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  margin: 2px 0;
+  padding: 0 8px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.legend-chip.only-icon {
+  width: 22px;
+  padding: 0;
+  justify-content: center;
+}
+.legend-chip:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+}
 .legend-row.study:hover .legend-actions {
   display: inline-flex;
 }
@@ -949,6 +999,7 @@ select {
 
 .panel-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 8px 0;
 }
@@ -1260,28 +1311,16 @@ select {
 
 /* --- scanner --- */
 
-.scanner-panel {
-  width: 400px;
+/* Condition editor inside the (Tailwind) Screener page. */
+.conditions-host .conditions {
+  padding: 0;
 }
-.scan-row {
-  display: flex;
-  gap: 8px;
-}
-.scanner-panel select,
-.scanner-panel textarea {
+.conditions-host .add-condition {
   font: inherit;
-  padding: 5px 8px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg);
-}
-.scan-row select {
-  flex: 1;
-  min-width: 0;
-}
-.scan-custom {
-  width: 100%;
-  resize: vertical;
+  border-radius: 6px;
+  background: var(--surface);
 }
 .conditions {
   display: flex;
@@ -1394,6 +1433,80 @@ details.note {
 .watch-head .icon-button:disabled {
   opacity: 0.35;
   cursor: default;
+}
+.add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+.add-button:hover {
+  background: var(--selected);
+}
+.add-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 12px;
+  color: var(--muted);
+}
+.empty-state p {
+  margin: 0;
+}
+/* Add mode of symbol search: a + / ✓ at the end of each row. */
+.symbol-results button.addable {
+  grid-template-columns: 110px 1fr auto auto 28px;
+}
+.add-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  color: var(--accent);
+  font-weight: 700;
+  line-height: 1;
+}
+/* A separate +/✓ button beside the row (global search on phones). */
+.symbol-results li:has(> .add-mark) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.symbol-results li:has(> .add-mark) > button:first-child {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+.symbol-results li > .add-mark {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  margin-right: 4px;
+  background: none;
+  cursor: pointer;
+}
+.symbol-results li > .add-mark.on {
+  background: var(--accent);
+}
+.add-mark.on {
+  background: var(--accent);
+  color: var(--accent-fg);
 }
 .live-status {
   font-size: 11px;
@@ -1979,45 +2092,6 @@ a.menu-main {
 
 /* --- pages: screener, strategy lab, signals --- */
 
-.scanner-panel.page {
-  flex: 1;
-  width: auto;
-  min-height: 0;
-  border-left: 0;
-}
-.scanner-panel.page .panel-head {
-  padding: 16px 20px 12px;
-}
-.scanner-panel.page .panel-head > :not(.page-title) {
-  max-width: 440px;
-}
-.scanner-panel.page .panel-body {
-  display: grid;
-  grid-template-columns: minmax(300px, 440px) minmax(0, 1fr);
-  gap: 24px;
-  padding: 12px 20px 0;
-  overflow: hidden;
-}
-.scan-setup,
-.scan-output {
-  min-height: 0;
-  overflow-y: auto;
-  padding-bottom: 16px;
-}
-.scanner-panel.page .scan-results {
-  width: 100%;
-}
-@media (max-width: 900px) {
-  .scanner-panel.page .panel-body {
-    grid-template-columns: 1fr;
-    overflow-y: auto;
-  }
-  .scan-setup,
-  .scan-output {
-    overflow: visible;
-  }
-}
-
 .tester.lab {
   flex: 1;
   min-height: 0;
@@ -2151,8 +2225,15 @@ a.menu-main {
 /* --- touch screens: no hover, so show what hover reveals --- */
 
 @media (hover: none) {
-  .legend-row.study .legend-actions {
+  /* No hover on touch: a tapped (focused) row shows its eye/settings/remove. */
+  .legend-row.study:hover .legend-actions {
+    display: none;
+  }
+  .legend-row.study:focus-within .legend-actions {
     display: inline-flex;
+  }
+  .legend-row.study:focus-within {
+    background: var(--hover);
   }
   .watch-row:hover .watch-actions {
     display: none;
@@ -2178,12 +2259,19 @@ a.menu-main {
 /* --- phones and small tablets --- */
 
 @media (max-width: 767px) {
-  /* The nav rail becomes a bottom tab bar. */
+  /* The nav rail becomes a bottom tab bar, pinned to the screen bottom on
+     every screen height: the app fills the viewport exactly and never
+     scrolls as a whole (pages scroll inside). */
   .app {
+    position: fixed;
+    inset: 0;
+    height: auto;
     flex-direction: column;
+    overflow: hidden;
   }
   .nav-rail {
     order: 2;
+    flex-shrink: 0;
     flex-direction: row;
     justify-content: space-around;
     gap: 0;
@@ -2238,8 +2326,24 @@ a.menu-main {
   }
   .topbar .fav-tf,
   .topbar .btn-label,
-  .drawing-toolbar {
+  .drawing-toolbar:not(.open) {
     display: none;
+  }
+  /* Drawing tools float over the chart's left edge while the pencil is on. */
+  .drawing-toolbar.open {
+    position: absolute;
+    top: 56px;
+    left: 6px;
+    z-index: 20;
+    width: 42px;
+    padding: 4px 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .drawing-toolbar.open .draw-tool {
+    width: 36px;
+    height: 36px;
   }
   .tf.in-favs {
     display: inline;
@@ -2301,14 +2405,10 @@ a.menu-main {
   }
 
   /* Pages */
-  .scanner-panel.page .panel-head,
   .tester.lab .tester-head,
   .tester.lab .tester-body {
     padding-left: 12px;
     padding-right: 12px;
-  }
-  .scanner-panel.page .panel-body {
-    padding: 8px 12px 0;
   }
   .tester.lab .tester-head {
     flex-wrap: wrap;
@@ -2385,6 +2485,9 @@ a.menu-main {
   }
   .symbol-results button {
     grid-template-columns: 90px 1fr auto;
+  }
+  .symbol-results button.addable {
+    grid-template-columns: 90px 1fr auto 28px;
   }
   .symbol-results .exchange {
     display: none;
@@ -2553,53 +2656,6 @@ a.menu-main {
   color: var(--fg);
 }
 
-/* Watchlist as the home screen: big two-line rows like a broker app. */
-.watchlist-panel.page {
-  flex: 1;
-  width: auto;
-  min-height: 0;
-  border-left: 0;
-}
-.watchlist-panel.page .watch-head {
-  padding: 10px 8px 10px 6px;
-}
-.watchlist-panel.page .watch-head b {
-  font-size: 17px;
-}
-.watchlist-panel.page .watch-columns {
-  display: none;
-}
-.watchlist-panel.page .watch-main {
-  grid-template-columns: 1fr auto;
-  row-gap: 2px;
-  padding: 12px 14px;
-}
-.watchlist-panel.page .watch-main > :nth-child(1) {
-  grid-row: 1 / span 2;
-}
-.watchlist-panel.page .watch-main > :nth-child(2) {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--fg);
-}
-.watchlist-panel.page .watch-main > :nth-child(3) {
-  display: none;
-}
-.watchlist-panel.page .watch-main > :nth-child(4) {
-  font-size: 12px;
-}
-.watchlist-panel.page .watch-symbol {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.watchlist-panel.page .watch-symbol b {
-  font-size: 15px;
-}
-.watchlist-panel.page .watch-symbol .muted {
-  font-size: 11px;
-}
-
 /* "Me" page */
 .account-head {
   display: flex;
@@ -2682,4 +2738,18 @@ a.menu-main {
     opacity: 0;
     transform: translateX(16px);
   }
+}
+
+/* Strategy Lab: template cards span the setup grid; extra stats fold away. */
+.tester-templates {
+  grid-column: 1 / -1;
+}
+.more-stats {
+  margin: 4px 0 12px;
+  color: var(--muted);
+}
+.more-stats > summary {
+  cursor: pointer;
+  font-size: 12px;
+  margin-bottom: 8px;
 }

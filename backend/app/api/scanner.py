@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 from app.analysis import scanner
 from app.deps import current_user, get_candle_service
-from app.services import scan_jobs, universes
+from app.services import market_sync, scan_jobs, universes
 from app.services.candles import CandleService
 
 router = APIRouter(prefix="/api/scanner", tags=["scanner"])
@@ -47,6 +47,8 @@ async def run(req: ScanRequest, service: CandleService = Depends(get_candle_serv
         raise HTTPException(400, f"Unknown universe '{req.universe}'") from None
     except Exception as e:
         raise HTTPException(502, f"Couldn't load the {req.universe} list: {e}") from e
+    if not symbols and req.universe == universes.MARKET:
+        raise HTTPException(409, "The NSE stock data isn't downloaded yet: start the market sync first.")
     if not symbols:
         raise HTTPException(400, "No symbols to scan (empty list, or symbols not found)")
     job = scan_jobs.start(service, req.universe, req.tf, [c.model_dump() for c in req.conditions], symbols, owner=user)
@@ -64,3 +66,19 @@ def job(job_id: str, user: str = Depends(current_user)):
 @router.post("/jobs/{job_id}/cancel")
 def cancel(job_id: str, user: str = Depends(current_user)):
     return {"cancelled": scan_jobs.cancel(job_id, user)}
+
+
+# --- whole-market data (see services.market_sync) ------------------------------------
+
+
+@router.get("/market")
+def market_status(user: str = Depends(current_user)):
+    return market_sync.status()
+
+
+@router.post("/market/sync")
+def market_sync_start(service: CandleService = Depends(get_candle_service), user: str = Depends(current_user)):
+    if not service.provider.is_authenticated():
+        raise HTTPException(409, "Connect Fyers first: the sync downloads prices from it.")
+    started = market_sync.start(service)
+    return {**market_sync.status(), "started": started}

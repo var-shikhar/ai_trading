@@ -7,7 +7,7 @@
    - Pages (navigations) go to the network first, so a new deploy shows up
      straight away; the cached index.html is only a fallback when offline.
 */
-const CACHE = 'indicator-v1'
+const CACHE = 'indicator-v2'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (event) => {

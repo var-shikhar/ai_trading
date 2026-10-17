@@ -7,8 +7,29 @@ export interface ScanPreset {
   id: string
   name: string
   description: string
+  group?: string
+  /** "Research: ..." or "Practice: ..." */
+  evidence?: string
   conditions: ScanCondition[]
 }
+
+/** Daily data for the whole NSE (the "nse_liquid" universe). */
+export interface MarketStatus {
+  status: 'idle' | 'running' | 'done' | 'error'
+  phase: '' | 'history' | 'today'
+  done: number
+  total: number
+  message: string
+  eta_seconds: number | null
+  last_success: string | null
+  errors: string[]
+  equities: number
+  stored: number
+  latest_bar: string | null
+  liquid: number
+}
+
+export const MARKET_UNIVERSE = 'nse_liquid'
 
 export interface ScanCatalog {
   universes: { id: string; name: string }[]
@@ -138,6 +159,44 @@ export const CONDITION_DEFS: Record<string, { name: string; fields: Field[]; def
     ],
     defaults: { multiple: 2, length: 20 },
   },
+  new_high: {
+    name: 'New high / low',
+    fields: [
+      { key: 'direction', label: 'Closed above', kind: 'select', options: [['high', 'N-bar high'], ['low', 'N-bar low (below)']] },
+      { key: 'bars', label: 'N bars (252 = 52 weeks)', kind: 'int', min: 10, max: 400 },
+    ],
+    defaults: { direction: 'high', bars: 252 },
+  },
+  trend_template: {
+    name: 'Stage 2 uptrend (Minervini)',
+    fields: [],
+    defaults: {},
+  },
+  ma_pullback: {
+    name: 'Pullback to moving average',
+    fields: [
+      { key: 'ma', label: 'Average', kind: 'select', options: [['ema', 'EMA'], ['sma', 'SMA']] },
+      { key: 'length', label: 'Length', kind: 'int', min: 5, max: 100 },
+      { key: 'trend', label: 'Trend SMA', kind: 'int', min: 20, max: 400 },
+    ],
+    defaults: { ma: 'ema', length: 20, trend: 200 },
+  },
+  narrow_range: {
+    name: 'Narrow range (NR7)',
+    fields: [
+      { key: 'bars', label: 'Narrowest of bars', kind: 'int', min: 3, max: 20 },
+      { key: 'inside', label: 'Also inside bar', kind: 'bool' },
+    ],
+    defaults: { bars: 7, inside: false },
+  },
+  day_change: {
+    name: 'Change on the bar',
+    fields: [
+      { key: 'op', label: 'Change is', kind: 'select', options: [['>', 'Above'], ['<', 'Below']] },
+      { key: 'value', label: '%', kind: 'float', min: -50, max: 50, step: 0.5 },
+    ],
+    defaults: { op: '>', value: 3 },
+  },
   high_low_52w: {
     name: '52-week high / low',
     fields: [
@@ -146,4 +205,45 @@ export const CONDITION_DEFS: Record<string, { name: string; fields: Field[]; def
     ],
     defaults: { kind: 'high', within_pct: 3 },
   },
+}
+
+/** One line in plain words for a condition, e.g. "RSI(2) below 10". */
+export function describeCondition(c: ScanCondition): string {
+  const def = CONDITION_DEFS[c.type]
+  if (!def) return c.type
+  const p = { ...def.defaults, ...c.params }
+  switch (c.type) {
+    case 'rsi':
+      return `RSI(${p.length}) ${p.op === '<' ? 'below' : 'above'} ${p.value}`
+    case 'price_vs_ma':
+      return `Price ${p.op} ${String(p.ma).toUpperCase()} ${p.length}`
+    case 'volume_spike':
+      return `Volume ≥ ${p.multiple}× ${p.length}-bar average`
+    case 'new_high':
+      return p.direction === 'high' ? `Close above ${p.bars}-bar high` : `Close below ${p.bars}-bar low`
+    case 'high_low_52w':
+      return `Within ${p.within_pct}% of 52-week ${p.kind}`
+    case 'day_change':
+      return `Change ${p.op === '>' ? 'above' : 'below'} ${p.value}%`
+    case 'narrow_range':
+      return `NR${p.bars}${p.inside ? ' inside bar' : ''}`
+    case 'ma_pullback':
+      return `Dip to ${String(p.ma).toUpperCase()} ${p.length}, above SMA ${p.trend}`
+    case 'breakout':
+      return `Breakout ${p.direction} from ${p.bars}-bar range ≤ ${p.pct}%`
+    case 'consolidation':
+      return `${p.bars}-bar range ≤ ${p.pct}%`
+    case 'ma_cross':
+      return `${String(p.ma).toUpperCase()} ${p.fast}/${p.slow} ${p.direction} cross, last ${p.within} bars`
+    case 'macd_cross':
+      return `MACD ${p.direction} cross, last ${p.within} bars`
+    case 'candle_pattern':
+      return `${p.direction === 'any' ? 'Any' : String(p.direction)[0].toUpperCase() + String(p.direction).slice(1)} candle pattern, last ${p.within} bars`
+    case 'chart_pattern':
+      return `${p.direction === 'any' ? 'Any' : p.direction} chart pattern, last ${p.within} bars`
+    case 'near_zone':
+      return `Within ${p.within_atr} ATR of ${p.kind}`
+    default:
+      return def.name
+  }
 }

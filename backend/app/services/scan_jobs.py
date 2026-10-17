@@ -13,6 +13,7 @@ import pandas as pd
 
 from app.analysis import scanner
 from app.providers.base import AuthRequired
+from app.services import market_sync, universes
 from app.services.candles import CandleService
 
 log = logging.getLogger(__name__)
@@ -85,7 +86,11 @@ def cancel(job_id: str, owner: str | None = None) -> bool:
 
 
 async def _run(job: Job, service: CandleService, symbols: list[dict]) -> None:
-    sem = asyncio.Semaphore(CONCURRENCY)
+    # The whole market reads the cache the market sync keeps current: no
+    # API calls, so more at once.
+    cached = job.universe == universes.MARKET and job.tf in ("1D", "1W")
+    max_age = market_sync.SCAN_MAX_AGE if cached else None
+    sem = asyncio.Semaphore(16 if cached else CONCURRENCY)
     auth_failed = asyncio.Event()
 
     async def one(inst: dict) -> None:
@@ -93,11 +98,12 @@ async def _run(job: Job, service: CandleService, symbols: list[dict]) -> None:
             if auth_failed.is_set():
                 return
             try:
-                rows = await service.get_candles(inst["symbol"], job.tf, BARS)
+                rows = await service.get_candles(inst["symbol"], job.tf, BARS, max_age=max_age)
                 df = pd.DataFrame(rows, columns=COLUMNS)
                 if len(df) < 30:
                     return
-                matched, details = scanner.evaluate(df, job.conditions)
+                # Pattern detection is CPU work: keep it off the event loop.
+                matched, details = await asyncio.to_thread(scanner.evaluate, df, job.conditions)
                 if matched:
                     last, prev = df["close"].iloc[-1], df["close"].iloc[-2]
                     job.matches.append(

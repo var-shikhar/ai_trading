@@ -123,6 +123,45 @@ def chart_pattern(df, p):
     return _within(pd.Series(hit, index=df.index), int(p.get("within", 1)))
 
 
+def new_high(df, p):
+    n = int(p.get("bars", 252))
+    if p.get("direction", "high") == "high":
+        return df["close"] > df["high"].rolling(n, min_periods=min(n, 60)).max().shift()
+    return df["close"] < df["low"].rolling(n, min_periods=min(n, 60)).min().shift()
+
+
+def narrow_range(df, p):
+    n = int(p.get("bars", 7))
+    rng = df["high"] - df["low"]
+    out = rng <= rng.rolling(n).min()
+    if p.get("inside", False):
+        out &= (df["high"] <= df["high"].shift()) & (df["low"] >= df["low"].shift())
+    return out
+
+
+def trend_template(df, p):
+    close = df["close"]
+    s50, s150, s200 = sma(close, 50), sma(close, 150), sma(close, 200)
+    lo = df["low"].rolling(252, min_periods=200).min()
+    hi = df["high"].rolling(252, min_periods=200).max()
+    return (
+        (close > s50) & (s50 > s150) & (s150 > s200) & (s200 > s200.shift(21))
+        & (close >= lo * 1.25) & (close >= hi * 0.75)
+    )
+
+
+def ma_pullback(df, p):
+    close = df["close"]
+    ma = _ma(close, p.get("ma", "ema"), int(p.get("length", 20)))
+    long_ma = sma(close, int(p.get("trend", 200)))
+    return (df["low"] <= ma) & (close > ma) & (close > long_ma) & (ma > long_ma)
+
+
+def day_change(df, p):
+    chg = df["close"].pct_change() * 100
+    return _cmp(chg, p.get("op", ">"), float(p.get("value", 3))) & chg.notna()
+
+
 SIGNALS: dict[str, Callable[[pd.DataFrame, dict], pd.Series]] = {
     "consolidation": consolidation,
     "breakout": breakout,
@@ -134,6 +173,11 @@ SIGNALS: dict[str, Callable[[pd.DataFrame, dict], pd.Series]] = {
     "high_low_52w": high_low_52w,
     "candle_pattern": candle_pattern,
     "chart_pattern": chart_pattern,
+    "new_high": new_high,
+    "narrow_range": narrow_range,
+    "trend_template": trend_template,
+    "ma_pullback": ma_pullback,
+    "day_change": day_change,
 }
 
 # Scanner conditions that can't be evaluated without hindsight.

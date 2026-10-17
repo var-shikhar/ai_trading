@@ -111,8 +111,11 @@ class CandleService:
         return actual or symbol, session
 
     async def get_candles(
-        self, symbol: str, tf_name: str, limit: int, end: date | None = None
+        self, symbol: str, tf_name: str, limit: int, end: date | None = None, max_age: float | None = None
     ) -> list[dict]:
+        """`max_age` (seconds): accept stored daily bars fetched that recently
+        without asking the provider for newer ones (whole-market scans read
+        the cache that the market sync keeps current)."""
         tf = TIMEFRAMES[tf_name]
         source, session = self.instrument_info(symbol)
         today = self._now().date()
@@ -126,10 +129,10 @@ class CandleService:
 
         if tf.base is None or (tf.base == tf.native and tf.bucket is None):
             # Native-only (1m, 5m) or the base itself (15m, 1D).
-            await self.ensure(symbol, tf.native, start, end, source, session)
+            await self.ensure(symbol, tf.native, start, end, source, session, max_age)
             rows = self._query(symbol, tf.native, None, start, end, session)
         elif tf.base == "D":
-            await self.ensure(symbol, "D", start, end, source, session)
+            await self.ensure(symbol, "D", start, end, source, session, max_age)
             rows = self._query(symbol, "D", tf.bucket, start, end, session)
         else:
             # Intraday derived from 15m: base inside the window, native before it.
@@ -158,6 +161,7 @@ class CandleService:
         end: date,
         source: str | None = None,
         session: Session = NSE_SESSION,
+        max_age: float | None = None,
     ) -> None:
         """Fetch whatever part of [start, end] isn't stored yet. `source` is
         the provider symbol to fetch (differs from `symbol` for aliases)."""
@@ -172,6 +176,13 @@ class CandleService:
             ).fetchone()
 
             now = self._now()
+            if (
+                max_age is not None
+                and cov is not None
+                and start >= cov[0]
+                and (now - cov[2]).total_seconds() < max_age
+            ):
+                return
             if cov is None:
                 ranges = [(start, end)]
             else:

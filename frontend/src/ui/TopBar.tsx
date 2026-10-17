@@ -212,7 +212,21 @@ const KIND_LABELS: Record<InstrumentKind, string> = {
   COM: 'commodity',
 }
 
-export function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) => void; onClose: () => void }) {
+export function SymbolDialog({
+  onPick,
+  onClose,
+  title = 'Symbol Search',
+  isAdded,
+  onToggle,
+}: {
+  onPick: (s: InstrumentHit) => void
+  onClose: () => void
+  title?: string
+  /** Add mode (watchlists): the dialog stays open and marks symbols already added. */
+  isAdded?: (symbol: string) => boolean
+  /** With isAdded: the +/✓ is its own button calling this, and a row tap still calls onPick. */
+  onToggle?: (s: InstrumentHit) => void
+}) {
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<InstrumentKind | null>(null)
   const [hits, setHits] = useState<InstrumentHit[]>([])
@@ -240,8 +254,9 @@ export function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) =
   const shown = hits
 
   return (
-    <Modal title="Symbol Search" onClose={onClose} width={560}>
+    <Modal title={title} onClose={onClose} width={560}>
       <input
+        autoFocus
         className="dialog-search"
         placeholder="Symbol, e.g. RELIANCE, NIFTY1!, CRUDEOIL"
         value={query}
@@ -260,18 +275,40 @@ export function SymbolDialog({ onPick, onClose }: { onPick: (s: InstrumentHit) =
         ))}
       </div>
       <ul className="symbol-results">
-        {shown.map((h, i) => (
-          <li key={h.symbol}>
-            <button className={i === active ? 'active' : ''} onClick={() => onPick(h)} onMouseEnter={() => setActive(i)}>
-              <b>{h.ticker}</b>
-              <span className="name">{h.name}</span>
-              <span className="kind">
-                {h.symbol.endsWith('1!') ? 'continuous' : KIND_LABELS[h.kind] ?? h.kind}
-              </span>
-              <span className="exchange">{h.exchange ?? h.symbol.split(':')[0]}</span>
-            </button>
-          </li>
-        ))}
+        {shown.map((h, i) => {
+          const added = isAdded?.(h.symbol)
+          return (
+            <li key={h.symbol}>
+              <button
+                className={`${i === active ? 'active' : ''} ${isAdded && !onToggle ? 'addable' : ''}`}
+                onClick={() => onPick(h)}
+                onMouseEnter={() => setActive(i)}
+                aria-pressed={isAdded ? added : undefined}
+              >
+                <b>{h.ticker}</b>
+                <span className="name">{h.name}</span>
+                <span className="kind">
+                  {h.symbol.endsWith('1!') ? 'continuous' : KIND_LABELS[h.kind] ?? h.kind}
+                </span>
+                <span className="exchange">{h.exchange ?? h.symbol.split(':')[0]}</span>
+                {isAdded && !onToggle && (
+                  <span className={`add-mark ${added ? 'on' : ''}`} aria-label={added ? 'In list' : 'Add'}>
+                    {added ? '✓' : '+'}
+                  </span>
+                )}
+              </button>
+              {isAdded && onToggle && (
+                <button
+                  className={`add-mark ${added ? 'on' : ''}`}
+                  title={added ? 'Remove from watchlist' : 'Add to watchlist'}
+                  onClick={() => onToggle(h)}
+                >
+                  {added ? '✓' : '+'}
+                </button>
+              )}
+            </li>
+          )
+        })}
         {query.trim() && shown.length === 0 && <li className="empty">No symbols match.</li>}
       </ul>
     </Modal>

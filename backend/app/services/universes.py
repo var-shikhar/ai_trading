@@ -1,5 +1,6 @@
-"""Symbol lists to scan: NSE index constituents (from niftyindices.com,
-cached daily), F&O stocks, MCX commodities, or a custom ticker list."""
+"""Symbol lists to scan: every liquid NSE stock (from the market sync's
+cache), NSE index constituents (from niftyindices.com, cached daily), F&O
+stocks, MCX commodities, a watchlist, or a custom ticker list."""
 
 import csv
 import io
@@ -25,6 +26,8 @@ INDEX_LISTS = {
     "smallcap250": ("Nifty Smallcap 250", "ind_niftysmallcap250list.csv"),
 }
 OTHER_LISTS = {"fno": "F&O stocks", "mcx": "MCX commodities (continuous)"}
+MARKET = "nse_liquid"
+MARKET_NAME = "All NSE stocks (liquid)"
 
 
 def catalog(owner: str | None = None) -> list[dict]:
@@ -36,7 +39,8 @@ def catalog(owner: str | None = None) -> list[dict]:
         for r in store.rows(sa.select(wl.c.id, wl.c.name).where(wl.c.owner == owner).order_by(wl.c.position, wl.c.name))
     ]
     return (
-        [{"id": k, "name": v[0]} for k, v in INDEX_LISTS.items()]
+        [{"id": MARKET, "name": MARKET_NAME}]
+        + [{"id": k, "name": v[0]} for k, v in INDEX_LISTS.items()]
         + [{"id": k, "name": v} for k, v in OTHER_LISTS.items()]
         + [{"id": f"watchlist:{wid}", "name": f"Watchlist: {name}"} for wid, name in watchlists]
         + [{"id": "custom", "name": "Custom list"}]
@@ -63,6 +67,10 @@ async def members(
 ) -> list[dict]:
     """Instruments in a universe: symbol, ticker, name, industry."""
     con = get_conn()
+    if universe == MARKET:
+        from app.services import market_sync
+
+        return market_sync.liquid_members()
     if universe in INDEX_LISTS:
         cached = con.execute(
             "SELECT ticker, industry FROM universe_members WHERE universe = ? AND updated = ?",

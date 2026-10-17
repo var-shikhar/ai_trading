@@ -120,3 +120,27 @@ def test_api_rejects_bad_requests():
         bad_cond = client.post("/api/scanner/run", json={"universe": "fno", "conditions": [{"type": "magic"}]})
         assert bad_cond.status_code == 400
         assert client.get("/api/scanner/jobs/nope").status_code == 404
+
+
+def test_new_conditions_match_their_backtest_signals():
+    """The scanner's answer on the last bar is the backtest signal on that bar."""
+    from app.backtest import signals
+
+    rng = np.random.default_rng(1)
+    close = 100 * np.exp(np.cumsum(rng.normal(0.001, 0.015, 400)))
+    df = pd.DataFrame({
+        "time": np.arange(400) * 86400, "open": close * 0.995, "high": close * 1.01,
+        "low": close * 0.99, "close": close, "volume": rng.integers(100_000, 1_000_000, 400),
+    })
+    for t in ["new_high", "narrow_range", "trend_template", "ma_pullback", "day_change"]:
+        assert t in signals.SIGNALS
+        for n in range(260, 400, 7):
+            sub = df.iloc[:n].reset_index(drop=True)
+            assert scanner.CONDITIONS[t](sub, {})[0] == bool(signals.SIGNALS[t](sub, {}).fillna(False).iloc[-1]), (t, n)
+
+
+def test_52_week_breakout_and_trend_template():
+    rising = frame(np.linspace(50, 150, 300), wick=0)
+    assert scanner.trend_template(rising, {})[0]
+    assert scanner.new_high(rising, {"bars": 252})[0]
+    assert not scanner.trend_template(frame(np.linspace(150, 50, 300)), {})[0]

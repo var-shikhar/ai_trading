@@ -104,7 +104,7 @@ export function useDrawings(o: Options) {
       ref.current.onToolDone()
     }
 
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: PointerEvent) => {
       if (e.button !== 0) return
       const p = local(e)
       if (!p || !p.inside) return
@@ -147,7 +147,7 @@ export function useDrawings(o: Options) {
       }
     }
 
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       const p = local(e)
       if (!p) return
       const { x, y, m } = p
@@ -186,7 +186,7 @@ export function useDrawings(o: Options) {
       container.style.cursor = cursorFor(hit?.handle ?? null, working.find((d) => d.id === hit?.id))
     }
 
-    const onUp = (e: MouseEvent) => {
+    const onUp = (e: PointerEvent) => {
       if (placing && !placing.awaitingSecondClick) {
         const p = local(e)
         const dragged = p && Math.hypot(p.x - placing.downX, p.y - placing.downY) > DRAG_THRESHOLD
@@ -218,14 +218,27 @@ export function useDrawings(o: Options) {
       }
     }
 
-    container.addEventListener('mousedown', onDown, true)
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    // Touch: pointer events come first; while a drawing is being placed or
+    // dragged, keep the touch from also panning/zooming the chart.
+    const busy = () => ref.current.tool !== 'cursor' || drag !== null || placing !== null
+    const onTouch = (e: TouchEvent) => {
+      if (!busy()) return
+      e.stopPropagation()
+      if (e.cancelable) e.preventDefault()
+    }
+
+    container.addEventListener('pointerdown', onDown, true)
+    container.addEventListener('touchstart', onTouch, { capture: true, passive: false })
+    container.addEventListener('touchmove', onTouch, { capture: true, passive: false })
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
     window.addEventListener('keydown', onKey)
     return () => {
-      container.removeEventListener('mousedown', onDown, true)
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      container.removeEventListener('pointerdown', onDown, true)
+      container.removeEventListener('touchstart', onTouch, true)
+      container.removeEventListener('touchmove', onTouch, true)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
       window.removeEventListener('keydown', onKey)
       container.style.cursor = ''
     }

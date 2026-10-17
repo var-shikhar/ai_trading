@@ -6,6 +6,7 @@ import { usePref } from '../prefs'
 import { ConditionCard } from '../scanner/ScannerPanel'
 import { CONDITION_DEFS, type ScanCondition } from '../scanner/types'
 import { EquityChart } from './EquityChart'
+import { StrategyTemplates } from './templates'
 import type {
   BacktestCatalog,
   BacktestHistoryItem,
@@ -44,7 +45,9 @@ const defaultRequest = (): BacktestRequest => ({
   size_value: 1,
   capital: 1_000_000,
   max_positions: 10,
-  cost_pct: 0.1,
+  // ≈0.25% round trip for delivery (STT 0.1% each side, stamp duty,
+  // exchange/SEBI fees, GST, brokerage, DP charge), plus slippage.
+  cost_pct: 0.12,
   slippage_pct: 0.05,
 })
 
@@ -184,6 +187,7 @@ function Setup({
 }) {
   return (
     <div className="tester-setup">
+      <StrategyTemplates current={req.name} onPick={(t) => set({ ...t.rules, name: t.name, strategy_id: null })} />
       <StrategyBar value={req} set={set} keys={RULE_KEYS} />
       <div className="tester-section">
         <h3>Market</h3>
@@ -427,20 +431,29 @@ function Results({ result, theme }: { result: BacktestResult; theme: ChartTheme 
   }
   return (
     <div className="tester-results">
+      {/* The numbers that decide whether a strategy is worth it, first;
+          the rest on demand. */}
       <div className="kpis">
-        <Kpi label="Net return" value={pct(s.total_return_pct)} tone={tone(s.total_return_pct)} />
-        <Kpi label="CAGR" value={pct(s.cagr_pct)} tone={tone(s.cagr_pct)} />
-        <Kpi label="NIFTY 50 (same period)" value={pct(s.benchmark_return_pct)} />
+        <Kpi label="Net return (after costs)" value={pct(s.total_return_pct)} tone={tone(s.total_return_pct)} />
+        <Kpi label="NIFTY 50, same period" value={pct(s.benchmark_return_pct)} />
         <Kpi label="Max drawdown" value={pct(s.max_drawdown_pct)} tone={tone(s.max_drawdown_pct)} />
-        <Kpi label="Sharpe" value={num(s.sharpe)} />
         <Kpi label="Trades" value={String(s.trades)} />
         <Kpi label="Win rate" value={pct(s.win_rate_pct, false)} />
         <Kpi label="Profit factor" value={num(s.profit_factor)} />
-        <Kpi label="Avg R" value={num(s.avg_r)} tone={tone(s.avg_r)} />
-        <Kpi label="Avg trade (₹)" value={inr(s.expectancy)} tone={tone(s.expectancy)} />
-        <Kpi label="Avg bars held" value={num(s.avg_bars, 1)} />
-        <Kpi label="Time in market" value={pct(s.exposure_pct, false)} />
       </div>
+      <details className="more-stats">
+        <summary>More stats</summary>
+        <div className="kpis">
+          <Kpi label="CAGR" value={pct(s.cagr_pct)} tone={tone(s.cagr_pct)} />
+          <Kpi label="Sharpe" value={num(s.sharpe)} />
+          <Kpi label="Avg R" value={num(s.avg_r)} tone={tone(s.avg_r)} />
+          <Kpi label="Avg trade (₹)" value={inr(s.expectancy)} tone={tone(s.expectancy)} />
+          <Kpi label="Avg win" value={pct(s.avg_win_pct)} tone={tone(s.avg_win_pct)} />
+          <Kpi label="Avg loss" value={pct(s.avg_loss_pct)} tone={tone(s.avg_loss_pct)} />
+          <Kpi label="Avg bars held" value={num(s.avg_bars, 1)} />
+          <Kpi label="Time in market" value={pct(s.exposure_pct, false)} />
+        </div>
+      </details>
       <div className="tester-columns">
         <div className="equity-wrap">
           <div className="legend-inline">

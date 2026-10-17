@@ -27,7 +27,7 @@ export const defaultChartStrategy = (): ChartStrategy => ({
   sizing: 'pct_equity',
   size_value: 100,
   capital: 100_000,
-  cost_pct: 0.1,
+  cost_pct: 0.12, // ≈0.25% round trip for delivery, see the Strategy Lab
   slippage_pct: 0.05,
   bars: 2000,
 })

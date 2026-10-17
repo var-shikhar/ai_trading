@@ -1,6 +1,6 @@
 import type { Drawing } from '../drawings/types'
 import type { ChartPatternResult, Sensitivity } from '../patterns/chartPatterns'
-import type { ScanCatalog, ScanCondition, ScanJob } from '../scanner/types'
+import type { MarketStatus, ScanCatalog, ScanCondition, ScanJob } from '../scanner/types'
 import type { Alert, AlertEvent, AlertIn, AlertList } from '../alerts/types'
 import type {
   BacktestCatalog,
@@ -380,6 +380,8 @@ export const api = {
     post<ScanJob>('/scanner/run', { universe, tf, conditions, custom }),
   scanJob: (id: string) => get<ScanJob>(`/scanner/jobs/${id}`),
   cancelScan: (id: string) => post<{ cancelled: boolean }>(`/scanner/jobs/${id}/cancel`, {}),
+  marketStatus: () => get<MarketStatus>('/scanner/market'),
+  startMarketSync: () => post<MarketStatus & { started: boolean }>('/scanner/market/sync', {}),
   patternCatalog: () => get<PatternCatalog>('/patterns/candlestick/catalog'),
   patterns: (symbol: string, tf: string, limit: number, q: PatternQuery) =>
     get<PatternResult>('/patterns/candlestick', {

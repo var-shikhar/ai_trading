@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, type InstrumentHit, type Quote, type Watchlist, type WatchItem } from '../api/client'
+import type { InstrumentHit, Quote, WatchItem } from '../api/client'
 import { useLiveStatus, useTicks, type Tick } from '../live/liveClient'
-import { usePref } from '../prefs'
 import { Dropdown } from '../ui/Dropdown'
 import { SymbolDialog } from '../ui/TopBar'
+import { useActiveWatchlist, useQuotes, useWatchlistActions } from './queries'
 
 interface Price {
   ltp: number
@@ -11,107 +11,52 @@ interface Price {
   chp: number | null
 }
 
-const toItem = (s: InstrumentHit): WatchItem => ({
-  symbol: s.symbol,
-  ticker: s.ticker,
-  name: s.name,
-  kind: s.kind,
-  exchange: s.exchange ?? s.symbol.split(':')[0],
-})
-
 /** TradingView-style watchlist: several named lists, live prices, click to
  * open in the active chart. */
 export function WatchlistPanel({
   current,
   activeSymbol,
   onOpen,
-  page = false,
 }: {
   current: InstrumentHit
   activeSymbol: string
   onOpen: (s: InstrumentHit) => void
-  /** Full screen (the phone home tab) rather than a side panel. */
-  page?: boolean
 }) {
-  const [lists, setLists] = useState<Watchlist[] | null>(null)
-  const [activeId, setActiveId] = usePref<string | null>('watchlistId', null)
+  const { lists, list, setActiveId, error: loadError } = useActiveWatchlist(current)
+  const actions = useWatchlistActions()
   const [adding, setAdding] = useState(false)
-  const [quotes, setQuotes] = useState<Record<string, Quote | null>>({})
-  const [error, setError] = useState<string | null>(null)
   const liveStatus = useLiveStatus()
+  const error = (loadError ?? actions.error)?.message ?? null
 
-  useEffect(() => {
-    api
-      .watchlists()
-      .then(async (all) => {
-        // First use: start a list with the symbol on the chart.
-        if (!all.length) all = [await api.createWatchlist('Watchlist', [toItem(current)])]
-        setLists(all)
-      })
-      .catch((e: Error) => setError(e.message))
-    // only on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const list = lists?.find((l) => l.id === activeId) ?? lists?.[0] ?? null
   const symbols = useMemo(() => list?.items.map((i) => i.symbol) ?? [], [list])
   const ticks = useTicks(symbols)
+  const quotes = useQuotes(symbols).data ?? {}
 
-  // Snapshot prices (also outside market hours); live ticks then take over.
-  useEffect(() => {
-    if (!symbols.length) return
-    api.quotes(symbols).then((q) => setQuotes((prev) => ({ ...prev, ...q })), () => {})
-  }, [symbols.join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const save = async (patch: { name?: string; items?: WatchItem[] }) => {
-    if (!list) return
-    const optimistic = { ...list, ...patch }
-    setLists((all) => all?.map((l) => (l.id === list.id ? optimistic : l)) ?? null)
-    try {
-      await api.updateWatchlist(list.id, patch)
-    } catch (e) {
-      setError((e as Error).message)
-    }
-  }
-
-  const add = (s: InstrumentHit) => {
-    if (!list || list.items.some((i) => i.symbol === s.symbol)) return
-    save({ items: [...list.items, toItem(s)] })
-  }
-  const remove = (symbol: string) => list && save({ items: list.items.filter((i) => i.symbol !== symbol) })
-  const move = (symbol: string, delta: number) => {
-    if (!list) return
-    const items = [...list.items]
-    const i = items.findIndex((x) => x.symbol === symbol)
-    const j = i + delta
-    if (i < 0 || j < 0 || j >= items.length) return
-    ;[items[i], items[j]] = [items[j], items[i]]
-    save({ items })
-  }
+  const add = (s: InstrumentHit) => list && actions.add(list.id, s)
+  const toggle = (s: InstrumentHit) => list && actions.toggle(list.id, s)
+  const remove = (symbol: string) => list && actions.removeItem(list.id, symbol)
+  const move = (symbol: string, delta: number) => list && actions.move(list.id, symbol, delta)
 
   const newList = async () => {
     const name = window.prompt('Name for the new watchlist', 'Watchlist')?.trim()
     if (!name) return
-    const created = await api.createWatchlist(name)
-    setLists((all) => [...(all ?? []), created])
+    const created = await actions.create(name)
     setActiveId(created.id)
   }
   const rename = () => {
     const name = list && window.prompt('Rename watchlist', list.name)?.trim()
-    if (name) save({ name })
+    if (list && name) actions.rename(list.id, name)
   }
-  const removeList = async () => {
+  const removeList = () => {
     if (!list || !window.confirm(`Delete the watchlist "${list.name}"?`)) return
-    await api.deleteWatchlist(list.id)
-    const rest = (lists ?? []).filter((l) => l.id !== list.id)
-    setLists(rest)
-    setActiveId(rest[0]?.id ?? null)
+    actions.removeList(list.id)
+    setActiveId((lists ?? []).find((l) => l.id !== list.id)?.id ?? null)
   }
 
   const inList = list?.items.some((i) => i.symbol === current.symbol) ?? false
 
   return (
-    <aside className={`pattern-panel watchlist-panel ${page ? 'page' : ''}`} aria-label="Watchlist">
+    <aside className="pattern-panel watchlist-panel" aria-label="Watchlist">
       <div className="watch-head">
         <Dropdown label={<b>{list?.name ?? 'Watchlist'}</b>} title="Choose watchlist">
           {(close) => (
@@ -129,6 +74,16 @@ export function WatchlistPanel({
                   </button>
                 </div>
               ))}
+              {!inList && list && (
+                <>
+                  <div className="menu-heading">Chart</div>
+                  <div className="menu-item">
+                    <button className="menu-main" onClick={() => (close(), add(current))}>
+                      Add {current.ticker} (on the chart)
+                    </button>
+                  </div>
+                </>
+              )}
               <div className="menu-heading">List</div>
               <div className="menu-item">
                 <button className="menu-main" onClick={() => (close(), newList())}>
@@ -152,16 +107,11 @@ export function WatchlistPanel({
         <span className={`live-status ${liveStatus.status}`} title={liveStatus.message || liveStatus.status}>
           {liveStatus.status === 'connected' ? '● Live' : liveStatus.status === 'error' ? '● Offline' : ''}
         </span>
-        <button className="icon-button" title={`Add ${current.ticker}`} disabled={inList} onClick={() => add(current)}>
-          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+        <button className="add-button" title="Search and add stocks to this list" disabled={!list} onClick={() => setAdding(true)}>
+          <svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
             <path d="M9 3v12M3 9h12" />
           </svg>
-        </button>
-        <button className="icon-button" title="Add symbol" onClick={() => setAdding(true)}>
-          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-            <circle cx="7.5" cy="7.5" r="5" />
-            <path d="M11.5 11.5l4.5 4.5" />
-          </svg>
+          Add
         </button>
       </div>
 
@@ -173,7 +123,15 @@ export function WatchlistPanel({
       </div>
       <div className="panel-body">
         {error && <p className="status err">{error}</p>}
-        {list && list.items.length === 0 && <p className="status">Empty list. Add symbols with + or search.</p>}
+        {!list && !error && <p className="status">Loading…</p>}
+        {list && list.items.length === 0 && (
+          <div className="empty-state">
+            <p>This list is empty.</p>
+            <button className="primary-button" onClick={() => setAdding(true)}>
+              Add stocks
+            </button>
+          </div>
+        )}
         <ul className="watch-list">
           {list?.items.map((item) => (
             <WatchRow
@@ -190,10 +148,9 @@ export function WatchlistPanel({
       </div>
       {adding && (
         <SymbolDialog
-          onPick={(s) => {
-            add(s)
-            setAdding(false)
-          }}
+          title={`Add to ${list?.name ?? 'watchlist'}`}
+          isAdded={(symbol) => list?.items.some((i) => i.symbol === symbol) ?? false}
+          onPick={toggle}
           onClose={() => setAdding(false)}
         />
       )}

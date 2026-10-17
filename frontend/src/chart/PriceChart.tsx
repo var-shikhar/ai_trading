@@ -19,7 +19,7 @@ import {
   type Time,
   type UTCTimestamp,
 } from 'lightweight-charts'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Candle, LinePoint, StudyChartData, StudyDef } from '../api/client'
 import { DrawingsPrimitive } from '../drawings/DrawingsPrimitive'
 import type { Drawing, DrawingTool } from '../drawings/types'
@@ -114,6 +114,11 @@ export function PriceChart(outer: Props) {
   const [legendMobile, setLegendMobile] = usePref<boolean>('legendOpenMobile', false)
   const legendOpen = compact ? legendMobile : legendDesktop
   const toggleLegend = () => (compact ? setLegendMobile : setLegendDesktop)(!legendOpen)
+  // Indicator rows collapse on their own (as in TradingView), keeping OHLC.
+  const [studiesDesktop, setStudiesDesktop] = usePref<boolean>('legendStudiesOpen', true)
+  const [studiesMobile, setStudiesMobile] = usePref<boolean>('legendStudiesOpenMobile', false)
+  const studiesOpen = compact ? studiesMobile : studiesDesktop
+  const toggleStudies = () => (compact ? setStudiesMobile : setStudiesDesktop)(!studiesOpen)
   const { data, datasetKey, title, intraday, theme, chartType, scaleMode, showVolume, studies, catalog } = props
   const { markers, focus, range, onStudyAction, onHideVolume } = props
   const containerRef = useRef<HTMLDivElement>(null)
@@ -346,10 +351,14 @@ export function PriceChart(outer: Props) {
               open={legendOpen}
               onToggle={toggleLegend}
             />
-            {legendOpen &&
-              studies
-                .filter((s) => catalog[s.id]?.overlay)
-                .map((s) => <StudyLegend key={s.uid} inst={s} def={catalog[s.id]} {...legendProps} />)}
+            {legendOpen && (
+              <OverlayLegends
+                studies={studies.filter((s) => catalog[s.id]?.overlay)}
+                open={studiesOpen}
+                onToggle={toggleStudies}
+                render={(s) => <StudyLegend key={s.uid} inst={s} def={catalog[s.id]} {...legendProps} />}
+              />
+            )}
           </div>
           {built.volumePane !== null && paneTops[built.volumePane] !== undefined && (
             <div className="pane-legend" style={{ top: paneTops[built.volumePane] + 4 }}>
@@ -733,6 +742,42 @@ function MainLegend({
   )
 }
 
+/** Indicator rows on the price pane, with a fold button under them; folded
+ * they become one chip ("3 indicators") so the candles stay clear. */
+function OverlayLegends({
+  studies,
+  open,
+  onToggle,
+  render,
+}: {
+  studies: StudyInstance[]
+  open: boolean
+  onToggle: () => void
+  render: (s: StudyInstance) => ReactNode
+}) {
+  if (!studies.length) return null
+  const chevron = (up: boolean) => (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d={up ? 'M3 7.5l3-3 3 3' : 'M3 4.5l3 3 3-3'} />
+    </svg>
+  )
+  if (!open)
+    return (
+      <button className="legend-chip" onClick={onToggle} aria-expanded={false} title="Show indicator values">
+        {chevron(false)}
+        {studies.length} indicator{studies.length > 1 ? 's' : ''}
+      </button>
+    )
+  return (
+    <>
+      {studies.map(render)}
+      <button className="legend-chip only-icon" onClick={onToggle} aria-expanded title="Collapse indicators">
+        {chevron(true)}
+      </button>
+    </>
+  )
+}
+
 function StudyLegend({
   inst,
   def,
@@ -750,7 +795,8 @@ function StudyLegend({
 }) {
   const outputs = result[inst.uid]?.outputs
   return (
-    <div className={`legend-row study ${inst.visible ? '' : 'is-hidden'}`}>
+    // Focusable so a tap on a touch screen selects the row and shows its buttons.
+    <div className={`legend-row study ${inst.visible ? '' : 'is-hidden'}`} tabIndex={-1}>
       <span className="legend-title">{studyTitle(def, inst)}</span>
       {inst.visible &&
         def.outputs.map((o) => {

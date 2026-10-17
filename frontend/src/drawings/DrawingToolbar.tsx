@@ -8,14 +8,17 @@ export function DrawingToolbar({
   onTool,
   onClearAll,
   hasDrawings,
+  open = true,
 }: {
   tool: DrawingTool
   onTool: (t: DrawingTool) => void
   onClearAll: () => void
   hasDrawings: boolean
+  /** Phones: the tools float over the chart only while switched on. */
+  open?: boolean
 }) {
   return (
-    <nav className="drawing-toolbar" aria-label="Drawing tools">
+    <nav className={`drawing-toolbar ${open ? 'open' : ''}`} aria-label="Drawing tools">
       {TOOLS.map((t) => (
         <button
           key={t}

@@ -19,7 +19,9 @@ backend/            FastAPI
     services/       candle lookup (hybrid), instruments, tokens, rate limiter
   tests/            pytest (fake provider + mocked Fyers HTTP)
   data/             market.duckdb (git-ignored)
-frontend/           React + TypeScript + Vite + lightweight-charts
+frontend/           React + TypeScript + Vite + lightweight-charts; newer
+                    screens use Tailwind (no global reset: root class "tw")
+                    and TanStack Query (shared cache, optimistic edits)
   src/api/client.ts typed API client (dev server proxies /api -> :8000)
 ```
 
@@ -144,6 +146,22 @@ Tests: `cd backend; .\.venv\Scripts\python -m pytest`
 - **Charts**: the top bar has only chart controls. The icons on the right edge
   open a docked panel (Watchlist, Alerts, Patterns, Strategy) that stays until
   you click its icon again.
+- **Phones**: the home tab is your watchlists (as in broker apps) with the
+  main indices on top; a search bar sits above the tab bar on every screen
+  (tap a result to open its chart, **+** to add it to the watchlist). On a
+  chart, the pencil in the top bar shows the drawing tools (lines,
+  rectangles, long/short positions).
+- **Screener**: pick a named scan (52-week high breakout, Stage 2 uptrend,
+  RSI(2) dip, NR7, ...) or **Customize** its conditions, pick the stocks, run.
+  **All NSE stocks (liquid)** scans every NSE stock with price >= Rs 20 and
+  >= Rs 1 crore traded a day (~1,000). Its daily prices are downloaded once
+  (**Download NSE data**, ~25 min at Fyers' rate limit) and then refreshed
+  after each close (15:50 IST, about 45 quote calls); a stock whose
+  previous close no longer matches (split/bonus) has its history refetched.
+  Whole-market scans read that cache and make no API calls.
+- **Strategy Lab**: start from a proven strategy (52-week breakout, Stage 2
+  breakout, RSI(2) mean reversion, 20 EMA pullback) and edit any rule.
+  Default costs are 0.12% per side (about 0.25% round trip for delivery).
 - **Strategy on the chart** (as in TradingView): open *Strategy* in the right
   rail and switch it on. It backtests on the active chart's symbol and interval
   (any interval, the last N bars), reruns as you edit the rules or change
