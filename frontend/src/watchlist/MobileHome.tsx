@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { InstrumentHit, Quote, WatchItem } from '../api/client'
-import { useLiveStatus, useTicks, type Tick } from '../live/liveClient'
+import { useMemo, useState, type ReactNode } from 'react'
+import type { InstrumentHit, WatchItem } from '../api/client'
+import { useLiveStatus, useTicks } from '../live/liveClient'
 import { SymbolDialog } from '../ui/TopBar'
-import { useActiveWatchlist, useQuotes, useWatchlistActions } from './queries'
+import { Button, cx, EmptyState, ErrorText, Skeleton, Tabs } from '../ui/kit'
+import { priceOf, useActiveWatchlist, usePriceFlash, useQuotes, useWatchlistActions, type Price } from './queries'
+import { ArrowIcon, ListDialog, LiveDot, PlusIcon, type ListDialogState } from './WatchlistPanel'
 
 /** Phone home, like a broker app (Kotak Neo): market indices on top, your
  * watchlists as tabs, big rows with live prices. Tapping a row opens its
- * chart. Built with Tailwind + TanStack Query. */
+ * chart. */
 
 const INDICES: InstrumentHit[] = [
   { symbol: 'NSE:NIFTY50-INDEX', ticker: 'NIFTY 50', name: 'NIFTY 50', kind: 'INDEX' },
@@ -15,143 +17,127 @@ const INDICES: InstrumentHit[] = [
   { symbol: 'NSE:FINNIFTY-INDEX', ticker: 'FIN NIFTY', name: 'NIFTY FIN SERVICE', kind: 'INDEX' },
   { symbol: 'NSE:INDIAVIX-INDEX', ticker: 'INDIA VIX', name: 'INDIA VIX', kind: 'INDEX' },
 ]
+const INDEX_SYMBOLS = INDICES.map((i) => i.symbol)
 
-interface Price {
-  ltp: number
-  ch: number | null
-  chp: number | null
-}
-
-const priceOf = (tick: Tick | undefined, quote: Quote | null | undefined): Price | null =>
-  tick ? { ltp: tick.ltp, ch: tick.ch, chp: tick.chp } : quote ? { ltp: quote.ltp, ch: quote.ch, chp: quote.chp } : null
-
-const fmt = (v: number, digits = 2) =>
-  v.toLocaleString('en-IN', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+const fmt = (v: number, digits = 2) => v.toLocaleString('en-IN', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const signed = (v: number, suffix = '') => `${v >= 0 ? '+' : ''}${fmt(v)}${suffix}`
 
 export function MobileHome({ current, onOpen }: { current: InstrumentHit; onOpen: (s: InstrumentHit) => void }) {
-  const { lists, list, setActiveId, isPending, error } = useActiveWatchlist(current)
+  const { lists, list, setActiveId, isPending, error, refetch } = useActiveWatchlist(current)
   const actions = useWatchlistActions()
   const [editing, setEditing] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [dialog, setDialog] = useState<ListDialogState>(null)
   const live = useLiveStatus()
 
-  const symbols = useMemo(() => [...INDICES.map((i) => i.symbol), ...(list?.items.map((i) => i.symbol) ?? [])], [list])
+  // Separate queries: switching lists doesn't refetch the indices.
+  const indexTicks = useTicks(INDEX_SYMBOLS)
+  const indexQuotes = useQuotes(INDEX_SYMBOLS)
+  const symbols = useMemo(() => list?.items.map((i) => i.symbol) ?? [], [list])
   const ticks = useTicks(symbols)
-  const quotes = useQuotes(symbols).data ?? {}
-  const price = (s: string) => priceOf(ticks[s], quotes[s])
-
-  const newList = async () => {
-    const name = window.prompt('Name for the new watchlist', `Watchlist ${(lists?.length ?? 0) + 1}`)?.trim()
-    if (name) setActiveId((await actions.create(name)).id)
-  }
+  const quotesQuery = useQuotes(symbols)
+  const quotes = quotesQuery.data ?? {}
 
   return (
-    <div className="tw flex min-h-0 flex-1 flex-col bg-bg">
+    <div className="flex min-h-0 flex-1 flex-col bg-bg">
       {/* Indices */}
-      <div className="flex shrink-0 gap-2 overflow-x-auto px-3 pt-3 pb-2 [scrollbar-width:none]">
-        {INDICES.map((ix) => {
-          const p = price(ix.symbol)
-          const up = (p?.ch ?? 0) >= 0
-          return (
-            <button
-              key={ix.symbol}
-              onClick={() => onOpen(ix)}
-              className="flex min-w-[124px] shrink-0 cursor-pointer flex-col items-start gap-0.5 rounded-xl border border-line bg-surface px-3 py-2 text-left shadow-card active:bg-hover"
-            >
-              <span className="text-[11px] font-semibold tracking-wide text-muted">{ix.ticker}</span>
-              <span className="text-[15px] font-semibold tabular-nums text-fg">{p ? fmt(p.ltp) : '–'}</span>
-              <span className={`text-[11px] font-medium tabular-nums ${up ? 'text-up' : 'text-down'}`}>
-                {p?.chp != null ? `${up ? '▲' : '▼'} ${signed(p.chp, '%')}` : ' '}
-              </span>
-            </button>
-          )
-        })}
+      <div className="flex shrink-0 snap-x gap-2 overflow-x-auto px-3 pt-3 pb-2 [scrollbar-width:none]">
+        {INDICES.map((ix) => (
+          <IndexCard
+            key={ix.symbol}
+            ix={ix}
+            price={priceOf(indexTicks[ix.symbol], indexQuotes.data?.[ix.symbol])}
+            loading={indexQuotes.isFetching && indexQuotes.data?.[ix.symbol] === undefined}
+            onOpen={() => onOpen(ix)}
+          />
+        ))}
       </div>
 
       {/* Watchlist tabs */}
-      <div className="flex shrink-0 items-center gap-1 border-b border-line px-2">
-        <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none]">
-          {(lists ?? []).map((l) => {
-            const on = l.id === list?.id
-            return (
-              <button
-                key={l.id}
-                onClick={() => setActiveId(l.id)}
-                className={`shrink-0 cursor-pointer border-b-2 px-3 py-2.5 text-[14px] whitespace-nowrap ${
-                  on ? 'border-accent font-semibold text-accent' : 'border-transparent text-muted'
-                }`}
-              >
-                {l.name}
-              </button>
-            )
-          })}
-          <button onClick={newList} className="shrink-0 cursor-pointer px-3 py-2.5 text-[14px] text-muted" title="New watchlist">
-            + New
-          </button>
+      <div className="flex shrink-0 items-center gap-1 border-b border-line bg-surface pr-2">
+        <div className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none]">
+          {isPending ? (
+            <div className="flex gap-4 px-3 py-3">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ) : (
+            <Tabs
+              className="shrink-0 px-1 [&>button]:text-[14px]"
+              value={list?.id ?? ''}
+              onChange={(id) => setActiveId(id)}
+              items={(lists ?? []).map((l) => ({ id: l.id, label: l.name }))}
+            />
+          )}
+          <RoundButton label="New watchlist" plain className="ml-1 text-accent" onClick={() => setDialog({ kind: 'new' })}>
+            <PlusIcon size={16} />
+          </RoundButton>
         </div>
-        <span
-          className={`shrink-0 text-[11px] ${live.status === 'connected' ? 'text-up' : 'text-muted'}`}
-          title={live.message || live.status}
-        >
-          {live.status === 'connected' ? '● Live' : live.status === 'error' ? '● Offline' : ''}
-        </span>
-        <button
-          onClick={() => setEditing(!editing)}
-          className={`shrink-0 cursor-pointer rounded-md px-2 py-1 text-[13px] font-medium ${editing ? 'bg-accent text-accent-fg' : 'text-accent'}`}
-        >
-          {editing ? 'Done' : 'Edit'}
-        </button>
+        <LiveDot status={live.status} message={live.message} />
+        {list && (
+          <Button size="sm" variant={editing ? 'primary' : 'soft'} onClick={() => setEditing(!editing)}>
+            {editing ? 'Done' : 'Edit'}
+          </Button>
+        )}
       </div>
 
       {editing && list && (
-        <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-2 text-[13px]">
-          <button
-            className="cursor-pointer text-accent"
-            onClick={() => {
-              const name = window.prompt('Rename watchlist', list.name)?.trim()
-              if (name) actions.rename(list.id, name)
-            }}
-          >
+        <div className="flex shrink-0 animate-pop items-center gap-2 border-b border-line bg-surface px-4 py-2">
+          <span className="min-w-0 flex-1 truncate text-[13px] text-muted">
+            <b className="font-semibold text-fg">{list.name}</b> · {list.items.length} {list.items.length === 1 ? 'stock' : 'stocks'}
+          </span>
+          <Button size="sm" onClick={() => setDialog({ kind: 'rename', list })}>
             Rename
-          </button>
-          <button
-            className="cursor-pointer text-down"
-            onClick={() => {
-              if (!window.confirm(`Delete the watchlist "${list.name}"?`)) return
-              actions.removeList(list.id)
-              setActiveId(lists?.find((l) => l.id !== list.id)?.id ?? null)
-            }}
-          >
-            Delete list
-          </button>
-          <span className="ml-auto text-muted">{list.items.length} stocks</span>
+          </Button>
+          <Button size="sm" variant="danger" onClick={() => setDialog({ kind: 'delete', list })}>
+            Delete
+          </Button>
         </div>
       )}
 
       {/* Rows */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {(error || actions.error) && (
-          <p className="px-4 py-3 text-down">{(error ?? actions.error)?.message}</p>
-        )}
-        {isPending && <p className="px-4 py-6 text-center text-muted">Loading…</p>}
-        {list && list.items.length === 0 && (
-          <div className="flex flex-col items-center gap-3 px-6 py-12 text-center text-muted">
-            <p className="m-0 text-[15px]">No stocks in {list.name} yet.</p>
-            <button
-              onClick={() => setAdding(true)}
-              className="cursor-pointer rounded-full bg-accent px-5 py-2 text-[14px] font-semibold text-accent-fg"
-            >
-              Add stocks
+        {error && (
+          <ErrorText className="m-3">
+            {error.message}{' '}
+            <button className="font-semibold underline" onClick={() => void refetch()}>
+              Retry
             </button>
-          </div>
+          </ErrorText>
         )}
-        <ul className="m-0 list-none p-0">
+        {isPending && <RowSkeletons />}
+        {!isPending && !list && !error && (
+          <EmptyState
+            title="No watchlists yet"
+            action={
+              <Button variant="primary" onClick={() => setDialog({ kind: 'new' })}>
+                Create a watchlist
+              </Button>
+            }
+          >
+            Make a list to follow live prices of the stocks you trade.
+          </EmptyState>
+        )}
+        {list && list.items.length === 0 && (
+          <EmptyState
+            icon={<PlusIcon size={22} />}
+            title={`No stocks in ${list.name} yet`}
+            action={
+              <Button variant="primary" onClick={() => setAdding(true)}>
+                Add stocks
+              </Button>
+            }
+          >
+            Search stocks, indices, F&amp;O and MCX and add them here.
+          </EmptyState>
+        )}
+        <ul className="bg-surface">
           {list?.items.map((item, i) => (
             <HomeRow
               key={item.symbol}
               item={item}
-              price={price(item.symbol)}
+              price={priceOf(ticks[item.symbol], quotes[item.symbol])}
+              priceLoading={quotesQuery.isFetching && quotes[item.symbol] === undefined}
               editing={editing}
               first={i === 0}
               last={i === list.items.length - 1}
@@ -162,12 +148,12 @@ export function MobileHome({ current, onOpen }: { current: InstrumentHit; onOpen
           ))}
         </ul>
         {list && list.items.length > 0 && (
-          <button
-            onClick={() => setAdding(true)}
-            className="mx-auto my-4 block cursor-pointer rounded-full border border-accent px-4 py-1.5 text-[13px] font-semibold text-accent"
-          >
-            + Add stocks
-          </button>
+          <div className="flex justify-center py-5">
+            <Button variant="soft" onClick={() => setAdding(true)}>
+              <PlusIcon />
+              Add stocks
+            </Button>
+          </div>
         )}
       </div>
 
@@ -179,6 +165,68 @@ export function MobileHome({ current, onOpen }: { current: InstrumentHit; onOpen
           onClose={() => setAdding(false)}
         />
       )}
+      <ListDialog
+        state={dialog}
+        lists={lists ?? []}
+        setActiveId={setActiveId}
+        onClose={() => {
+          if (dialog?.kind === 'delete') setEditing(false)
+          setDialog(null)
+        }}
+      />
+    </div>
+  )
+}
+
+function IndexCard({ ix, price, loading, onOpen }: { ix: InstrumentHit; price: Price | null; loading: boolean; onOpen: () => void }) {
+  const flash = usePriceFlash(price?.ltp)
+  const tone = price?.ch == null ? 'text-muted' : price.ch >= 0 ? 'text-up' : 'text-down'
+  return (
+    <button
+      onClick={onOpen}
+      className={cx(
+        'flex min-w-[132px] shrink-0 snap-start flex-col items-start gap-1 rounded-xl border border-line px-3 py-2.5 text-left shadow-card transition-colors duration-500 active:scale-[0.98]',
+        flash === 'up' ? 'bg-up-soft' : flash === 'down' ? 'bg-down-soft' : 'bg-surface',
+      )}
+    >
+      <span className="text-[11px] font-semibold tracking-wide text-muted">{ix.ticker}</span>
+      {price ? (
+        <>
+          <span className="text-[16px] leading-tight font-semibold text-fg tabular-nums">{fmt(price.ltp)}</span>
+          <span className={cx('text-[11px] font-medium tabular-nums', tone)}>
+            {price.ch != null && price.chp != null ? `${signed(price.ch)} (${signed(price.chp, '%')})` : ' '}
+          </span>
+        </>
+      ) : loading ? (
+        <>
+          <Skeleton className="h-4.5 w-20" />
+          <Skeleton className="h-3 w-24" />
+        </>
+      ) : (
+        <>
+          <span className="text-[16px] leading-tight font-semibold text-muted">–</span>
+          <span className="text-[11px]"> </span>
+        </>
+      )}
+    </button>
+  )
+}
+
+function RowSkeletons({ rows = 8 }: { rows?: number }) {
+  return (
+    <div aria-busy className="bg-surface">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex min-h-16 items-center gap-3 border-b border-line px-4">
+          <span className="flex flex-1 flex-col gap-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-3 w-36" />
+          </span>
+          <span className="flex flex-col items-end gap-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-3 w-24" />
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -186,6 +234,7 @@ export function MobileHome({ current, onOpen }: { current: InstrumentHit; onOpen
 function HomeRow({
   item,
   price,
+  priceLoading,
   editing,
   first,
   last,
@@ -195,6 +244,7 @@ function HomeRow({
 }: {
   item: WatchItem
   price: Price | null
+  priceLoading: boolean
   editing: boolean
   first: boolean
   last: boolean
@@ -202,73 +252,87 @@ function HomeRow({
   onRemove: () => void
   onMove: (delta: number) => void
 }) {
-  // Brief green/red flash when the price ticks up/down.
-  const [flash, setFlash] = useState<'up' | 'down' | null>(null)
-  const prev = useRef<number | null>(null)
-  useEffect(() => {
-    const ltp = price?.ltp ?? null
-    if (ltp !== null && prev.current !== null && ltp !== prev.current) {
-      setFlash(ltp > prev.current ? 'up' : 'down')
-      const id = setTimeout(() => setFlash(null), 500)
-      prev.current = ltp
-      return () => clearTimeout(id)
-    }
-    prev.current = ltp
-  }, [price?.ltp])
-
-  const up = (price?.ch ?? 0) >= 0
-  const tone = up ? 'text-up' : 'text-down'
+  const flash = usePriceFlash(price?.ltp)
+  const tone = price?.ch == null ? 'text-fg' : price.ch >= 0 ? 'text-up' : 'text-down'
   return (
     <li
-      className={`flex items-center border-b border-line transition-colors duration-500 ${
-        flash === 'up' ? 'bg-up-soft' : flash === 'down' ? 'bg-down-soft' : 'bg-surface'
-      }`}
+      className={cx(
+        'flex min-h-16 items-center border-b border-line transition-colors duration-500',
+        flash === 'up' ? 'bg-up-soft' : flash === 'down' ? 'bg-down-soft' : 'bg-surface',
+      )}
     >
-      <button onClick={onOpen} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-hover">
+      {editing && (
+        <RoundButton label={`Remove ${item.ticker}`} plain onClick={onRemove} className="ml-2">
+          <span className="flex size-5 items-center justify-center rounded-full bg-down text-white">
+            <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M2 5h6" />
+            </svg>
+          </span>
+        </RoundButton>
+      )}
+      <button
+        onClick={onOpen}
+        disabled={editing}
+        className="flex min-h-16 min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left active:bg-hover disabled:cursor-default"
+      >
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <b className="truncate text-[15px] font-semibold text-fg">{item.ticker}</b>
-          <span className="truncate text-[11px] text-muted">
-            {item.exchange ?? item.symbol.split(':')[0]}
-            {item.name && item.name !== item.ticker ? ` · ${item.name}` : ''}
+          <span className="truncate text-[12px] text-muted">
+            <span className="mr-1 rounded bg-hover px-1 py-px text-[10px] font-semibold tracking-wide">
+              {item.exchange ?? item.symbol.split(':')[0]}
+            </span>
+            {item.name && item.name !== item.ticker ? item.name : ''}
           </span>
         </span>
         {!editing && (
           <span className="flex shrink-0 flex-col items-end gap-0.5 tabular-nums">
-            <span className={`text-[15px] font-semibold ${price ? tone : 'text-muted'}`}>{price ? fmt(price.ltp) : '–'}</span>
-            <span className="text-[12px] text-muted">
-              {price?.ch != null && price.chp != null ? `${signed(price.ch)} (${signed(price.chp, '%')})` : ''}
-            </span>
+            {price ? (
+              <>
+                <span className={cx('text-[15px] font-semibold', tone)}>{fmt(price.ltp)}</span>
+                <span className="text-[12px] text-muted">
+                  {price.ch != null && price.chp != null ? `${signed(price.ch)} (${signed(price.chp, '%')})` : ''}
+                </span>
+              </>
+            ) : priceLoading ? (
+              <>
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-3 w-24" />
+              </>
+            ) : (
+              <span className="text-[15px] text-muted">–</span>
+            )}
           </span>
         )}
       </button>
       {editing && (
         <span className="flex shrink-0 items-center gap-1 pr-3">
-          <IconBtn label="Move up" disabled={first} onClick={() => onMove(-1)}>
-            ↑
-          </IconBtn>
-          <IconBtn label="Move down" disabled={last} onClick={() => onMove(1)}>
-            ↓
-          </IconBtn>
-          <IconBtn label="Remove" danger onClick={onRemove}>
-            ×
-          </IconBtn>
+          <RoundButton label="Move up" disabled={first} onClick={() => onMove(-1)}>
+            <ArrowIcon up />
+          </RoundButton>
+          <RoundButton label="Move down" disabled={last} onClick={() => onMove(1)}>
+            <ArrowIcon />
+          </RoundButton>
         </span>
       )}
     </li>
   )
 }
 
-function IconBtn({
+// 40px touch target (the kit IconButton is 32px).
+function RoundButton({
   label,
   onClick,
   disabled,
-  danger,
+  plain,
+  className,
   children,
 }: {
   label: string
   onClick: () => void
   disabled?: boolean
-  danger?: boolean
+  /** No ring. */
+  plain?: boolean
+  className?: string
   children: ReactNode
 }) {
   return (
@@ -277,9 +341,11 @@ function IconBtn({
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className={`flex size-9 cursor-pointer items-center justify-center rounded-full border border-line bg-raised text-[16px] disabled:opacity-30 ${
-        danger ? 'text-down' : 'text-fg'
-      }`}
+      className={cx(
+        'flex size-10 shrink-0 items-center justify-center rounded-full transition active:bg-hover disabled:opacity-30',
+        !plain && 'border border-line',
+        className,
+      )}
     >
       {children}
     </button>

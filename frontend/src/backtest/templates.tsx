@@ -1,3 +1,4 @@
+import { Badge, cx } from '../ui/kit'
 import type { BacktestRequest } from './types'
 
 /** Ready-made strategies with fixed, published-style rules, so a backtest
@@ -107,10 +108,10 @@ export function StrategyTemplates({
   onPick: (t: StrategyTemplate) => void
 }) {
   return (
-    <div className="tw tester-templates">
-      <h3 className="mb-1 text-[13px] font-semibold text-fg">Start from a proven strategy</h3>
-      <p className="mb-2.5 text-[12px] text-muted">Fills in the rules below; change anything after.</p>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+    <section className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+      <h3 className="mb-0.5 text-[14px] font-semibold text-fg">Start from a proven strategy</h3>
+      <p className="mb-3 text-[12px] text-muted">Fills in the rules below; change anything after.</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {STRATEGY_TEMPLATES.map((t) => {
           const active = current === t.name
           const research = t.evidence.startsWith('Research') || t.evidence.startsWith('Backtests')
@@ -119,19 +120,17 @@ export function StrategyTemplates({
               key={t.id}
               onClick={() => onPick(t)}
               aria-pressed={active}
-              className={`flex cursor-pointer flex-col gap-1 rounded-xl border p-3 text-left transition-colors ${
-                active ? 'border-accent bg-accent-soft' : 'border-line bg-surface hover:border-muted'
-              }`}
+              className={cx(
+                'flex cursor-pointer flex-col gap-1 rounded-xl border p-3 text-left transition-colors',
+                active ? 'border-accent bg-accent-soft' : 'border-line bg-bg hover:border-muted',
+              )}
             >
               <span className="flex items-center gap-2">
-                <b className={`text-[14px] font-semibold ${active ? 'text-accent' : 'text-fg'}`}>{t.name}</b>
-                <span
-                  title={t.evidence}
-                  className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    research ? 'bg-up-soft text-up' : 'bg-hover text-muted'
-                  }`}
-                >
-                  {research ? 'Tested' : 'Practice'}
+                <b className={cx('text-[14px] font-semibold', active ? 'text-accent' : 'text-fg')}>{t.name}</b>
+                <span title={t.evidence} className="ml-auto shrink-0">
+                  <Badge tone={research ? 'up' : 'neutral'} className="text-[10px]">
+                    {research ? 'Tested' : 'Practice'}
+                  </Badge>
                 </span>
               </span>
               <span className="text-[12px] leading-snug text-muted">{t.summary}</span>
@@ -139,6 +138,6 @@ export function StrategyTemplates({
           )
         })}
       </div>
-    </div>
+    </section>
   )
 }

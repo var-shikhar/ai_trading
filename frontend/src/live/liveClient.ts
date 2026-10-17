@@ -76,10 +76,24 @@ class LiveClient {
     for (const fn of this.statusListeners) fn(s, msg)
   }
 
+  // Subscription changes made together (a list re-rendering 50 rows) go out
+  // as one message, and only when the set of symbols really changed.
+  private syncQueued = false
+  private sent = ''
   private sync() {
-    if (!this.listeners.size && !this.ws) return
-    if (!this.ws || this.ws.readyState === WebSocket.CLOSED) return this.connect()
-    if (this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ subscribe: [...this.listeners.keys()] }))
+    if (this.syncQueued) return
+    this.syncQueued = true
+    queueMicrotask(() => {
+      this.syncQueued = false
+      if (!this.listeners.size && !this.ws) return
+      if (!this.ws || this.ws.readyState === WebSocket.CLOSED) return this.connect()
+      const symbols = [...this.listeners.keys()].sort()
+      const key = symbols.join('|')
+      if (this.ws.readyState === WebSocket.OPEN && key !== this.sent) {
+        this.sent = key
+        this.ws.send(JSON.stringify({ subscribe: symbols }))
+      }
+    })
   }
 
   private connect() {
@@ -90,7 +104,9 @@ class LiveClient {
     this.setStatus('connecting')
     ws.onopen = () => {
       this.retry = 0
-      ws.send(JSON.stringify({ subscribe: [...this.listeners.keys()] }))
+      const symbols = [...this.listeners.keys()].sort()
+      this.sent = symbols.join('|')
+      ws.send(JSON.stringify({ subscribe: symbols }))
     }
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data)
@@ -127,7 +143,8 @@ export function useLiveStatus(): { status: LiveStatus; message: string } {
 /** Latest tick per symbol for a set of symbols (for lists like the watchlist). */
 export function useTicks(symbols: string[]): Record<string, Tick> {
   const [ticks, setTicks] = useState<Record<string, Tick>>({})
-  const key = symbols.join('|')
+  // Order doesn't matter: reordering a list keeps the subscriptions.
+  const key = [...symbols].sort().join('|')
   useEffect(() => {
     const offs = symbols.map((s) => live.subscribe(s, (t) => setTicks((prev) => ({ ...prev, [s]: t }))))
     return () => offs.forEach((off) => off())

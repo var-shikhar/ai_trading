@@ -1,39 +1,53 @@
+import { cx } from '../ui/kit'
 import { TOOL_NAMES, type DrawingTool } from './types'
 
 const TOOLS: DrawingTool[] = ['cursor', 'trend', 'hline', 'vline', 'rect', 'long', 'short']
 
-/** Left-hand tool column, like TradingView's. Alt+T/H/V/R pick tools. */
+/** Tool column on the chart's left edge, like TradingView's; on phones a
+ * floating card over the chart (shown by the pencil). Alt+T/H/V/R pick tools. */
 export function DrawingToolbar({
   tool,
   onTool,
   onClearAll,
   hasDrawings,
-  open = true,
+  floating = false,
 }: {
   tool: DrawingTool
   onTool: (t: DrawingTool) => void
   onClearAll: () => void
   hasDrawings: boolean
-  /** Phones: the tools float over the chart only while switched on. */
-  open?: boolean
+  floating?: boolean
 }) {
+  const btn = (selected: boolean) =>
+    cx(
+      'inline-flex size-9 items-center justify-center rounded-lg transition disabled:opacity-35',
+      selected ? 'bg-selected text-accent' : 'text-fg hover:bg-hover',
+    )
   return (
-    <nav className={`drawing-toolbar ${open ? 'open' : ''}`} aria-label="Drawing tools">
+    <nav
+      aria-label="Drawing tools"
+      className={cx(
+        'flex flex-col items-center gap-0.5 bg-surface py-1.5',
+        floating ? 'w-11 rounded-xl border border-line shadow-[var(--shadow)]' : 'w-12 shrink-0 border-r border-line',
+      )}
+    >
       {TOOLS.map((t) => (
         <button
           key={t}
-          className={`draw-tool ${tool === t ? 'selected' : ''}`}
+          className={btn(tool === t)}
           title={`${TOOL_NAMES[t]}${SHORTCUTS[t] ? ` (${SHORTCUTS[t]})` : ''}`}
+          aria-label={TOOL_NAMES[t]}
           aria-pressed={tool === t}
           onClick={() => onTool(t)}
         >
           <ToolIcon tool={t} />
         </button>
       ))}
-      <span className="draw-divider" />
+      <span className="my-1 h-px w-7 bg-line" />
       <button
-        className="draw-tool"
+        className={btn(false)}
         title="Remove all drawings on this symbol"
+        aria-label="Remove all drawings on this symbol"
         disabled={!hasDrawings}
         onClick={() => {
           if (window.confirm('Remove all drawings on this symbol?')) onClearAll()

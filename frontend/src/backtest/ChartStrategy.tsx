@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { SeriesMarker, Time, UTCTimestamp } from 'lightweight-charts'
 import { api, ApiError } from '../api/client'
 import type { ChartTheme } from '../chart/theme'
 import { usePref } from '../prefs'
+import { Button, cx, EmptyState, ErrorText, IconButton, Skeleton, Spinner, Switch, Tabs } from '../ui/kit'
 import { EquityChart } from './EquityChart'
-import { inr, Kpi, num, NumberField, pct, RulesEditor, StrategyBar, tone, Trades } from './StrategyTester'
-import type { BacktestTrade, ChartBacktestResult, ChartStrategy } from './types'
+import { Kpi, KPI_GRID, NumberField, RulesEditor, StrategyBar, Swatch, Trades } from './StrategyTester'
+import { inr, num, pct, tone, toneClass, type BacktestTrade, type ChartBacktestResult, type ChartStrategy } from './types'
 
 export const defaultChartStrategy = (): ChartStrategy => ({
   enabled: false,
@@ -45,34 +47,41 @@ export interface ChartStrategyState {
   error: string | null
 }
 
-/** Reruns the chart's strategy (debounced) whenever its rules, the chart
- * symbol or the interval change, like a strategy added to a TradingView chart. */
-export function useChartStrategy(strategy: ChartStrategy, symbol: string, tf: string, ready: boolean): ChartStrategyState {
-  const [state, setState] = useState<ChartStrategyState>({ result: null, loading: false, error: null })
-  const seq = useRef(0)
-  const { enabled, name: _name, strategy_id: _id, ...rules } = strategy
-  const key = JSON.stringify({ ...rules, symbol, tf })
-
+/** `value`, once it has stopped changing for `ms`. */
+function useDebounced<T>(value: T, ms: number) {
+  const [v, setV] = useState(value)
   useEffect(() => {
-    const id = ++seq.current
-    if (!enabled || !ready) return
-    if (!strategy.entry.length) {
-      setState({ result: null, loading: false, error: 'Add an entry condition.' })
-      return
-    }
-    setState((s) => ({ ...s, loading: true, error: null }))
-    const timer = setTimeout(() => {
-      api.chartBacktest({ ...strategy, symbol, tf }).then(
-        (result) => id === seq.current && setState({ result, loading: false, error: null }),
-        (e: Error) =>
-          id === seq.current &&
-          setState((s) => ({ ...s, loading: false, error: e instanceof ApiError ? e.message : 'Backtest failed' })),
-      )
-    }, 450)
-    return () => clearTimeout(timer)
-  }, [key, enabled, ready]) // eslint-disable-line react-hooks/exhaustive-deps
+    const id = setTimeout(() => setV(value), ms)
+    return () => clearTimeout(id)
+  }, [value, ms])
+  return v
+}
 
-  return state
+/** Reruns the chart's strategy (debounced) whenever its rules, the chart
+ * symbol or the interval change, like a strategy added to a TradingView chart.
+ * Results are cached per setup, so switching back to a symbol is instant. */
+export function useChartStrategy(strategy: ChartStrategy, symbol: string, tf: string, ready: boolean): ChartStrategyState {
+  const { enabled, name, strategy_id, ...rules } = strategy
+  const key = JSON.stringify({ ...rules, symbol, tf })
+  const debounced = useDebounced(key, 450)
+  const hasEntry = strategy.entry.length > 0
+  const q = useQuery({
+    queryKey: ['backtests', 'chart', debounced],
+    queryFn: () =>
+      api.chartBacktest({ enabled: true, name, strategy_id, ...(JSON.parse(debounced) as typeof rules & { symbol: string; tf: string }) }),
+    enabled: enabled && ready && hasEntry,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60_000,
+    // Bad rules (4xx) won't pass on a retry.
+    retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 1,
+  })
+  if (!enabled) return { result: q.data ?? null, loading: false, error: null }
+  if (!hasEntry) return { result: null, loading: false, error: 'Add an entry condition.' }
+  return {
+    result: q.data ?? null,
+    loading: ready && (q.isFetching || key !== debounced),
+    error: q.error ? (q.error instanceof ApiError ? q.error.message : 'Backtest failed') : null,
+  }
 }
 
 /** Entry/exit arrows for backtest trades: entries below (long) or above
@@ -113,48 +122,63 @@ export function ChartStrategyPanel({
   ticker: string
   tf: string
 }) {
-  const [conditions, setConditions] = useState<string[]>([])
-  useEffect(() => {
-    api.backtestCatalog().then((c) => setConditions(c.conditions), () => {})
-  }, [])
+  const catalog = useQuery({ queryKey: ['backtests', 'catalog'], queryFn: api.backtestCatalog, staleTime: Infinity })
   const s = state.result?.summary
 
   return (
-    <aside className="pattern-panel strategy-panel" aria-label="Chart strategy">
-      <div className="watch-head">
-        <b>Strategy on chart</b>
-        <span className="spacer" />
-        <label className="switch" title={strategy.enabled ? 'Remove from chart' : 'Apply to chart'}>
-          <input type="checkbox" checked={strategy.enabled} onChange={(e) => onChange({ enabled: e.target.checked })} />
-          <span>{strategy.enabled ? 'On' : 'Off'}</span>
-        </label>
-      </div>
-      <p className="strategy-status">
-        {!strategy.enabled
-          ? 'Turn it on to backtest the rules below on the active chart. It reruns as you change them.'
-          : state.error
-            ? <span className="status err">{state.error}</span>
-            : state.loading
-              ? `Testing on ${ticker} · ${tf}…`
-              : s
-                ? <>
-                    {ticker} · {tf}: <b>{s.trades}</b> trades,{' '}
-                    <b className={tone(s.total_return_pct) ?? ''}>{pct(s.total_return_pct)}</b> (buy &amp; hold{' '}
-                    {pct(s.buy_hold_return_pct)})
-                  </>
-                : ''}
-      </p>
-      <div className="panel-body strategy-form">
-        <StrategyBar value={strategy} set={onChange} keys={CHART_RULE_KEYS} />
-        <div className="tester-section">
-          <h3>Test</h3>
-          <div className="form-row">
-            <NumberField label="Capital ₹" value={strategy.capital} step={10000} min={1000} onChange={(v) => onChange({ capital: v ?? 100000 })} />
-            <NumberField label="Bars to test" value={strategy.bars} step={100} min={100} onChange={(v) => onChange({ bars: Math.min(5000, Math.max(100, v ?? 2000)) })} />
-          </div>
-          <p className="note">Runs on the active chart’s symbol and interval, on its last {strategy.bars} bars.</p>
+    <aside className="flex min-h-0 flex-1 flex-col" aria-label="Chart strategy">
+      <div className="flex shrink-0 flex-col gap-2 border-b border-line px-4 py-3">
+        <Switch
+          checked={strategy.enabled}
+          onChange={(enabled) => onChange({ enabled })}
+          label={<span className="font-medium">{strategy.enabled ? 'On the chart' : 'Apply to chart'}</span>}
+        />
+        <div className="min-h-[18px] text-[12px] leading-snug text-muted">
+          {!strategy.enabled ? (
+            'Turn it on to backtest the rules below on the active chart. It reruns as you change them.'
+          ) : state.error ? (
+            <span className="text-down">{state.error}</span>
+          ) : state.loading ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Spinner size={12} /> Testing on {ticker} · {tf}…
+            </span>
+          ) : s ? (
+            <>
+              {ticker} · {tf}: <b className="text-fg">{s.trades}</b> trades,{' '}
+              <b className={toneClass(s.total_return_pct) || 'text-fg'}>{pct(s.total_return_pct)}</b> (buy &amp; hold {pct(s.buy_hold_return_pct)})
+            </>
+          ) : null}
         </div>
-        <RulesEditor rules={strategy} set={onChange} conditions={conditions} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <StrategyBar value={strategy} set={onChange} keys={CHART_RULE_KEYS} flat />
+        <section className="@container border-b border-line px-4 py-3">
+          <h3 className="text-[13px] font-semibold text-fg">Test</h3>
+          <p className="mt-0.5 text-[12px] leading-snug text-muted">Runs on the active chart’s symbol and interval, on its last {strategy.bars} bars.</p>
+          <div className="mt-2.5 grid grid-cols-1 gap-3 @[300px]:grid-cols-2">
+            <NumberField label="Capital ₹" value={strategy.capital} step={10000} min={1000} onChange={(v) => v !== null && v > 0 && onChange({ capital: v })} />
+            <NumberField
+              label="Bars to test"
+              value={strategy.bars}
+              step={100}
+              min={100}
+              onChange={(v) => v !== null && onChange({ bars: Math.min(5000, Math.max(100, Math.round(v))) })}
+            />
+          </div>
+        </section>
+        {catalog.data ? (
+          <RulesEditor rules={strategy} set={onChange} conditions={catalog.data.conditions} flat />
+        ) : catalog.error ? (
+          <div className="p-4">
+            <ErrorText>{catalog.error.message}</ErrorText>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 p-4" aria-busy>
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-20 rounded-xl" />
+            ))}
+          </div>
+        )}
       </div>
     </aside>
   )
@@ -182,67 +206,106 @@ export function ChartStrategyReport({
   const [tab, setTab] = useState<ReportTab>('overview')
   const [height, setHeight] = usePref<number>('strategyReportHeight', 300)
   const [open, setOpen] = usePref<boolean>('strategyReportOpen', true)
+  const drag = useRef<{ y: number; h: number } | null>(null)
   const r = state.result
   const s = r?.summary
 
-  const startResize = (e: React.MouseEvent) => {
-    const startY = e.clientY
-    const startH = height
-    const move = (ev: MouseEvent) => setHeight(Math.min(window.innerHeight - 200, Math.max(160, startH + startY - ev.clientY)))
-    const up = () => {
-      window.removeEventListener('mousemove', move)
-      window.removeEventListener('mouseup', up)
-    }
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', up)
+  // Pointer capture keeps the drag on the handle (mouse and touch) without
+  // window listeners that could outlive the component.
+  const resize = {
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId)
+      drag.current = { y: e.clientY, h: height }
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+      const d = drag.current
+      if (d) setHeight(Math.round(Math.min(window.innerHeight - 200, Math.max(160, d.h + d.y - e.clientY))))
+    },
+    onPointerUp: () => (drag.current = null),
+    onPointerCancel: () => (drag.current = null),
   }
-  const ticker = r ? r.request.symbol.split(':')[1]?.replace(/-[A-Z]+$/, '') ?? r.request.symbol : ''
+  const ticker = r ? (r.request.symbol.split(':')[1]?.replace(/-[A-Z]+$/, '') ?? r.request.symbol) : ''
   const buyHold = useMemo(() => r?.buy_hold ?? null, [r])
 
   return (
-    <section className={`tester strategy-report ${open ? '' : 'collapsed'}`} style={open ? { height } : undefined} aria-label="Strategy tester">
-      {open && <div className="tester-resize" onMouseDown={startResize} role="separator" aria-orientation="horizontal" />}
-      <div className="tester-head">
-        <button className="icon-button" aria-label={open ? 'Minimize' : 'Expand'} aria-expanded={open} onClick={() => setOpen(!open)}>
+    <section
+      aria-label="Strategy tester"
+      style={open ? { height } : undefined}
+      className={cx(
+        'relative flex shrink-0 flex-col border-t border-line bg-surface',
+        open && 'max-h-[calc(100dvh-200px)] min-h-[160px] max-md:max-h-[45dvh]',
+      )}
+    >
+      {open && (
+        <div
+          {...resize}
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize"
+          className="group absolute inset-x-0 -top-1.5 z-10 flex h-3 cursor-ns-resize touch-none justify-center"
+        >
+          <span className="mt-1 h-1 w-10 rounded-full bg-line opacity-0 transition group-hover:opacity-100 max-md:opacity-100" />
+        </div>
+      )}
+      <div className="flex min-h-10 shrink-0 items-center gap-1 border-b border-line px-2 md:gap-2">
+        <IconButton label={open ? 'Minimize' : 'Expand'} aria-expanded={open} onClick={() => setOpen(!open)}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
             <path d={open ? 'M3 5l4 4 4-4' : 'M3 9l4-4 4 4'} />
           </svg>
-        </button>
-        <b className="report-title">Strategy Tester</b>
-        <button className="link-button" onClick={onSettings} title="Edit the rules">
+        </IconButton>
+        <b className="hidden text-[13px] font-semibold text-fg md:inline">Strategy Tester</b>
+        <button
+          onClick={onSettings}
+          title="Edit the rules"
+          className="max-w-[30vw] cursor-pointer truncate rounded-md px-1.5 py-1 text-[13px] font-medium text-accent hover:bg-accent-soft md:max-w-[240px]"
+        >
           {strategy.name}
         </button>
         {open && (
-          <div className="tabs inline" role="tablist">
-            {(['overview', 'trades'] as ReportTab[]).map((t) => (
-              <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-                {t === 'overview' ? 'Overview' : `List of trades${r ? ` (${r.trades.length})` : ''}`}
-              </button>
-            ))}
-          </div>
+          <Tabs
+            className="min-w-0"
+            value={tab}
+            onChange={setTab}
+            items={[
+              { id: 'overview', label: 'Overview' },
+              { id: 'trades', label: 'Trades', badge: r ? r.trades.length : undefined },
+            ]}
+          />
         )}
-        <span className="spacer" />
-        {state.loading && <span className="status small">Updating…</span>}
-        {state.error && <span className="status err small">{state.error}</span>}
+        <span className="flex-1" />
+        {state.loading && <Spinner size={14} className="mx-1 text-muted" />}
+        {state.error && <span className="hidden max-w-[40%] truncate text-[12px] text-down sm:inline">{state.error}</span>}
         {!open && s && (
-          <span className="status small">
-            {s.trades} trades · <span className={tone(s.total_return_pct) ?? ''}>{pct(s.total_return_pct)}</span> · max DD{' '}
-            {pct(s.max_drawdown_pct)}
+          <span className="truncate text-[12px] text-muted tabular-nums">
+            {s.trades} trades · <span className={toneClass(s.total_return_pct)}>{pct(s.total_return_pct)}</span> · max DD {pct(s.max_drawdown_pct)}
           </span>
         )}
-        <button className="icon-button" aria-label="Remove strategy from chart" title="Remove from chart" onClick={onRemove}>
+        <IconButton label="Remove strategy from chart" title="Remove from chart" onClick={onRemove}>
           <svg width="16" height="16" viewBox="0 0 18 18" stroke="currentColor" strokeWidth="1.5" aria-hidden>
             <path d="M4.5 4.5l9 9M13.5 4.5l-9 9" />
           </svg>
-        </button>
+        </IconButton>
       </div>
       {open && (
-        <div className={`tester-body ${state.loading ? 'stale' : ''}`}>
-          {!r && !state.error && <p className="status">{state.loading ? 'Running…' : 'No result yet.'}</p>}
+        <div className={cx('min-h-0 flex-1 overflow-auto p-3 transition-opacity', state.loading && r && 'opacity-60')}>
+          {state.error && <ErrorText className="mb-3 sm:hidden">{state.error}</ErrorText>}
+          {!r && !state.error &&
+            (state.loading ? (
+              <div className="flex flex-col gap-3" aria-busy>
+                <div className={KPI_GRID}>
+                  {Array.from({ length: 6 }, (_, i) => (
+                    <Skeleton key={i} className="h-[62px] rounded-xl" />
+                  ))}
+                </div>
+                <Skeleton className="h-[200px] rounded-xl" />
+              </div>
+            ) : (
+              <EmptyState title="No result yet" action={<Button size="sm" onClick={onSettings}>Edit rules</Button>} />
+            ))}
           {r && tab === 'overview' &&
             (s && s.trades ? (
-              <div className="tester-results">
-                <div className="kpis">
+              <div className="flex flex-col gap-3">
+                <div className={KPI_GRID}>
                   <Kpi label="Net profit" value={pct(s.total_return_pct)} tone={tone(s.total_return_pct)} />
                   <Kpi label={`Buy & hold ${ticker}`} value={pct(s.buy_hold_return_pct)} />
                   <Kpi label="Max drawdown" value={pct(s.max_drawdown_pct)} tone={tone(s.max_drawdown_pct)} />
@@ -255,21 +318,21 @@ export function ChartStrategyReport({
                   <Kpi label="Avg bars held" value={num(s.avg_bars, 1)} />
                   <Kpi label="Time in market" value={pct(s.exposure_pct, false)} />
                 </div>
-                <div className="legend-inline">
-                  <span>
-                    <i className="swatch" style={{ background: theme.series[0] }} /> Strategy equity
-                  </span>
-                  <span>
-                    <i className="swatch dashed" style={{ borderColor: theme.muted }} /> {ticker} buy &amp; hold
-                  </span>
-                  <span className="muted">
-                    {r.bars_tested} bars · {r.request.tf}
-                  </span>
+                <div className="flex flex-col gap-2 rounded-xl border border-line p-2.5">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted">
+                    <Swatch color={theme.series[0]}>Strategy equity</Swatch>
+                    <Swatch color={theme.muted} dashed>
+                      {ticker} buy &amp; hold
+                    </Swatch>
+                    <span>
+                      {r.bars_tested} bars · {r.request.tf}
+                    </span>
+                  </div>
+                  <EquityChart equity={r.equity} benchmark={buyHold} theme={theme} benchmarkLabel={ticker} className="h-[240px]" />
                 </div>
-                <EquityChart equity={r.equity} benchmark={buyHold} theme={theme} benchmarkLabel={ticker} />
               </div>
             ) : (
-              <p className="status">No trades on this chart: the entry conditions never matched in these {r.bars_tested} bars.</p>
+              <EmptyState title="No trades on this chart">The entry conditions never matched in these {r.bars_tested} bars.</EmptyState>
             ))}
           {r && tab === 'trades' && <Trades trades={r.trades} tf={r.request.tf} onOpen={onOpenTrade} />}
         </div>

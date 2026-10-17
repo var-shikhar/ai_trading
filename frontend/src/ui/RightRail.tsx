@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cx } from './kit'
 
 export type Dock = 'watchlist' | 'alerts' | 'patterns' | 'strategy'
 
@@ -44,17 +45,22 @@ export function MobileChartTabs({
   badges: Partial<Record<Dock, string | number | null>>
 }) {
   return (
-    <div className="mobile-chart-tabs" role="tablist" aria-label="Stock">
+    <div className="flex shrink-0 border-t border-line bg-surface" role="tablist" aria-label="Stock">
       {MOBILE_TABS.map((t) => (
         <button
           key={t.label}
           role="tab"
           aria-selected={dock === t.id}
-          className={dock === t.id ? 'active' : ''}
+          className={cx(
+            'relative flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-t-2 px-1 py-2.5 text-[13px] font-medium transition',
+            dock === t.id ? 'border-accent text-accent' : 'border-transparent text-muted active:bg-hover',
+          )}
           onClick={() => onDock(t.id === dock ? null : t.id)}
         >
           {t.label}
-          {t.id && badges[t.id] != null && <em className="tab-badge">{badges[t.id]}</em>}
+          {t.id && badges[t.id] != null && (
+            <span className="rounded-full bg-accent px-1.5 text-[10px] leading-4 font-semibold text-accent-fg">{badges[t.id]}</span>
+          )}
         </button>
       ))}
     </div>
@@ -73,18 +79,28 @@ export function RightRail({
   badges: Partial<Record<Dock, string | number | null>>
 }) {
   return (
-    <nav className="right-rail" aria-label="Chart panels">
+    <nav
+      className="flex w-[46px] shrink-0 flex-col items-center gap-1 border-l border-line bg-surface py-1.5 max-md:w-[42px]"
+      aria-label="Chart panels"
+    >
       {ITEMS.map((i) => (
         <button
           key={i.id}
-          className={`rail-button ${dock === i.id ? 'active' : ''}`}
+          className={cx(
+            'relative inline-flex size-9 cursor-pointer items-center justify-center rounded-md transition max-md:size-[34px]',
+            dock === i.id ? 'bg-selected text-accent' : 'text-muted hover:bg-hover hover:text-fg',
+          )}
           title={i.title}
           aria-label={i.title}
           aria-pressed={dock === i.id}
           onClick={() => onDock(dock === i.id ? null : i.id)}
         >
           {i.icon}
-          {badges[i.id] != null && <em className="rail-badge">{badges[i.id]}</em>}
+          {badges[i.id] != null && (
+            <span className="absolute top-px right-px min-w-3.5 rounded-full bg-accent px-[3px] text-center text-[9px] leading-3.5 font-semibold text-accent-fg">
+              {badges[i.id]}
+            </span>
+          )}
         </button>
       ))}
     </nav>

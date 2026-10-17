@@ -1,7 +1,12 @@
-import { patternKey, zoneKey, type ChartPattern, type ChartPatternResult, type ChartPatternSettings } from './chartPatterns'
+import type { ReactNode } from 'react'
+import { Badge, Checkbox, cx, EmptyState, ErrorText, Segmented, Skeleton, Spinner } from '../ui/kit'
+import { patternKey, zoneKey, type ChartPattern, type ChartPatternResult, type ChartPatternSettings, type PatternStatus } from './chartPatterns'
 import { formatBarTime } from './PatternPanel'
 
 const STATUS_ORDER = { forming: 0, confirmed: 1, failed: 2 }
+const STATUS_TONE: Record<PatternStatus, 'warn' | 'up' | 'neutral'> = { forming: 'warn', confirmed: 'up', failed: 'neutral' }
+const SENSITIVITY_HINT = { low: 'Major swings only (3× ATR)', medium: 'Swing trading (2× ATR)', high: 'Minor swings too (1.3× ATR)' }
+const fmtPrice = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 2 })
 
 /** Chart patterns tab of the Patterns side panel. */
 export function ChartPatternSection({
@@ -37,78 +42,80 @@ export function ChartPatternSection({
     else next.add(k)
     setHidden(next)
   }
-  const allHidden = patterns.length > 0 && patterns.every((p) => hidden.has(patternKey(p)))
+  const shownKeys = new Set(patterns.map(patternKey))
+  const hiddenCount = patterns.filter((p) => hidden.has(patternKey(p))).length
+  const allHidden = patterns.length > 0 && hiddenCount === patterns.length
 
   return (
     <>
-      <div className="panel-head">
-        <div className="segmented small" role="group" aria-label="Sensitivity">
-          {(['low', 'medium', 'high'] as const).map((s) => (
-            <button
-              key={s}
-              className={settings.sensitivity === s ? 'active' : ''}
-              title={
-                s === 'low' ? 'Major swings only (3× ATR)' : s === 'medium' ? 'Swing trading (2× ATR)' : 'Minor swings too (1.3× ATR)'
-              }
-              onClick={() => set({ sensitivity: s })}
-            >
-              {s[0].toUpperCase() + s.slice(1)}
-            </button>
-          ))}
+      <div className="flex shrink-0 flex-col gap-2.5 border-b border-line px-3 py-3">
+        <div className="flex items-center gap-2" title={SENSITIVITY_HINT[settings.sensitivity]}>
+          <span className="text-[12px] font-medium text-muted">Sensitivity</span>
+          <Segmented
+            size="sm"
+            className="flex-1"
+            value={settings.sensitivity}
+            onChange={(sensitivity) => set({ sensitivity })}
+            options={[
+              ['low', 'Low'],
+              ['medium', 'Medium'],
+              ['high', 'High'],
+            ]}
+          />
         </div>
-        <label className="check">
-          <input type="checkbox" checked={settings.showZones} onChange={(e) => set({ showZones: e.target.checked })} />
-          Support / resistance zones
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={settings.showFailed} onChange={(e) => set({ showFailed: e.target.checked })} />
-          Show failed patterns
-        </label>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <Checkbox checked={settings.showZones} onChange={(showZones) => set({ showZones })} label="Support / resistance" />
+          <Checkbox checked={settings.showFailed} onChange={(showFailed) => set({ showFailed })} label="Show failed" />
+        </div>
       </div>
-      <div className="panel-body">
-        {error && <p className="status err">{error}</p>}
-        {loading && !result && <p className="status">Scanning…</p>}
-        {result && patterns.length === 0 && <p className="status">No chart patterns on the loaded bars.</p>}
-        {patterns.length > 0 && (
-          <div className="pattern-visibility">
-            <span className="muted">
-              {patterns.length - patterns.filter((p) => hidden.has(patternKey(p))).length} of {patterns.length} on the chart
-            </span>
-            <button
-              className="link-button"
-              onClick={() =>
-                setHidden(allHidden ? [...hidden].filter((k) => !patterns.some((p) => patternKey(p) === k)) : [...hidden, ...patterns.map(patternKey)])
-              }
-            >
-              {allHidden ? 'Show all' : 'Hide all'}
-            </button>
-          </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {error && <ErrorText className="m-3">{error}</ErrorText>}
+        {loading && !result && !error && <ListSkeleton />}
+        {result && patterns.length === 0 && (
+          <EmptyState title="No chart patterns">
+            None on the loaded bars{settings.sensitivity !== 'high' ? '. Try a higher sensitivity or scroll back for more history.' : '.'}
+          </EmptyState>
         )}
-        <ul className="hit-list">
-          {patterns.map((p) => (
-            <li key={patternKey(p)} className={`with-eye ${hidden.has(patternKey(p)) ? 'is-hidden' : ''}`}>
-              <button
-                className="eye-button"
-                aria-pressed={!hidden.has(patternKey(p))}
-                title={hidden.has(patternKey(p)) ? 'Show on the chart' : 'Hide from the chart'}
-                onClick={() => toggle(patternKey(p))}
-              >
-                <EyeIcon off={hidden.has(patternKey(p))} />
-              </button>
-              <button className={highlight === patternKey(p) ? 'picked' : ''} onClick={() => onPick(p)}>
-                <span className={`dir ${p.direction}`}>{p.direction === 'bullish' ? '▲' : p.direction === 'bearish' ? '▼' : '◆'}</span>
-                <span className="hit-name">
-                  {p.name} <em className={`badge ${p.status}`}>{p.status}</em>
-                </span>
-                <span className="hit-time">
-                  {formatBarTime(p.start_time, intraday)} → {formatBarTime(p.end_time, intraday)}
-                </span>
-                <span className="hit-move">
-                  {p.target !== null && p.status !== 'failed' ? `→ ${p.target.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : ''}
-                </span>
-              </button>
-            </li>
-          ))}
+        {patterns.length > 0 && (
+          <VisibilityBar
+            shown={patterns.length - hiddenCount}
+            total={patterns.length}
+            allHidden={allHidden}
+            loading={loading}
+            onToggleAll={() => setHidden(allHidden ? [...hidden].filter((k) => !shownKeys.has(k)) : [...hidden, ...shownKeys])}
+          />
+        )}
+        <ul>
+          {patterns.map((p) => {
+            const k = patternKey(p)
+            return (
+              <EyeRow
+                key={k}
+                hidden={hidden.has(k)}
+                onToggle={() => toggle(k)}
+                onClick={() => onPick(p)}
+                picked={highlight === k}
+                mark={<DirMark direction={p.direction} />}
+                title={
+                  <>
+                    <span className="truncate">{p.name}</span>
+                    <Badge tone={STATUS_TONE[p.status]} className="shrink-0 capitalize">
+                      {p.status}
+                    </Badge>
+                  </>
+                }
+                sub={`${formatBarTime(p.start_time, intraday)} → ${formatBarTime(p.end_time, intraday)}`}
+                right={
+                  p.target !== null && p.status !== 'failed' ? (
+                    <span className="flex flex-col items-end leading-tight">
+                      <span className="text-[10px] text-muted">Target</span>
+                      <span className="font-medium text-fg">{fmtPrice(p.target)}</span>
+                    </span>
+                  ) : null
+                }
+              />
+            )
+          })}
         </ul>
         {result && settings.showZones && result.zones.length > 0 && <ZoneList zones={result.zones} settings={settings} set={set} />}
       </div>
@@ -123,6 +130,113 @@ export function EyeIcon({ off }: { off: boolean }) {
       <circle cx="9" cy="9" r="2.2" />
       {off && <path d="M3 15L15 3" />}
     </svg>
+  )
+}
+
+/** ▲ / ▼ / ◆ in the direction's color. */
+export function DirMark({ direction, neutral = '◆' }: { direction: 'bullish' | 'bearish' | 'neutral'; neutral?: string }) {
+  return (
+    <span
+      aria-label={direction}
+      className={cx(
+        'inline-flex w-4 shrink-0 justify-center text-[11px]',
+        direction === 'bullish' ? 'text-up' : direction === 'bearish' ? 'text-down' : 'text-muted',
+      )}
+    >
+      {direction === 'bullish' ? '▲' : direction === 'bearish' ? '▼' : neutral}
+    </span>
+  )
+}
+
+/** A list row with its own show/hide eye; dimmed while hidden from the chart. */
+export function EyeRow({
+  hidden,
+  onToggle,
+  onClick,
+  picked,
+  mark,
+  title,
+  sub,
+  right,
+}: {
+  hidden: boolean
+  onToggle: () => void
+  onClick: () => void
+  picked?: boolean
+  mark: ReactNode
+  title: ReactNode
+  sub?: ReactNode
+  right?: ReactNode
+}) {
+  return (
+    <li className={cx('flex items-stretch border-b border-line transition-colors', picked ? 'bg-selected' : 'hover:bg-hover')}>
+      <button
+        aria-pressed={!hidden}
+        aria-label={hidden ? 'Show on the chart' : 'Hide from the chart'}
+        title={hidden ? 'Show on the chart' : 'Hide from the chart'}
+        onClick={onToggle}
+        className={cx('flex w-11 shrink-0 items-center justify-center transition hover:text-fg', hidden ? 'text-muted opacity-60' : 'text-accent')}
+      >
+        <EyeIcon off={hidden} />
+      </button>
+      <button onClick={onClick} className={cx('flex min-h-12 min-w-0 flex-1 items-center gap-2 py-2 pr-3 text-left transition-opacity', hidden && 'opacity-45')}>
+        {mark}
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-fg">{title}</span>
+          {sub && <span className="truncate text-[11px] text-muted tabular-nums">{sub}</span>}
+        </span>
+        {right != null && <span className="shrink-0 text-right text-[12px] tabular-nums">{right}</span>}
+      </button>
+    </li>
+  )
+}
+
+/** "3 of 5 on the chart · Hide all" above an eye list. */
+export function VisibilityBar({
+  shown,
+  total,
+  allHidden,
+  loading,
+  onToggleAll,
+  title,
+}: {
+  shown: number
+  total: number
+  allHidden: boolean
+  loading?: boolean
+  onToggleAll: () => void
+  title?: ReactNode
+}) {
+  return (
+    <div className="flex h-10 items-center gap-2 border-b border-line bg-bg px-3 text-[12px] text-muted">
+      {title ?? (
+        <span className="tabular-nums">
+          {shown} of {total} on the chart
+        </span>
+      )}
+      {loading && <Spinner size={12} />}
+      <span className="flex-1" />
+      <button onClick={onToggleAll} className="-mr-1 h-8 rounded-md px-2 text-[12px] font-semibold text-accent transition hover:bg-hover">
+        {allHidden ? 'Show all' : 'Hide all'}
+      </button>
+    </div>
+  )
+}
+
+export function ListSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div aria-busy>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex min-h-12 items-center gap-3 border-b border-line px-3">
+          <Skeleton className="size-4 rounded-full" />
+          <span className="flex flex-1 flex-col gap-1.5">
+            <Skeleton className="h-3 w-32" />
+            <Skeleton className="h-2.5 w-20" />
+          </span>
+          <Skeleton className="h-3 w-12" />
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -146,34 +260,42 @@ function ZoneList({
     setHidden(next)
   }
   const allHidden = zones.every((z) => hidden.has(zoneKey(z)))
-  const fmt = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 2 })
   return (
     <>
-      <div className="pattern-visibility section-title">
-        <b>Support &amp; resistance</b>
-        <button className="link-button" onClick={() => setHidden(allHidden ? [] : zones.map(zoneKey))}>
-          {allHidden ? 'Show all' : 'Hide all'}
-        </button>
-      </div>
-      <ul className="hit-list">
+      <VisibilityBar
+        shown={zones.length - zones.filter((z) => hidden.has(zoneKey(z))).length}
+        total={zones.length}
+        allHidden={allHidden}
+        onToggleAll={() => setHidden(allHidden ? [] : zones.map(zoneKey))}
+        title={<b className="text-[12px] font-semibold tracking-wide text-fg uppercase">Support &amp; resistance</b>}
+      />
+      <ul>
         {zones.map((z) => {
           const k = zoneKey(z)
-          const off = hidden.has(k)
+          const support = z.kind === 'support'
           return (
-            <li key={k} className={`with-eye ${off ? 'is-hidden' : ''}`}>
-              <button className="eye-button" aria-pressed={!off} title={off ? 'Show on the chart' : 'Hide from the chart'} onClick={() => toggle(k)}>
-                <EyeIcon off={off} />
-              </button>
-              <button className="zone-row" onClick={() => toggle(k)}>
-                <span className={`dir ${z.kind === 'support' ? 'bullish' : 'bearish'}`}>{z.kind === 'support' ? 'S' : 'R'}</span>
-                <span className="hit-name">
-                  {fmt(z.low)} – {fmt(z.high)}
+            <EyeRow
+              key={k}
+              hidden={hidden.has(k)}
+              onToggle={() => toggle(k)}
+              onClick={() => toggle(k)}
+              mark={
+                <span
+                  className={cx(
+                    'inline-flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-bold',
+                    support ? 'bg-up-soft text-up' : 'bg-down-soft text-down',
+                  )}
+                >
+                  {support ? 'S' : 'R'}
                 </span>
-                <span className="hit-time">
-                  {z.kind === 'support' ? 'Support' : 'Resistance'} · {z.touches} touches
+              }
+              title={
+                <span className="truncate tabular-nums">
+                  {fmtPrice(z.low)} – {fmtPrice(z.high)}
                 </span>
-              </button>
-            </li>
+              }
+              sub={`${support ? 'Support' : 'Resistance'} · ${z.touches} touches`}
+            />
           )
         })}
       </ul>

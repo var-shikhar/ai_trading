@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import type { SeriesMarker, Time, UTCTimestamp } from 'lightweight-charts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -17,6 +18,7 @@ import { defaultStudies, type StudyInstance } from '../studies/model'
 import { applyTick, type LiveBar } from '../live/bars'
 import { live } from '../live/liveClient'
 import { RANGES } from '../ui/BottomBar'
+import { Button, Skeleton } from '../ui/kit'
 
 export const PAGE_BARS = 500
 const MAX_BARS = 20000
@@ -51,14 +53,7 @@ export interface PatternState {
   chartError: string | null
 }
 
-const NO_PATTERNS: PatternState = {
-  result: null,
-  loading: false,
-  error: null,
-  chart: null,
-  chartLoading: false,
-  chartError: null,
-}
+const NO_HITS: PatternResult = { hits: [], stats: [] }
 
 /** Rough number of bars covering `days` calendar days on a timeframe. */
 function barsForDays(tf: string, days: number): number {
@@ -88,7 +83,7 @@ interface Props {
   onStatus: (status: string, activeRange: string | null) => void
   onPatterns: (state: PatternState) => void
   syncCrosshair: number | null | undefined
-  onCrosshairTime: (time: number | null) => void
+  onCrosshairTime?: (time: number | null) => void
   syncRange: { from: number; to: number } | null
   onVisibleTimeRange?: (range: { from: number; to: number }) => void
   highlightPattern: string | null
@@ -97,6 +92,8 @@ interface Props {
   onDrawingAlert?: (d: Drawing, symbol: InstrumentHit) => void
   onPriceAlert?: (price: number, symbol: InstrumentHit) => void
   alertLevels?: number[]
+  /** Outline the chart while it's the active one (multi-chart layouts). */
+  outlined?: boolean
 }
 
 export function ChartPanel(p: Props) {
@@ -111,7 +108,11 @@ export function ChartPanel(p: Props) {
     [config.studies, catalog, catalogById],
   )
 
-  const [limit, setLimit] = useState(PAGE_BARS)
+  // Bars to load for this symbol/timeframe: a new key starts from the latest
+  // page (or what a range button asked for). Reset during render, so the
+  // first request for a new symbol already uses it.
+  const [view, setView] = useState({ key, limit: PAGE_BARS })
+  const [nextLimit, setNextLimit] = useState<number | null>(null)
   const [chart, setChart] = useState<StudyChartData | null>(null)
   const [chartKey, setChartKey] = useState('')
   const [loading, setLoading] = useState(false)
@@ -122,22 +123,18 @@ export function ChartPanel(p: Props) {
   const [activeRange, setActiveRange] = useState<string | null>(null)
   const [pendingRange, setPendingRange] = useState<string | null>(null)
   const [goTo, setGoTo] = useState<number | null>(null)
-  const [patterns, setPatterns] = useState<PatternState>(NO_PATTERNS)
   const [liveBar, setLiveBar] = useState<LiveBar | null>(null)
-  const [lastTickAt, setLastTickAt] = useState(0)
+  const [lastTick, setLastTick] = useState({ symbol: '', at: 0 })
   const [reloadSeq, setReloadSeq] = useState(0)
-  const patternRequestId = useRef(0)
 
-  // A new symbol/timeframe starts from the latest page, unless a range
-  // button asked for a specific amount of history.
-  const nextLimit = useRef<number | null>(null)
-  useEffect(() => {
-    setLimit(nextLimit.current ?? PAGE_BARS)
-    nextLimit.current = null
+  if (view.key !== key) {
+    setView({ key, limit: nextLimit ?? PAGE_BARS })
+    setNextLimit(null)
     // Keep the range highlight only when a range button caused this switch.
     if (!pendingRange) setActiveRange(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key])
+  }
+  const limit = view.key === key ? view.limit : (nextLimit ?? PAGE_BARS)
+  const setLimit = (f: (l: number) => number) => setView((v) => ({ ...v, limit: f(v.limit) }))
 
   // Only inputs that change the numbers trigger a refetch (not colors/visibility).
   const studyRequest = useMemo(() => studies.map((s) => ({ uid: s.uid, id: s.id, params: s.params })), [studies])
@@ -172,14 +169,24 @@ export function ChartPanel(p: Props) {
   })
   const sessionStart = chart?.session?.start ?? (symbol.symbol.startsWith('MCX:') ? '09:00' : '09:15')
   const liveRef = useRef<LiveBar | null>(null)
+  const lastTickRef = useRef(0)
+  const shownTickRef = useRef(0)
   useEffect(() => {
     liveRef.current = null
+    lastTickRef.current = 0
+    shownTickRef.current = 0
     setLiveBar(null)
     if (!authenticated) return
     return live.subscribe(symbol.symbol, (tick) => {
       const data = chartRef.current
       if (!data) return
-      setLastTickAt(Date.now())
+      const now = Date.now()
+      // Into state every few seconds only: it just drives the LIVE badge.
+      if (now - shownTickRef.current > 5000) {
+        shownTickRef.current = now
+        setLastTick({ symbol: symbol.symbol, at: now })
+      }
+      lastTickRef.current = now
       const prev = liveRef.current
       const r = applyTick(prev, data.candles[data.candles.length - 1], tick, tf, sessionStart)
       if (!r) return
@@ -191,21 +198,25 @@ export function ChartPanel(p: Props) {
   }, [authenticated, symbol.symbol, tf, sessionStart])
 
   // While ticks flow, refresh once a minute so indicators follow the live bar.
-  const isLive = Date.now() - lastTickAt < 15000
+  // (The interval reads the last tick from a ref: a captured time goes stale.)
+  const ticking = lastTick.symbol === symbol.symbol && lastTick.at > 0
+  const isLive = ticking && Date.now() - lastTick.at < 15000
   useEffect(() => {
-    if (!lastTickAt) return
+    if (!ticking) return
     const id = setInterval(() => {
-      if (Date.now() - lastTickAt < 60000) setReloadSeq((n) => n + 1)
+      if (Date.now() - lastTickRef.current < 60000) setReloadSeq((n) => n + 1)
     }, 60000)
     return () => clearInterval(id)
-  }, [lastTickAt > 0]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ticking])
 
   const loadMore = useCallback(() => {
     if (!loading && chart?.has_more && chartKey === key) setLimit((l) => Math.min(l + PAGE_BARS, MAX_BARS))
   }, [loading, chart, chartKey, key])
 
   // --- commands from the top/bottom bars ---------------------------------------------
-  const lastCommand = useRef(0)
+  // Starts at the current command: a chart shown again (layout switched back)
+  // must not replay a range/go-to it already handled.
+  const lastCommand = useRef(p.command?.seq ?? 0)
   useEffect(() => {
     const c = p.command
     if (!c || c.seq === lastCommand.current) return
@@ -221,7 +232,7 @@ export function ChartPanel(p: Props) {
       setPendingRange(c.label)
       if (r.tf === tf) setLimit((l) => Math.max(l, bars))
       else {
-        nextLimit.current = bars
+        setNextLimit(bars)
         p.onConfig({ tf: r.tf })
       }
     }
@@ -268,53 +279,49 @@ export function ChartPanel(p: Props) {
   const candleOn = config.showPatterns && mode === 'candles'
   const chartOn = config.showPatterns && mode === 'chart'
 
-  const chartPatternKey = `${key}|${limit}|${sensitivity}`
-  const chartRequestId = useRef(0)
-  useEffect(() => {
-    if (!authenticated || !chartOn) return
-    const id = ++chartRequestId.current
-    setPatterns((s) => ({ ...s, chartLoading: true, chartError: null }))
-    api
-      .chartPatterns(symbol.symbol, tf, limit, sensitivity)
-      .then((r) => id === chartRequestId.current && setPatterns((s) => ({ ...s, chart: r, chartLoading: false })))
-      .catch(
-        (e: Error) =>
-          id === chartRequestId.current &&
-          setPatterns((s) => ({ ...s, chart: null, chartLoading: false, chartError: e.message })),
-      )
-    // chartPatternKey covers symbol/tf/limit/sensitivity
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, chartOn, chartPatternKey])
+  // Pattern scans, cached per symbol/interval/bars/settings. While more
+  // history loads, the last result for the same chart stays shown.
+  const sameChart = (prev: { queryKey: readonly unknown[] } | undefined) =>
+    prev?.queryKey[2] === symbol.symbol && prev?.queryKey[3] === tf
+  const chartScan = useQuery({
+    queryKey: ['patterns', 'chart', symbol.symbol, tf, limit, sensitivity],
+    queryFn: () => api.chartPatterns(symbol.symbol, tf, limit, sensitivity),
+    enabled: authenticated && chartOn,
+    placeholderData: (prev, prevQuery) => (sameChart(prevQuery) ? prev : undefined),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
 
   // Only what the scan uses: hiding hits or chart-pattern settings don't rescan.
-  const { preset: scanPreset, custom: scanCustom, inContext: scanInContext } = config.patternSettings
-  const patternKey = `${key}|${limit}|${scanPreset}|${scanCustom.join(',')}|${scanInContext}`
-  useEffect(() => {
-    if (!authenticated || !candleOn) {
-      setPatterns((s) => ({ ...s, result: null, loading: false, error: null }))
-      return
-    }
-    const { preset, custom, inContext } = config.patternSettings
-    const id = ++patternRequestId.current
-    if (preset === 'custom' && custom.length === 0) {
-      setPatterns((s) => ({ ...s, result: { hits: [], stats: [] }, loading: false, error: null }))
-      return
-    }
-    setPatterns((s) => ({ ...s, loading: true, error: null }))
-    api
-      .patterns(symbol.symbol, tf, limit, {
+  const { preset, custom, inContext } = config.patternSettings
+  const noneChosen = preset === 'custom' && custom.length === 0
+  const candleActive = authenticated && candleOn
+  const candleScan = useQuery({
+    queryKey: ['patterns', 'candles', symbol.symbol, tf, limit, preset, custom.join(','), inContext],
+    queryFn: () =>
+      api.patterns(symbol.symbol, tf, limit, {
         inContext,
         ...(preset === 'custom' ? { patterns: custom } : {}),
         ...(preset === 'all' ? { allPatterns: true } : {}),
-      })
-      .then((r) => id === patternRequestId.current && setPatterns((s) => ({ ...s, result: r, loading: false })))
-      .catch(
-        (e: Error) =>
-          id === patternRequestId.current && setPatterns((s) => ({ ...s, result: null, loading: false, error: e.message })),
-      )
-    // patternKey covers symbol/tf/limit/settings
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, candleOn, patternKey])
+      }),
+    enabled: candleActive && !noneChosen,
+    placeholderData: (prev, prevQuery) => (sameChart(prevQuery) ? prev : undefined),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
+
+  const chartActive = authenticated && chartOn
+  const patterns = useMemo<PatternState>(
+    () => ({
+      result: !candleActive ? null : noneChosen ? NO_HITS : (candleScan.data ?? null),
+      loading: candleActive && !noneChosen && candleScan.isFetching,
+      error: candleActive && !noneChosen ? (candleScan.error?.message ?? null) : null,
+      chart: chartScan.data ?? null,
+      chartLoading: chartActive && chartScan.isFetching,
+      chartError: chartActive ? (chartScan.error?.message ?? null) : null,
+    }),
+    [candleActive, noneChosen, candleScan.data, candleScan.isFetching, candleScan.error, chartActive, chartScan.data, chartScan.isFetching, chartScan.error],
+  )
 
   const markers = useMemo(() => {
     const own =
@@ -324,6 +331,12 @@ export function ChartPanel(p: Props) {
     const extra = p.extraMarkers ?? []
     return extra.length ? [...own, ...extra].sort((a, b) => (a.time as number) - (b.time as number)) : own
   }, [candleOn, patterns.result, p.patternCatalog, theme, p.extraMarkers, config.patternSettings.hiddenHits])
+
+  // Memoized: a new object every render would redraw the overlay each time.
+  const visibleChart = useMemo(
+    () => (chartOn ? visiblePatterns(patterns.chart, hidden, hiddenZones) : null),
+    [chartOn, patterns.chart, hidden, hiddenZones],
+  )
 
   // --- report up to the app (only the active chart drives the bars) ---------------
   const status = loading
@@ -354,14 +367,11 @@ export function ChartPanel(p: Props) {
     [symbol.symbol, p.onDrawingsChange],
   )
 
+  const ready = !!chart && chartKey === key
+  const retry = () => setReloadSeq((n) => n + 1)
+
   return (
-    <section
-      className={`chart-panel ${active ? 'active' : ''}`}
-      onMouseDownCapture={p.onActivate}
-      aria-label={`${symbol.ticker} ${tf} chart`}
-    >
-      {loadError && <div className="overlay err">{loadError}</div>}
-      {!authenticated && <div className="overlay">Connect Fyers to load charts.</div>}
+    <section className="absolute inset-0" onMouseDownCapture={p.onActivate} aria-label={`${symbol.ticker} ${tf} chart`} aria-busy={loading}>
       {chart && (
         <PriceChart
           data={chart}
@@ -394,7 +404,7 @@ export function ChartPanel(p: Props) {
           onCrosshairTime={p.onCrosshairTime}
           syncRange={p.syncRange}
           onVisibleTimeRange={p.onVisibleTimeRange}
-          chartPatterns={chartOn ? visiblePatterns(patterns.chart, hidden, hiddenZones) : null}
+          chartPatterns={visibleChart}
           showZones={showZones}
           highlightPattern={p.highlightPattern}
           liveBar={liveBar && chartKey === key ? liveBar.bar : null}
@@ -404,9 +414,73 @@ export function ChartPanel(p: Props) {
           isLive={isLive}
           tf={tf}
           symbol={symbol.symbol}
+          refreshing={loading && ready}
         />
       )}
+      {/* First load, or a new symbol/interval: a placeholder instead of the old chart. */}
+      {authenticated && !ready && !loadError && <ChartLoading />}
+      {loadError && !ready && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface p-6">
+          <div
+            role="alert"
+            className="flex max-w-sm flex-col items-center gap-2 rounded-2xl border border-line bg-raised px-6 py-5 text-center shadow-card"
+          >
+            <span className="mb-1 flex size-10 items-center justify-center rounded-full bg-down-soft text-[18px] font-bold text-down">!</span>
+            <p className="text-[14px] font-semibold text-fg">Couldn&apos;t load {symbol.ticker}</p>
+            <p className="text-[13px] break-words text-muted">{loadError}</p>
+            <Button size="sm" variant="primary" className="mt-2" onClick={retry}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+      {loadError && ready && (
+        <div
+          role="alert"
+          className="absolute top-2 left-1/2 z-20 flex max-w-[90%] -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-raised py-1 pr-1 pl-3 text-[12px] text-down shadow-card"
+        >
+          <span className="truncate">Couldn&apos;t refresh: {loadError}</span>
+          <Button size="sm" variant="soft" className="h-6 rounded-full px-2.5 text-[12px]" onClick={retry}>
+            Retry
+          </Button>
+        </div>
+      )}
+      {p.outlined && active && <div aria-hidden className="pointer-events-none absolute inset-0 z-30 border border-accent" />}
     </section>
+  )
+}
+
+// Heights (%) of the placeholder candles: a fixed, gentle up and down.
+const SKELETON_BARS = Array.from({ length: 28 }, (_, i) => 34 + Math.round(16 * Math.sin(i / 2.2) + 9 * Math.sin(i / 0.9)))
+
+/** Shimmering placeholder of a chart: legend, candles, price and time axes. */
+function ChartLoading() {
+  return (
+    <div className="absolute inset-0 z-10 flex flex-col gap-3 bg-surface p-3" aria-label="Loading chart">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-3 w-56 max-md:hidden" />
+      </div>
+      <div className="flex min-h-0 flex-1 gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-[3px] overflow-hidden px-2 opacity-70">
+          {SKELETON_BARS.map((h, i) => (
+            <div key={i} className="flex min-w-1 flex-1 justify-center" style={{ height: `${h}%` }}>
+              <Skeleton className="h-full w-full rounded-sm" />
+            </div>
+          ))}
+        </div>
+        <div className="flex w-12 shrink-0 flex-col justify-between py-2">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className="h-2.5 w-10" />
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-between gap-2 pr-14">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-2.5 w-10" />
+        ))}
+      </div>
+    </div>
   )
 }
 

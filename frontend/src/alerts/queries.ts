@@ -20,13 +20,17 @@ export function useAlertActions() {
     return prev
   }
   const optimistic = <V>(mutationFn: (v: V) => Promise<unknown>, apply: (v: V) => (a: Alert[]) => Alert[]) => ({
+    // One queue: quick on/off/on taps reach the server in the order tapped.
+    scope: { id: 'alerts' },
     mutationFn,
     onMutate: async (v: V) => {
       await qc.cancelQueries({ queryKey: KEY })
       return { prev: patch(apply(v)) }
     },
     onError: (_e: unknown, _v: V, ctx?: { prev?: AlertList }) => ctx?.prev && qc.setQueryData(KEY, ctx.prev),
-    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: KEY })
+    },
   })
 
   const setStatus = useMutation(
@@ -41,9 +45,15 @@ export function useAlertActions() {
       (a) => (all) => all.filter((x) => x.id !== a.id),
     ),
   )
+  // Resolves as soon as the server saved it (the list refreshes in the
+  // background), so the dialog closes at once and can't be submitted twice.
   const save = useMutation({
     mutationFn: ({ id, body }: { id?: string; body: AlertIn }) => (id ? api.updateAlert(id, body) : api.createAlert(body)),
-    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: (saved) =>
+      patch((all) => (all.some((x) => x.id === saved.id) ? all.map((x) => (x.id === saved.id ? saved : x)) : [saved, ...all])),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: KEY })
+    },
   })
   return { setStatus, remove, save, error: (setStatus.error ?? remove.error) as Error | null }
 }

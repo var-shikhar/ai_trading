@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
-import type { Direction, PatternCatalog, PatternHit, PatternInfo, PatternResult } from '../api/client'
-import { ChartPatternSection, EyeIcon } from './ChartPatternSection'
+import { useMemo, useState, type ReactNode } from 'react'
+import type { PatternCatalog, PatternHit, PatternInfo, PatternResult } from '../api/client'
+import { Badge, Button, Checkbox, cx, EmptyState, ErrorText, Input, Segmented, Skeleton, Switch, Tabs } from '../ui/kit'
+import { ChartPatternSection, DirMark, EyeRow, ListSkeleton, VisibilityBar } from './ChartPatternSection'
 import {
   DEFAULT_CHART_PATTERN_SETTINGS,
   type ChartPattern,
@@ -53,8 +54,6 @@ const KIND_LABELS: Record<PatternInfo['kind'], string> = {
 // Stats from fewer hits than this are shown but flagged as unreliable.
 const MIN_RELIABLE = 5
 
-const ARROW: Record<Direction, string> = { bullish: '▲', bearish: '▼', neutral: '●' }
-
 export function formatBarTime(time: number, intraday: boolean): string {
   // Times are IST wall-clock encoded as UTC.
   const iso = new Date(time * 1000).toISOString()
@@ -79,43 +78,53 @@ export function PatternPanel({
   onShown,
 }: Props) {
   const mode = patternMode(settings)
-  const modeTabs = (
-    <>
-      <div className="watch-head">
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2.5">
         {/* Master switch for all of them; each row's eye hides just that one. */}
-        <label className="switch" title={shown ? 'Remove all patterns from the chart' : 'Draw the patterns on the chart'}>
-          <input type="checkbox" checked={shown} onChange={(e) => onShown(e.target.checked)} />
-          <span>Patterns on chart</span>
-        </label>
+        <Switch checked={shown} onChange={onShown} label={<span className="font-medium">Patterns on chart</span>} />
+        <span className="flex-1" />
+        {!shown && <span className="text-[11px] text-muted">Hidden from the chart</span>}
       </div>
-      <div className="tabs mode-tabs" role="tablist" aria-label="Pattern type">
-        <button role="tab" className={mode === 'candles' ? 'active' : ''} onClick={() => onSettings({ ...settings, mode: 'candles' })}>
-          Candlestick
-        </button>
-        <button role="tab" className={mode === 'chart' ? 'active' : ''} onClick={() => onSettings({ ...settings, mode: 'chart' })}>
-          Chart patterns
-        </button>
+      <Tabs
+        className="shrink-0 border-b border-line px-1"
+        value={mode}
+        onChange={(m) => onSettings({ ...settings, mode: m })}
+        items={[
+          { id: 'candles', label: 'Candlestick' },
+          { id: 'chart', label: 'Chart patterns' },
+        ]}
+      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {mode === 'chart' ? (
+          <ChartPatternSection
+            settings={chartSettings(settings)}
+            onSettings={(chart) => onSettings({ ...settings, chart })}
+            result={chartResult}
+            loading={chartLoading}
+            error={chartError}
+            intraday={intraday}
+            highlight={highlight}
+            onPick={onPickPattern}
+          />
+        ) : !shown && !result ? (
+          // Switched off, nothing is scanned: say so instead of an empty list.
+          <EmptyState
+            title="Patterns are off"
+            action={
+              <Button variant="primary" size="sm" onClick={() => onShown(true)}>
+                Show patterns
+              </Button>
+            }
+          >
+            Turn them on to find candlestick patterns on this chart.
+          </EmptyState>
+        ) : (
+          <CandlestickSection {...{ catalog, settings, onSettings, result, loading, error, intraday, onFocus }} />
+        )}
       </div>
-    </>
+    </div>
   )
-  if (mode === 'chart') {
-    return (
-      <aside className="pattern-panel">
-        {modeTabs}
-        <ChartPatternSection
-          settings={chartSettings(settings)}
-          onSettings={(chart) => onSettings({ ...settings, chart })}
-          result={chartResult}
-          loading={chartLoading}
-          error={chartError}
-          intraday={intraday}
-          highlight={highlight}
-          onPick={onPickPattern}
-        />
-      </aside>
-    )
-  }
-  return <CandlestickSection {...{ catalog, settings, onSettings, result, loading, error, intraday, onFocus, modeTabs }} />
 }
 
 function CandlestickSection({
@@ -127,10 +136,7 @@ function CandlestickSection({
   error,
   intraday,
   onFocus,
-  modeTabs,
-}: Pick<Props, 'catalog' | 'settings' | 'onSettings' | 'result' | 'loading' | 'error' | 'intraday' | 'onFocus'> & {
-  modeTabs: React.ReactNode
-}) {
+}: Pick<Props, 'catalog' | 'settings' | 'onSettings' | 'result' | 'loading' | 'error' | 'intraday' | 'onFocus'>) {
   const [tab, setTab] = useState<'hits' | 'stats' | 'pick'>('hits')
   const byId = useMemo(() => Object.fromEntries(catalog.patterns.map((p) => [p.id, p])), [catalog])
   const hits = useMemo(() => [...(result?.hits ?? [])].reverse(), [result])
@@ -148,70 +154,67 @@ function CandlestickSection({
     else next.add(k)
     setHidden(next)
   }
-  const allHidden = hits.length > 0 && hits.every((h) => hidden.has(hitKey(h)))
+  const hiddenCount = hits.filter((h) => hidden.has(hitKey(h))).length
+  const allHidden = hits.length > 0 && hiddenCount === hits.length
+  const waiting = loading && !result && !error
 
   return (
-    <aside className="pattern-panel">
-      {modeTabs}
-      <div className="panel-head">
-        <div className="segmented small" role="group" aria-label="Pattern set">
-          {(['common', 'all', 'custom'] as const).map((p) => (
-            <button
-              key={p}
-              className={settings.preset === p ? 'active' : ''}
-              onClick={() => {
-                set({ preset: p })
-                if (p === 'custom') setTab('pick')
-              }}
-            >
-              {p === 'common' ? 'Common' : p === 'all' ? `All ${catalog.patterns.length}` : 'Custom'}
-            </button>
-          ))}
-        </div>
-        <label
-          className="check"
-          title={`Reversals need a prior trend over ${catalog.trend_lookback} bars: bullish after a decline, bearish after a rise`}
-        >
-          <input
-            type="checkbox"
-            checked={settings.inContext}
-            onChange={(e) => set({ inContext: e.target.checked })}
-          />
-          Only in trend context
-        </label>
+    <>
+      <div className="flex shrink-0 flex-col gap-2.5 border-b border-line px-3 py-3">
+        <Segmented
+          size="sm"
+          className="w-full"
+          value={settings.preset}
+          onChange={(p) => {
+            set({ preset: p })
+            if (p === 'custom') setTab('pick')
+          }}
+          options={[
+            ['common', 'Common'],
+            ['all', `All ${catalog.patterns.length}`],
+            ['custom', 'Custom'],
+          ]}
+        />
+        <span title={`Reversals need a prior trend over ${catalog.trend_lookback} bars: bullish after a decline, bearish after a rise`}>
+          <Checkbox checked={settings.inContext} onChange={(inContext) => set({ inContext })} label="Only in trend context" />
+        </span>
       </div>
 
-      <div className="tabs" role="tablist">
-        <button role="tab" className={tab === 'hits' ? 'active' : ''} onClick={() => setTab('hits')}>
-          Hits {result ? `(${result.hits.length})` : ''}
-        </button>
-        <button role="tab" className={tab === 'stats' ? 'active' : ''} onClick={() => setTab('stats')}>
-          Stats
-        </button>
-        <button role="tab" className={tab === 'pick' ? 'active' : ''} onClick={() => setTab('pick')}>
-          Patterns
-          {settings.preset === 'custom' ? ` (${settings.custom.length})` : ''}
-        </button>
-      </div>
+      <Tabs
+        className="shrink-0 border-b border-line px-1"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: 'hits', label: 'Hits', badge: result ? result.hits.length : undefined },
+          { id: 'stats', label: 'Stats' },
+          { id: 'pick', label: 'Patterns', badge: settings.preset === 'custom' ? settings.custom.length : undefined },
+        ]}
+      />
 
-      <div className="panel-body">
-        {error && <p className="status err">{error}</p>}
-        {loading && !result && <p className="status">Scanning…</p>}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {error && tab !== 'pick' && <ErrorText className="m-3">{error}</ErrorText>}
 
+        {tab === 'hits' && waiting && <ListSkeleton />}
         {tab === 'hits' && result && (
           <>
-            {hits.length === 0 && <p className="status">No patterns on the loaded bars.</p>}
-            {hits.length > 0 && (
-              <div className="pattern-visibility">
-                <span className="muted">
-                  {hits.length - hits.filter((h) => hidden.has(hitKey(h))).length} of {hits.length} on the chart
-                </span>
-                <button className="link-button" onClick={() => setHidden(allHidden ? [] : hits.map(hitKey))}>
-                  {allHidden ? 'Show all' : 'Hide all'}
-                </button>
-              </div>
+            {hits.length === 0 ? (
+              <EmptyState title="No patterns found">
+                {settings.preset === 'custom' && settings.custom.length === 0
+                  ? 'No patterns are picked. Choose some under Patterns.'
+                  : settings.inContext
+                    ? 'None on the loaded bars. Try turning off "Only in trend context".'
+                    : 'None on the loaded bars.'}
+              </EmptyState>
+            ) : (
+              <VisibilityBar
+                shown={hits.length - hiddenCount}
+                total={hits.length}
+                allHidden={allHidden}
+                loading={loading}
+                onToggleAll={() => setHidden(allHidden ? [] : hits.map(hitKey))}
+              />
             )}
-            <ul className="hit-list">
+            <ul>
               {hits.map((h) => (
                 <HitRow
                   key={hitKey(h)}
@@ -228,52 +231,77 @@ function CandlestickSection({
           </>
         )}
 
+        {tab === 'stats' && waiting && <StatsSkeleton />}
         {tab === 'stats' && result && (
           <>
-            <p className="note">
-              What happened {catalog.outcome_bars} bars after each hit on the loaded bars. "Win" = price
-              moved the way the pattern predicts. Rows under {MIN_RELIABLE} hits are faded: too few to
-              trust.
+            <p className="px-3 pt-3 pb-2 text-[12px] leading-relaxed text-muted">
+              What happened {catalog.outcome_bars} bars after each hit on the loaded bars. "Win" = price moved the way the pattern
+              predicts. Rows under {MIN_RELIABLE} hits are faded: too few to trust.
             </p>
-            <table className="stats">
-              <thead>
-                <tr>
-                  <th>Pattern</th>
-                  <th className="num">Hits</th>
-                  <th className="num">Win %</th>
-                  <th className="num">Avg move</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.stats.map((s) => (
-                  <tr key={`${s.pattern}-${s.direction}`} className={s.count < MIN_RELIABLE ? 'faded' : ''}>
-                    <td>
-                      <span className={`dir ${s.direction}`}>{ARROW[s.direction]}</span>{' '}
-                      {byId[s.pattern]?.name ?? s.pattern}
-                    </td>
-                    <td className="num">{s.count}</td>
-                    <td className="num">{s.win_rate === null ? '–' : `${s.win_rate}%`}</td>
-                    <td className="num">
-                      {s.direction === 'neutral' ? '±' : s.avg_move_pct >= 0 ? '+' : ''}
-                      {s.avg_move_pct.toFixed(2)}%
-                    </td>
+            {result.stats.length === 0 ? (
+              <EmptyState title="No stats yet">
+                Not enough completed hits yet.
+              </EmptyState>
+            ) : (
+              <table className="w-full border-collapse text-[12px] tabular-nums">
+                <thead>
+                  <tr className="border-b border-line text-[11px] tracking-wide text-muted uppercase">
+                    <th className="px-3 py-2 text-left font-medium">Pattern</th>
+                    <th className="px-1 py-2 text-right font-medium">Hits</th>
+                    <th className="px-1 py-2 text-right font-medium">Win %</th>
+                    <th className="py-2 pr-3 pl-1 text-right font-medium">Avg move</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {result.stats.length === 0 && <p className="status">Not enough completed hits yet.</p>}
+                </thead>
+                <tbody>
+                  {result.stats.map((s) => {
+                    const good = s.win_rate !== null && s.win_rate >= 50
+                    return (
+                      <tr key={`${s.pattern}-${s.direction}`} className={cx('border-b border-line', s.count < MIN_RELIABLE && 'opacity-50')}>
+                        <td className="px-3 py-2.5">
+                          <span className="flex min-w-0 items-center gap-1.5 text-fg">
+                            <DirMark direction={s.direction} neutral="●" />
+                            <span className="truncate">{byId[s.pattern]?.name ?? s.pattern}</span>
+                          </span>
+                        </td>
+                        <td className="px-1 py-2.5 text-right text-muted">{s.count}</td>
+                        <td className={cx('px-1 py-2.5 text-right font-medium', s.win_rate === null ? 'text-muted' : good ? 'text-up' : 'text-down')}>
+                          {s.win_rate === null ? '–' : `${s.win_rate}%`}
+                        </td>
+                        <td className="py-2.5 pr-3 pl-1 text-right text-fg">
+                          {s.direction === 'neutral' ? '±' : s.avg_move_pct >= 0 ? '+' : ''}
+                          {s.avg_move_pct.toFixed(2)}%
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
           </>
         )}
 
         {tab === 'pick' && (
-          <PatternPicker
-            catalog={catalog}
-            selected={settings.custom}
-            onChange={(custom) => set({ custom, preset: 'custom' })}
-          />
+          <PatternPicker catalog={catalog} selected={settings.custom} onChange={(custom) => set({ custom, preset: 'custom' })} />
         )}
       </div>
-    </aside>
+    </>
+  )
+}
+
+function StatsSkeleton() {
+  return (
+    <div aria-busy className="flex flex-col gap-3 p-3">
+      <Skeleton className="h-3 w-full" />
+      <Skeleton className="h-3 w-3/4" />
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <Skeleton className="h-3 flex-1" />
+          <Skeleton className="h-3 w-8" />
+          <Skeleton className="h-3 w-10" />
+          <Skeleton className="h-3 w-12" />
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -297,30 +325,31 @@ function HitRow({
   const predicted = hit.direction === 'bullish' ? 1 : hit.direction === 'bearish' ? -1 : 0
   const worked = hit.move_pct === null || predicted === 0 ? null : hit.move_pct * predicted > 0
   return (
-    <li className={`with-eye ${hidden ? 'is-hidden' : ''}`}>
-      <button
-        className="eye-button"
-        aria-pressed={!hidden}
-        title={hidden ? 'Show on the chart' : 'Hide from the chart'}
-        onClick={onToggle}
-      >
-        <EyeIcon off={hidden} />
-      </button>
-      <button onClick={() => onFocus(hit.time)}>
-        <span className={`dir ${hit.direction}`}>{ARROW[hit.direction]}</span>
-        <span className="hit-name">
-          {info?.name ?? hit.pattern}
-          {!hit.in_context && <em title="Prior trend doesn't fit this pattern"> · against trend</em>}
-        </span>
-        <span className="hit-time">{formatBarTime(hit.time, intraday)}</span>
+    <EyeRow
+      hidden={hidden}
+      onToggle={onToggle}
+      onClick={() => onFocus(hit.time)}
+      mark={<DirMark direction={hit.direction} neutral="●" />}
+      title={
+        <>
+          <span className="truncate">{info?.name ?? hit.pattern}</span>
+          {!hit.in_context && (
+            <span title="Prior trend doesn't fit this pattern" className="shrink-0">
+              <Badge tone="warn">against trend</Badge>
+            </span>
+          )}
+        </>
+      }
+      sub={formatBarTime(hit.time, intraday)}
+      right={
         <span
-          className={`hit-move ${worked === null ? '' : worked ? 'win' : 'loss'}`}
           title={`Move ${outcomeBars} bars later`}
+          className={cx('font-medium', worked === null ? 'text-muted' : worked ? 'text-up' : 'text-down')}
         >
           {hit.move_pct === null ? 'pending' : `${hit.move_pct >= 0 ? '+' : ''}${hit.move_pct.toFixed(2)}%`}
         </span>
-      </button>
-    </li>
+      }
+    />
   )
 }
 
@@ -335,11 +364,10 @@ function PatternPicker({
 }) {
   const [filter, setFilter] = useState('')
   const chosen = new Set(selected)
+  const q = filter.trim().toLowerCase()
   const groups = (['reversal', 'continuation', 'indecision'] as const).map((kind) => ({
     kind,
-    items: catalog.patterns.filter(
-      (p) => p.kind === kind && p.name.toLowerCase().includes(filter.trim().toLowerCase()),
-    ),
+    items: catalog.patterns.filter((p) => p.kind === kind && p.name.toLowerCase().includes(q)),
   }))
 
   const toggle = (id: string, on: boolean) => {
@@ -350,29 +378,53 @@ function PatternPicker({
   }
 
   return (
-    <div className="picker">
-      <div className="picker-tools">
-        <input placeholder="Filter patterns…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <button onClick={() => onChange(catalog.patterns.filter((p) => p.common).map((p) => p.id))}>
+    <div className="flex flex-col">
+      <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-line bg-surface p-3">
+        <Input placeholder="Filter patterns…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <Button onClick={() => onChange(catalog.patterns.filter((p) => p.common).map((p) => p.id))}>
           Common
-        </button>
-        <button onClick={() => onChange([])}>Clear</button>
+        </Button>
+        <Button variant="ghost" onClick={() => onChange([])}>
+          Clear
+        </Button>
       </div>
+      {groups.every((g) => g.items.length === 0) && (
+        <EmptyState title="No match">
+          No pattern name contains “{filter.trim()}”.
+        </EmptyState>
+      )}
       {groups.map(
         (g) =>
           g.items.length > 0 && (
-            <fieldset key={g.kind}>
-              <legend>{KIND_LABELS[g.kind]}</legend>
+            <section key={g.kind}>
+              <h3 className="flex items-center justify-between bg-bg px-3 py-1.5 text-[11px] font-semibold tracking-wider text-muted uppercase">
+                {KIND_LABELS[g.kind]}
+                <span className="font-medium normal-case tabular-nums">
+                  {g.items.filter((p) => chosen.has(p.id)).length}/{g.items.length}
+                </span>
+              </h3>
               {g.items.map((p) => (
-                <label key={p.id} className="check">
-                  <input type="checkbox" checked={chosen.has(p.id)} onChange={(e) => toggle(p.id, e.target.checked)} />
-                  {p.name}
-                  {!p.common && <span className="muted"> · rare/noisy</span>}
-                </label>
+                <PickRow key={p.id}>
+                  <Checkbox
+                    checked={chosen.has(p.id)}
+                    onChange={(on) => toggle(p.id, on)}
+                    label={
+                      <>
+                        {p.name}
+                        {!p.common && <span className="ml-1.5 text-[11px] text-muted">rare/noisy</span>}
+                      </>
+                    }
+                  />
+                </PickRow>
               ))}
-            </fieldset>
+            </section>
           ),
       )}
     </div>
   )
+}
+
+// The checkbox label fills the row, so the whole 40px row is the tap target.
+function PickRow({ children }: { children: ReactNode }) {
+  return <div className="flex min-h-10 items-stretch border-b border-line px-3 hover:bg-hover [&>label]:flex-1 [&>label]:gap-2.5">{children}</div>
 }

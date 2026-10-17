@@ -31,7 +31,7 @@ export function CandleTimer({
   if (left === null || y === null || y < 0 || y > pane - 12) return null
   return (
     <div
-      className="candle-timer"
+      className="pointer-events-none absolute right-0 z-[6] rounded-b-[2px] py-px text-center text-[11px] leading-[14px] text-white tabular-nums"
       style={{ top: y + 11, width: chart.priceScale('right').width(), background: color }}
       title="Time left in this candle"
     >

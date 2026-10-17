@@ -1,11 +1,7 @@
-/* Tailwind, added screen by screen. No preflight (base reset): the older
-   screens keep their own styles from index.css. Utilities use the same
-   color tokens, so light/dark switching works without dark: variants.
-   Note: unlayered rules in index.css beat utilities, so new components
-   use utilities only, not the old class names. */
-@layer theme, base, utilities;
-@import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css' layer(utilities);
+/* Tailwind for the whole app. index.css holds the color tokens (light/dark)
+   and chart-specific styles that aren't Tailwind; its unlayered rules win
+   over utilities, so new code uses utilities only. */
+@import 'tailwindcss';
 
 @theme inline {
   --color-bg: var(--bg);
@@ -23,30 +19,44 @@
   --color-down: var(--err);
   --color-up-soft: var(--ok-soft);
   --color-down-soft: var(--err-soft);
+  --color-star: var(--star);
   --shadow-card: var(--shadow-card);
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+  --animate-pop: pop 0.14s ease-out;
 }
 
-/* Tailwind's reset, but only inside screens built with Tailwind (root has
-   class "tw"), so the older screens are untouched. */
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+@utility shimmer-bg {
+  background-image: linear-gradient(90deg, var(--hover) 0%, var(--border) 50%, var(--hover) 100%);
+}
+
 @layer base {
-  .tw,
-  .tw *,
-  .tw ::before,
-  .tw ::after {
-    box-sizing: border-box;
-    border: 0 solid;
+  button {
+    cursor: pointer;
   }
-  .tw button {
-    padding: 0;
-    background: transparent;
-    font: inherit;
-    color: inherit;
+  button:disabled {
+    cursor: default;
   }
-  .tw :is(p, h1, h2, h3, h4, ul, ol) {
-    margin: 0;
-  }
-  .tw :is(ul, ol) {
-    padding: 0;
-    list-style: none;
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }

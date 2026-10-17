@@ -48,12 +48,15 @@ export function useDrawings(o: Options) {
     stateRef.current = { working, draft, selectedId }
   })
 
-  // Parent data (load for a new symbol, or our own saved edits) wins.
-  useEffect(() => {
+  // Parent data (load for a new symbol, or our own saved edits) wins. Taken
+  // during render, so no frame draws the old symbol's drawings.
+  const [source, setSource] = useState(o.drawings)
+  if (source !== o.drawings) {
+    setSource(o.drawings)
     setWorking(o.drawings)
     setDraft(null)
     setSelectedId((id) => (o.drawings.some((d) => d.id === id) ? id : null))
-  }, [o.drawings])
+  }
 
   const mapperRef = useRef<Mapper | null>(null)
   useEffect(() => {
@@ -82,7 +85,8 @@ export function useDrawings(o: Options) {
     const live = o.live
     if (!container || !live) return
 
-    let drag: { id: string; handle: Handle; x: number; y: number; orig: Drawing; moved: boolean } | null = null
+    // `result`: the list after the latest move (stateRef lags a render behind).
+    let drag: { id: string; handle: Handle; x: number; y: number; orig: Drawing; moved: boolean; result?: Drawing[] } | null = null
     let placing: { downX: number; downY: number; awaitingSecondClick: boolean } | null = null
 
     const paneBox = () => live.chart.panes()[0]?.getHTMLElement()?.getBoundingClientRect() ?? null
@@ -165,7 +169,8 @@ export function useDrawings(o: Options) {
         if (!drag.moved) return
         const next = applyDrag(drag.orig, drag.handle, pt, m.barsBetween(drag.x, x), now - start, m)
         const id = drag.id
-        setWorking((list) => list.map((d) => (d.id === id ? next : d)))
+        drag.result = stateRef.current.working.map((d) => (d.id === id ? next : d))
+        setWorking(drag.result)
         return
       }
       // Hover feedback when idle.
@@ -196,7 +201,7 @@ export function useDrawings(o: Options) {
         return
       }
       if (drag) {
-        if (drag.moved) ref.current.onChange(stateRef.current.working)
+        if (drag.moved && drag.result) ref.current.onChange(drag.result)
         drag = null
       }
     }

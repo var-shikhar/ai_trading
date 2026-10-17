@@ -1,4 +1,4 @@
-import { Dropdown } from '../ui/Dropdown'
+import { Checkbox, cx, Dropdown, MenuHeading } from '../ui/kit'
 
 export interface LayoutDef {
   id: string
@@ -49,30 +49,39 @@ export function LayoutMenu({
   return (
     <Dropdown align="right" title="Layout" label={<LayoutIcon def={layout} />}>
       {() => (
-        <div className="menu-list layout-menu">
-          <div className="menu-heading">Layout</div>
-          <div className="layout-grid">
-            {LAYOUTS.map((l) => (
-              <button
-                key={l.id}
-                className={`layout-option ${l.id === layout.id ? 'selected' : ''}`}
-                title={l.name}
-                aria-pressed={l.id === layout.id}
-                onClick={() => onLayout(l.id)}
-              >
-                <LayoutIcon def={l} />
-              </button>
-            ))}
+        <div className="w-[224px]">
+          <MenuHeading>Layout</MenuHeading>
+          <div className="grid grid-cols-3 gap-1.5 px-2 pt-1 pb-2">
+            {LAYOUTS.map((l) => {
+              const on = l.id === layout.id
+              return (
+                <button
+                  key={l.id}
+                  className={cx(
+                    'inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border transition',
+                    on ? 'border-accent bg-selected text-accent' : 'border-line text-muted hover:bg-hover hover:text-fg',
+                  )}
+                  title={l.name}
+                  aria-label={l.name}
+                  aria-pressed={on}
+                  onClick={() => onLayout(l.id)}
+                >
+                  <LayoutIcon def={l} />
+                </button>
+              )
+            })}
           </div>
           {layout.count > 1 && (
             <>
-              <div className="menu-heading">Sync in layout</div>
-              {(Object.keys(SYNC_LABELS) as (keyof SyncSettings)[]).map((k) => (
-                <label key={k} className="menu-check">
-                  <input type="checkbox" checked={sync[k]} onChange={(e) => onSync({ ...sync, [k]: e.target.checked })} />
-                  {SYNC_LABELS[k]}
-                </label>
-              ))}
+              <div className="mx-2 my-1 h-px bg-line" />
+              <MenuHeading>Sync in layout</MenuHeading>
+              <div className="flex flex-col px-1 pb-1">
+                {(Object.keys(SYNC_LABELS) as (keyof SyncSettings)[]).map((k) => (
+                  <div key={k} className="rounded-md px-1.5 py-1.5 hover:bg-hover">
+                    <Checkbox checked={sync[k]} onChange={(v) => onSync({ ...sync, [k]: v })} label={SYNC_LABELS[k]} />
+                  </div>
+                ))}
+              </div>
             </>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { onAlertEvent, type AlertMessage } from '../live/liveClient'
+import { IconButton } from '../ui/kit'
 
 /** Pop-up for alerts that fire while the app is open, with a short chime,
  * and a system notification when the tab is in the background. */
@@ -21,14 +22,26 @@ export function AlertToasts() {
 
   if (!toasts.length) return null
   return (
-    <div className="toasts" role="status" aria-live="polite">
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-2 top-[calc(8px+env(safe-area-inset-top))] z-[110] flex flex-col items-end gap-2 md:inset-x-auto md:right-4 md:w-[360px]"
+    >
       {toasts.map((t) => (
-        <div key={t.key} className="toast">
-          <b>🔔 {t.title}</b>
-          <span>{t.body}</span>
-          <button className="icon-button" aria-label="Dismiss" onClick={() => setToasts((x) => x.filter((y) => y.key !== t.key))}>
+        <div
+          key={t.key}
+          className="pointer-events-auto flex w-full animate-pop items-start gap-3 rounded-xl border border-line bg-raised p-3 shadow-[var(--shadow)]"
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[rgba(245,165,36,0.15)] text-star" aria-hidden>
+            🔔
+          </span>
+          <div className="min-w-0 flex-1">
+            <b className="block text-[14px] font-semibold text-fg">{t.title}</b>
+            <span className="block text-[12px] break-words whitespace-pre-line text-muted">{t.body}</span>
+          </div>
+          <IconButton label="Dismiss" onClick={() => setToasts((x) => x.filter((y) => y.key !== t.key))}>
             ×
-          </button>
+          </IconButton>
         </div>
       ))}
     </div>

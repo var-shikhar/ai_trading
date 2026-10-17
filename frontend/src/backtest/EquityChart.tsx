@@ -1,6 +1,7 @@
 import { AreaSeries, createChart, LineSeries, type IChartApi, type UTCTimestamp } from 'lightweight-charts'
 import { useEffect, useRef } from 'react'
 import type { ChartTheme } from '../chart/theme'
+import { cx } from '../ui/kit'
 
 const t = (x: number) => x as UTCTimestamp
 
@@ -11,11 +12,14 @@ export function EquityChart({
   benchmark,
   theme,
   benchmarkLabel = 'NIFTY 50',
+  className,
 }: {
   equity: [number, number][]
   benchmark: [number, number][] | null
   theme: ChartTheme
   benchmarkLabel?: string
+  /** Size of the chart box (it fills it); 280px tall by default. */
+  className?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -76,5 +80,5 @@ export function EquityChart({
     return () => chart.remove()
   }, [equity, benchmark, theme, benchmarkLabel])
 
-  return <div ref={ref} className="equity-chart" role="img" aria-label="Equity curve and drawdown" />
+  return <div ref={ref} className={cx('w-full min-w-0', className ?? 'h-[280px]')} role="img" aria-label="Equity curve and drawdown" />
 }

@@ -1,9 +1,12 @@
 import { useState, type ReactNode } from 'react'
 import { api, type AuthStatus, type UserInfo } from '../api/client'
-import { PasswordDialog, UsersDialog } from '../auth/UsersDialog'
 import { ProfileDialog } from '../auth/ProfileDialog'
+import { Avatar, BrandMark, CheckIcon } from '../auth/shared'
+import { errorMessage } from '../auth/util'
+import { PasswordDialog, UsersDialog } from '../auth/UsersDialog'
 import type { ThemeMode } from '../chart/theme'
-import { Dropdown } from './Dropdown'
+import { useToasts } from '../state/ui'
+import { Dropdown, MenuHeading, MenuItem, Spinner, cx } from './kit'
 
 // watchlist and account are phone-only pages (desktop shows them in the
 // chart's right rail and the nav rail's menus).
@@ -85,8 +88,12 @@ export const MOBILE_PAGES: typeof PAGES = [
   },
 ]
 
-/** App-level navigation down the left edge: the chart is one section of the
- * app; screening, strategy research and signals sit beside it. */
+/** Phones held sideways have little height: the nav shows icons only. */
+const LOW_HIDE = '[@media(max-width:950px)_and_(max-height:500px)]:hidden'
+
+/** App-level navigation: a rail down the left edge on desktop (the chart is
+ * one section; screening, strategy research and signals sit beside it), a
+ * bottom tab bar on phones. */
 export function NavRail({
   page,
   onPage,
@@ -113,146 +120,228 @@ export function NavRail({
   mobile: boolean
 }) {
   const [accountDialog, setAccountDialog] = useState<'users' | 'password' | 'profile' | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const toast = useToasts((s) => s.push)
   const fyers = auth?.fyers
   const admin = user.role === 'admin'
-  const item = (label: string, onClick: () => void, close: () => void) => (
-    <div className="menu-item">
-      <button
-        className="menu-main"
-        onClick={() => {
-          close()
-          onClick()
-        }}
-      >
-        {label}
-      </button>
-    </div>
-  )
+
+  if (mobile)
+    return (
+      <nav aria-label="Sections" className="flex w-full shrink-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
+        {shown(MOBILE_PAGES).map((p) => {
+          const active = page === p.id
+          return (
+            <button
+              key={p.id}
+              aria-current={active ? 'page' : undefined}
+              aria-label={p.label}
+              title={p.title}
+              onClick={() => onPage(p.id)}
+              className={cx(
+                'flex h-[60px] min-w-0 flex-1 basis-0 cursor-pointer flex-col items-center justify-center gap-0.5 text-[10.5px] font-medium transition-colors [-webkit-tap-highlight-color:transparent] [@media(max-width:950px)_and_(max-height:500px)]:h-11',
+                active ? 'text-accent' : 'text-muted active:text-fg',
+              )}
+            >
+              <span className={cx('flex h-7 w-14 items-center justify-center rounded-full transition-colors', active && 'bg-accent-soft')}>
+                {p.icon}
+              </span>
+              <span className={cx('max-w-full truncate px-1', active && 'font-semibold', LOW_HIDE)}>{p.short ?? p.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+    )
+
+  const disconnect = () => {
+    setDisconnecting(true)
+    api
+      .fyersLogout()
+      .then(
+        () => toast('Fyers disconnected'),
+        (e) => toast(errorMessage(e), 'err'),
+      )
+      .finally(() => {
+        setDisconnecting(false)
+        onFyersChanged()
+      })
+  }
+  const railButton = 'h-auto min-h-10 w-14 flex-col justify-center gap-1 px-1 py-1.5 text-muted hover:text-fg'
 
   return (
-    <nav className="nav-rail" aria-label="Sections">
-      <div className="nav-brand" title="Indicator">
-        <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
-          <rect width="26" height="26" rx="7" fill="var(--accent)" />
-          <path d="M6 17l4.5-5 3.5 3 6-7" fill="none" stroke="var(--accent-fg)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+    <nav aria-label="Sections" className="flex h-full w-[68px] shrink-0 flex-col items-center gap-1 border-r border-line bg-surface py-2.5">
+      <div className="mb-2 flex h-9 items-center" title="Indicator">
+        <BrandMark size={28} />
       </div>
-      {shown(mobile ? MOBILE_PAGES : PAGES).map((p) => (
-        <button
-          key={p.id}
-          className={`nav-item ${page === p.id ? 'active' : ''}`}
-          aria-current={page === p.id ? 'page' : undefined}
-          title={p.title}
-          onClick={() => onPage(p.id)}
-        >
-          {p.icon}
-          <span className="nav-label">{p.label}</span>
-          {p.short && <span className="nav-label short">{p.short}</span>}
-        </button>
-      ))}
-
-      {!mobile && (
-        <>
-        <span className="spacer" />
-
-        {error && (
-          <span className="nav-dot err" title="Backend unreachable">
-            ●
-          </span>
-        )}
-        {fyers && !admin && (
-          <span
-            className={`nav-dot ${fyers.authenticated ? 'ok' : 'err'}`}
-            title={fyers.authenticated ? 'Live market data connected' : 'Market data paused: an admin needs to connect Fyers.'}
-          >
-            ●<small>{fyers.authenticated ? 'Live' : 'Paused'}</small>
-          </span>
-        )}
-        {fyers && admin && (
-          <Dropdown
-            align="side"
-            className="nav-dropdown"
-            title={fyers.authenticated ? 'Fyers connected (until end of day)' : 'Fyers not connected'}
-            label={
-              <span className={`nav-dot ${fyers.authenticated ? 'ok' : 'err'}`}>
-                ●<small>Fyers</small>
-              </span>
-            }
-          >
-            {(close) => (
-              <div className="menu-list">
-                <div className="menu-heading">
-                  {fyers.authenticated ? 'Fyers connected until end of day' : fyers.configured ? 'Fyers not connected' : 'Fyers keys missing'}
-                </div>
-                {fyers.configured ? (
-                  <div className="menu-item">
-                    <a className="menu-main" href={fyers.login_url}>
-                      {fyers.authenticated ? 'Reconnect Fyers' : 'Connect Fyers'}
-                    </a>
-                  </div>
-                ) : (
-                  <p className="note pad">Add FYERS_APP_ID and FYERS_SECRET to backend/.env.</p>
-                )}
-                {fyers.authenticated && item('Disconnect', () => api.fyersLogout().finally(onFyersChanged), close)}
-              </div>
+      {shown(PAGES).map((p) => {
+        const active = page === p.id
+        return (
+          <button
+            key={p.id}
+            aria-current={active ? 'page' : undefined}
+            aria-label={p.label}
+            title={p.title}
+            onClick={() => onPage(p.id)}
+            className={cx(
+              'relative flex w-[60px] cursor-pointer flex-col items-center gap-1 rounded-lg px-0.5 pt-2 pb-1.5 text-[10.5px] leading-tight font-medium transition-colors',
+              active ? 'bg-selected text-accent' : 'text-muted hover:bg-hover hover:text-fg',
             )}
-          </Dropdown>
-        )}
+          >
+            {active && <span aria-hidden className="absolute inset-y-2 -left-1 w-[3px] rounded-r-full bg-accent" />}
+            {p.icon}
+            <span className={cx('text-center', LOW_HIDE)}>{p.label}</span>
+          </button>
+        )
+      })}
 
-        <Dropdown align="side" className="nav-dropdown" title="Theme" label={<ThemeIcon dark={dark} />}>
-          {(close) => (
-            <div className="menu-list">
-              <div className="menu-heading">Theme</div>
-              {(
-                [
-                  ['dark', 'Dark'],
-                  ['light', 'Light'],
-                  ['system', 'Same as Windows'],
-                ] as const
-              ).map(([mode, name]) => (
-                <div key={mode} className={`menu-item ${themeMode === mode ? 'selected' : ''}`}>
-                  <button
-                    className="menu-main"
-                    onClick={() => {
-                      onThemeMode(mode)
-                      close()
-                    }}
-                  >
-                    {name}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Dropdown>
+      <span className="flex-1" />
 
+      {error && (
+        <span className="flex flex-col items-center gap-1 py-1" title={`Backend unreachable: ${error}`}>
+          <StatusDot tone="err" />
+          <span className={cx('text-[10px] text-down', LOW_HIDE)}>Offline</span>
+        </span>
+      )}
+      {!fyers && !error && (
+        <span className="py-2" title="Checking market data…">
+          <StatusDot tone="pending" />
+        </span>
+      )}
+      {fyers && !admin && (
+        <span
+          className="flex flex-col items-center gap-1 py-1"
+          title={fyers.authenticated ? 'Live market data connected' : 'Market data paused: an admin needs to connect Fyers.'}
+        >
+          <StatusDot tone={fyers.authenticated ? 'ok' : 'err'} />
+          <span className={cx('text-[10px] text-muted', LOW_HIDE)}>{fyers.authenticated ? 'Live' : 'Paused'}</span>
+        </span>
+      )}
+      {fyers && admin && (
         <Dropdown
           align="side"
-          className="nav-dropdown"
-          title="Account"
-          label={<span className="user-chip">{user.username.slice(0, 1).toUpperCase()}</span>}
+          caret={false}
+          buttonClassName={railButton}
+          title={fyers.authenticated ? 'Fyers connected (until end of day)' : 'Fyers not connected'}
+          label={
+            <>
+              {disconnecting ? <Spinner size={10} /> : <StatusDot tone={fyers.authenticated ? 'ok' : 'err'} />}
+              <span className={cx('text-[10px]', LOW_HIDE)}>Fyers</span>
+            </>
+          }
         >
           {(close) => (
-            <div className="menu-list">
-              <div className="menu-heading">
-                Signed in as {user.username}
-                {admin ? ' · admin' : ''}
+            <div className="w-[248px]">
+              <MenuHeading>Market data</MenuHeading>
+              <div className="flex items-center gap-2 px-2.5 pb-2 text-[13px]">
+                <StatusDot tone={fyers.authenticated ? 'ok' : 'err'} />
+                {fyers.authenticated ? 'Connected until end of day' : fyers.configured ? 'Not connected' : 'Fyers keys missing'}
               </div>
-              {admin && item('Manage users & invites', () => setAccountDialog('users'), close)}
-              {item('Profile, notifications & API keys', () => setAccountDialog('profile'), close)}
-              {item('Change password', () => setAccountDialog('password'), close)}
-              {item('Sign out', onSignOut, close)}
+              {fyers.configured ? (
+                <MenuItem href={fyers.login_url}>{fyers.authenticated ? 'Reconnect Fyers' : 'Connect Fyers'}</MenuItem>
+              ) : (
+                <p className="px-2.5 pb-2 text-[12px] leading-snug text-muted">Add FYERS_APP_ID and FYERS_SECRET to backend/.env.</p>
+              )}
+              {fyers.authenticated && (
+                <MenuItem
+                  danger
+                  onClick={() => {
+                    close()
+                    disconnect()
+                  }}
+                >
+                  Disconnect
+                </MenuItem>
+              )}
             </div>
           )}
         </Dropdown>
-
-        </>
       )}
+
+      <Dropdown align="side" caret={false} buttonClassName={cx(railButton, 'min-h-9')} title="Theme" label={<ThemeIcon dark={dark} />}>
+        {(close) => (
+          <>
+            <MenuHeading>Theme</MenuHeading>
+            {THEMES.map(([mode, name]) => (
+              <MenuItem
+                key={mode}
+                selected={themeMode === mode}
+                onClick={() => {
+                  onThemeMode(mode)
+                  close()
+                }}
+              >
+                <span className="flex-1">{name}</span>
+                {themeMode === mode && <CheckIcon />}
+              </MenuItem>
+            ))}
+          </>
+        )}
+      </Dropdown>
+
+      <Dropdown
+        align="side"
+        caret={false}
+        buttonClassName={cx(railButton, 'min-h-9')}
+        title="Account"
+        label={<Avatar name={user.username} size={28} />}
+      >
+        {(close) => {
+          const open = (d: 'users' | 'password' | 'profile') => () => {
+            close()
+            setAccountDialog(d)
+          }
+          return (
+            <div className="w-[248px]">
+              <div className="flex items-center gap-2.5 px-2.5 pt-2 pb-2.5">
+                <Avatar name={user.username} size={34} />
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-[14px] font-semibold">{user.username}</span>
+                  <span className="truncate text-[12px] text-muted">{admin ? 'Admin' : 'Member'}</span>
+                </div>
+              </div>
+              <div className="mb-1 h-px bg-line" />
+              {admin && <MenuItem onClick={open('users')}>Manage users &amp; invites</MenuItem>}
+              <MenuItem onClick={open('profile')}>Profile, notifications &amp; API keys</MenuItem>
+              <MenuItem onClick={open('password')}>Change password</MenuItem>
+              <div className="my-1 h-px bg-line" />
+              <MenuItem
+                danger
+                onClick={() => {
+                  close()
+                  onSignOut()
+                }}
+              >
+                Sign out
+              </MenuItem>
+            </div>
+          )
+        }}
+      </Dropdown>
 
       {accountDialog === 'users' && <UsersDialog me={user} onClose={() => setAccountDialog(null)} />}
       {accountDialog === 'password' && <PasswordDialog onClose={() => setAccountDialog(null)} />}
       {accountDialog === 'profile' && <ProfileDialog me={user} onClose={() => setAccountDialog(null)} />}
     </nav>
+  )
+}
+
+const THEMES = [
+  ['dark', 'Dark'],
+  ['light', 'Light'],
+  ['system', 'Same as device'],
+] as const satisfies readonly (readonly [ThemeMode, string])[]
+
+/** Connection status: green (live), red (off), grey pulse (checking). */
+export function StatusDot({ tone }: { tone: 'ok' | 'err' | 'pending' }) {
+  return (
+    <span
+      aria-hidden
+      className={cx(
+        'inline-block size-2.5 shrink-0 rounded-full',
+        tone === 'ok' && 'bg-up shadow-[0_0_0_3px_var(--ok-soft)]',
+        tone === 'err' && 'bg-down shadow-[0_0_0_3px_var(--err-soft)]',
+        tone === 'pending' && 'animate-pulse bg-line',
+      )}
+    />
   )
 }
 

@@ -7,7 +7,7 @@
    - Pages (navigations) go to the network first, so a new deploy shows up
      straight away; the cached index.html is only a fallback when offline.
 */
-const CACHE = 'indicator-v2'
+const CACHE = 'indicator-v3'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (event) => {
@@ -33,8 +33,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone()
-          caches.open(CACHE).then((c) => c.put('/', copy))
+          // Only a real page becomes the offline copy, not e.g. a 502 during a deploy.
+          if (res.ok) {
+            const copy = res.clone()
+            caches.open(CACHE).then((c) => c.put('/', copy))
+          }
           return res
         })
         .catch(() => caches.match('/').then((r) => r || Response.error())),

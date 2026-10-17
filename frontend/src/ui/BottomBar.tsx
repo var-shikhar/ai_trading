@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import type { ScaleMode } from '../chart/PriceChart'
+import { Button, cx, inputClass } from './kit'
 
 /** TradingView's bottom range buttons: each picks a timeframe and a span. */
 export const RANGES: { label: string; tf: string; days: number | 'ytd' | 'all'; title: string }[] = [
@@ -13,6 +14,22 @@ export const RANGES: { label: string; tf: string; days: number | 'ytd' | 'all'; 
   { label: '5Y', tf: '1W', days: 1826, title: '5 years in 1 week intervals' },
   { label: 'All', tf: '1M', days: 'all', title: 'All data in 1 month intervals' },
 ]
+
+function BarButton({ selected, className, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { selected?: boolean }) {
+  return (
+    <button
+      {...rest}
+      aria-pressed={selected}
+      className={cx(
+        'inline-flex h-[26px] shrink-0 cursor-pointer items-center justify-center rounded px-[7px] text-[12px] font-medium whitespace-nowrap transition hover:bg-hover',
+        selected ? 'text-accent' : 'text-fg',
+        className,
+      )}
+    />
+  )
+}
+
+const Divider = ({ className }: { className?: string }) => <span className={cx('mx-1 h-[18px] w-px shrink-0 bg-line', className)} />
 
 export function BottomBar({
   activeRange,
@@ -32,26 +49,30 @@ export function BottomBar({
   status: string
 }) {
   const [goOpen, setGoOpen] = useState(false)
+  const goRef = useRef<HTMLDivElement>(null)
+  // Close the go-to popover on a click anywhere else.
+  useEffect(() => {
+    if (!goOpen) return
+    const onDown = (e: PointerEvent) => !goRef.current?.contains(e.target as Node) && setGoOpen(false)
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [goOpen])
   return (
-    <footer className="bottombar">
+    <footer className="flex h-[34px] shrink-0 items-center gap-0.5 border-t border-line bg-surface px-2 max-md:overflow-x-auto max-md:[scrollbar-width:none]">
       {RANGES.map((r) => (
-        <button
-          key={r.label}
-          className={`tool-button small ${activeRange === r.label ? 'selected' : ''}`}
-          title={r.title}
-          onClick={() => onRange(r.label)}
-        >
+        <BarButton key={r.label} selected={activeRange === r.label} title={r.title} onClick={() => onRange(r.label)}>
           {r.label}
-        </button>
+        </BarButton>
       ))}
-      <span className="divider" />
-      <div className="goto">
-        <button className="tool-button small" title="Go to date" onClick={() => setGoOpen((o) => !o)}>
+      <Divider />
+      {/* Static on phones: the bar scrolls sideways, which would clip an absolute popover. */}
+      <div ref={goRef} className="relative max-md:static">
+        <BarButton title="Go to date" aria-label="Go to date" selected={goOpen} onClick={() => setGoOpen((o) => !o)}>
           <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden>
             <rect x="2.5" y="3.5" width="13" height="12" rx="1.5" />
             <path d="M2.5 7h13M6 2v3M12 2v3" />
           </svg>
-        </button>
+        </BarButton>
         {goOpen && (
           <GoToDate
             intraday={intraday}
@@ -63,32 +84,28 @@ export function BottomBar({
           />
         )}
       </div>
-      <span className="spacer" />
-      <span className="status small">{status}</span>
-      <span className="divider" />
+      <span className="flex-1" />
+      <span className="min-w-0 truncate text-[12px] whitespace-nowrap text-muted max-md:hidden">{status}</span>
+      <Divider className="max-md:hidden" />
       <Clock />
-      <span className="divider" />
-      <button
-        className={`tool-button small ${scaleMode === 'percent' ? 'selected' : ''}`}
+      <Divider className="max-md:hidden" />
+      <BarButton
+        selected={scaleMode === 'percent'}
         title="Percentage scale"
         onClick={() => onScaleMode(scaleMode === 'percent' ? 'normal' : 'percent')}
       >
         %
-      </button>
-      <button
-        className={`tool-button small ${scaleMode === 'log' ? 'selected' : ''}`}
+      </BarButton>
+      <BarButton
+        selected={scaleMode === 'log'}
         title="Logarithmic scale"
         onClick={() => onScaleMode(scaleMode === 'log' ? 'normal' : 'log')}
       >
         log
-      </button>
-      <button
-        className={`tool-button small ${scaleMode === 'normal' ? 'selected' : ''}`}
-        title="Regular scale"
-        onClick={() => onScaleMode('normal')}
-      >
+      </BarButton>
+      <BarButton selected={scaleMode === 'normal'} title="Regular scale" onClick={() => onScaleMode('normal')}>
         auto
-      </button>
+      </BarButton>
     </footer>
   )
 }
@@ -107,7 +124,7 @@ function GoToDate({
   const [time, setTime] = useState('09:15')
   return (
     <form
-      className="popover goto-popover"
+      className="absolute bottom-[calc(100%+6px)] left-0 z-50 flex w-[260px] animate-pop flex-col gap-2.5 rounded-xl border border-line bg-raised p-3.5 shadow-[var(--shadow)] max-md:fixed max-md:right-3 max-md:bottom-[calc(120px+env(safe-area-inset-bottom))] max-md:left-3 max-md:w-auto"
       onSubmit={(e) => {
         e.preventDefault()
         // Bars use IST wall time as UTC epoch.
@@ -117,16 +134,24 @@ function GoToDate({
       }}
       onKeyDown={(e) => e.key === 'Escape' && onClose()}
     >
-      <div className="popover-title">Go to</div>
-      <input type="date" value={date} max={today} min="2000-01-01" onChange={(e) => setDate(e.target.value)} autoFocus />
-      {intraday && <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />}
-      <div className="popover-actions">
-        <button type="button" className="secondary-button" onClick={onClose}>
+      <div className="text-[14px] font-semibold text-fg">Go to</div>
+      <input
+        type="date"
+        className={cx(inputClass, 'h-9')}
+        value={date}
+        max={today}
+        min="2000-01-01"
+        onChange={(e) => setDate(e.target.value)}
+        autoFocus
+      />
+      {intraday && <input type="time" className={cx(inputClass, 'h-9')} value={time} onChange={(e) => setTime(e.target.value)} />}
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="sm" onClick={onClose}>
           Cancel
-        </button>
-        <button type="submit" className="primary-button">
+        </Button>
+        <Button type="submit" size="sm" variant="primary">
           Go to
-        </button>
+        </Button>
       </div>
     </form>
   )
@@ -140,7 +165,7 @@ function Clock() {
   }, [])
   const ist = new Date(now.getTime() + 5.5 * 3600 * 1000).toISOString().slice(11, 19)
   return (
-    <span className="clock" title="India Standard Time">
+    <span className="px-1.5 text-[12px] whitespace-nowrap text-fg tabular-nums max-md:hidden" title="India Standard Time">
       {ist} (UTC+5:30)
     </span>
   )

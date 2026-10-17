@@ -13,6 +13,7 @@ import {
   type IPriceLine,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
+  type Logical,
   type LogicalRange,
   type MouseEventParams,
   type SeriesMarker,
@@ -36,6 +37,7 @@ import type { StudyInstance } from '../studies/model'
 import { studyTitle } from '../studies/model'
 import { usePref } from '../prefs'
 import { MOBILE_QUERY, useMediaQuery } from '../pwa'
+import { cx, IconButton, Spinner } from '../ui/kit'
 import { formatCrosshairTime } from './format'
 import { resolveColor, type ChartTheme } from './theme'
 
@@ -100,6 +102,8 @@ interface Props {
   alertLevels?: number[]
   /** Phone-sized: smaller axis text and fewer decimals (set internally). */
   compact?: boolean
+  /** Newer data is loading (a small spinner in the legend). */
+  refreshing?: boolean
 }
 
 interface StudySeries {
@@ -376,7 +380,7 @@ export function PriceChart(outer: Props) {
       const paneBottom = b.chart.panes()[0]?.getHeight() ?? box.height
       const price = y <= paneBottom ? b.main.coordinateToPrice(y) : null
       if (price === null || !(price > 0)) return false
-      setMenu({ x: Math.min(x, box.width - 230), y, price })
+      setMenu(menuAt(el, x, y, price))
       return true
     }
     const onContext = (e: MouseEvent) => {
@@ -386,6 +390,8 @@ export function PriceChart(outer: Props) {
     let start: { x: number; y: number } | null = null
     const onDown = (e: PointerEvent) => {
       if (e.pointerType !== 'touch') return
+      // A second finger (pinch) is no long-press.
+      if (start) return cancel()
       start = { x: e.clientX, y: e.clientY }
       timer = setTimeout(() => start && open(start.x, start.y), 550)
     }
@@ -410,9 +416,12 @@ export function PriceChart(outer: Props) {
       el.removeEventListener('pointercancel', cancel)
     }
   }, [])
+  const menuRef = useRef<HTMLDivElement>(null)
+  const menuOpenRef = useRef(false)
   useEffect(() => {
+    menuOpenRef.current = !!menu
     if (!menu) return
-    const close = (e: Event) => !(e.target as HTMLElement).closest?.('.chart-menu') && setMenu(null)
+    const close = (e: Event) => !menuRef.current?.contains(e.target as Node) && setMenu(null)
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(null)
     // Next tick, so the long-press that opened it doesn't close it.
     const id = setTimeout(() => document.addEventListener('pointerdown', close, true))
@@ -423,6 +432,186 @@ export function PriceChart(outer: Props) {
       window.removeEventListener('keydown', onKey)
     }
   }, [menu])
+
+  // A "+" where the crosshair lines cross: click it for the same menu (alert
+  // or line at that price). With a mouse it follows the crosshair, a little
+  // up-right so it never sits under the pointer; on touch it shows after a tap
+  // (or a crosshair drag) ends. Moved by hand (DOM, not state) as it follows
+  // every mouse move.
+  const plusRef = useRef<HTMLButtonElement>(null)
+  const plusAt = useRef<{ x: number; y: number; price: number; touch: boolean; time?: Time } | null>(null)
+  const plusHover = useRef(false)
+  const hidePlus = useRef(() => {})
+  useEffect(() => {
+    const b = builtRef.current
+    const el = containerRef.current
+    if (!b || !el) return
+    const { chart, main } = b
+    const ts = chart.timeScale()
+    let hideTimer: ReturnType<typeof setTimeout> | undefined
+    let mouseDown = false
+    const pointers = new Set<number>()
+    let gesture: { x: number; y: number; moved: boolean; multi: boolean; range: string; cross: { x: number; y: number } | null } | null =
+      null
+
+    const hide = () => {
+      clearTimeout(hideTimer)
+      plusAt.current = null
+      plusHover.current = false
+      plusRef.current?.removeAttribute('data-show')
+    }
+    hidePlus.current = hide
+    const hideSoon = () => {
+      // Moving onto the + leaves the chart first: wait to see if it's hovered.
+      clearTimeout(hideTimer)
+      hideTimer = setTimeout(() => !plusHover.current && hide(), 80)
+    }
+    const usable = () => propsRef.current.tool === 'cursor' && !!propsRef.current.onPriceAlert && !menuOpenRef.current
+    const rangeKey = () => JSON.stringify(ts.getVisibleLogicalRange())
+    /** The + centre for a crosshair at (x, y), flipped inside near the pane's edges. */
+    const target = (x: number, y: number, touch: boolean) => {
+      const paneH = chart.panes()[0]?.getHeight() ?? 0
+      const paneW = ts.width()
+      const price = main.coordinateToPrice(y)
+      if (price === null || !(price > 0) || x < 0 || x > paneW || y < 0 || y > paneH) return null
+      const off = touch ? 26 : 14
+      const r = touch ? 16 : 12
+      return {
+        x: x + off + r > paneW ? x - off : x + off,
+        y: y - off - r < 0 ? y + off : y - off,
+        price,
+        touch,
+      }
+    }
+    const show = (t: NonNullable<typeof plusAt.current>) => {
+      const btn = plusRef.current
+      if (!btn) return
+      clearTimeout(hideTimer)
+      plusAt.current = t
+      const r = t.touch ? 16 : 12
+      btn.style.transform = `translate(${t.x - r}px, ${t.y - r}px)`
+      btn.toggleAttribute('data-touch', t.touch)
+      btn.setAttribute('data-show', '')
+    }
+    // The bar's x (the vertical crosshair line snaps to bars).
+    const snapX = (x: number) => {
+      const l = ts.coordinateToLogical(x)
+      return l === null ? x : (ts.logicalToCoordinate(Math.round(l) as Logical) ?? x)
+    }
+
+    const onCrosshair = (e: MouseEventParams<Time>) => {
+      // A + placed by touch stays until the next touch (crosshair events don't move it).
+      if (plusHover.current || plusAt.current?.touch) return
+      if (gesture) {
+        // Touch: remember where a crosshair drag is; the + shows when it ends.
+        if (e.point && e.paneIndex === 0 && e.logical !== undefined) gesture.cross = { x: snapX(e.point.x), y: e.point.y }
+        return
+      }
+      if (!e.point || !e.sourceEvent) return hideSoon()
+      if (e.paneIndex !== 0 || e.logical === undefined || mouseDown || !usable() || pointers.size) return hide()
+      const x = ts.logicalToCoordinate(e.logical)
+      const next = x === null ? null : target(x, e.point.y, false)
+      if (!next) return hide()
+      // Heading for the + (closer to it than to where it would move): keep it still.
+      const cur = plusAt.current
+      const m = e.point
+      if (cur && Math.hypot(m.x - cur.x, m.y - cur.y) < Math.hypot(m.x - next.x, m.y - next.y) - 3) return
+      show({ ...next, time: e.time })
+    }
+
+    const onDown = (e: PointerEvent) => {
+      hide()
+      if (e.pointerType === 'mouse') {
+        mouseDown = true
+        return
+      }
+      pointers.add(e.pointerId)
+      if (pointers.size > 1) {
+        if (gesture) gesture.multi = true
+        return
+      }
+      gesture = { x: e.clientX, y: e.clientY, moved: false, multi: false, range: rangeKey(), cross: null }
+    }
+    const onMove = (e: PointerEvent) => {
+      // A mouse after touch (hybrid devices): back to following the mouse.
+      if (e.pointerType === 'mouse' && plusAt.current?.touch && !plusHover.current) hide()
+      if (gesture && e.pointerType !== 'mouse' && Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > 8) gesture.moved = true
+    }
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') {
+        mouseDown = false
+        return
+      }
+      if (!pointers.delete(e.pointerId) || pointers.size) return
+      const g = gesture
+      gesture = null
+      if (!g || g.multi || e.type === 'pointercancel' || !usable()) return
+      if (!g.moved) {
+        // A tap: + (and the crosshair) at the tapped bar and price.
+        const box = el.getBoundingClientRect()
+        const x = snapX(g.x - box.left)
+        const y = g.y - box.top
+        const t = target(x, y, true)
+        if (!t) return
+        show(t)
+        const l = ts.coordinateToLogical(x)
+        const bar = l === null ? undefined : main.data()[Math.round(l)]
+        if (bar) chart.setCrosshairPosition(t.price, bar.time, main)
+      } else if (g.cross && rangeKey() === g.range) {
+        // A long-press crosshair drag (the chart didn't pan): where it ended.
+        const t = target(g.cross.x, g.cross.y, true)
+        if (t) show(t)
+      }
+    }
+    // The view moved (zoom, scroll, new bar): the + would point at another price.
+    const onRange = () => !gesture && !plusHover.current && hide()
+
+    chart.subscribeCrosshairMove(onCrosshair)
+    ts.subscribeVisibleLogicalRangeChange(onRange)
+    // Capture: drawing edits stop pointerdown from reaching the chart.
+    el.addEventListener('pointerdown', onDown, true)
+    el.addEventListener('mouseleave', hideSoon)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      hide()
+      hidePlus.current = () => {}
+      el.removeEventListener('pointerdown', onDown, true)
+      el.removeEventListener('mouseleave', hideSoon)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      if (builtRef.current === b) {
+        chart.unsubscribeCrosshairMove(onCrosshair)
+        ts.unsubscribeVisibleLogicalRangeChange(onRange)
+      }
+    }
+  }, [built])
+  // Not usable now (drawing, menu open, another symbol): hide it.
+  const canAlert = !!props.onPriceAlert
+  useEffect(() => hidePlus.current(), [props.tool, menu, datasetKey, canAlert])
+
+  // Hovering the + holds it (and the crosshair) still so it can be clicked.
+  const onPlusEnter = () => {
+    const b = builtRef.current
+    const at = plusAt.current
+    plusHover.current = true
+    if (b && at?.time !== undefined) b.chart.setCrosshairPosition(at.price, at.time, b.main)
+  }
+  const onPlusLeave = () => {
+    if (!plusHover.current) return
+    plusHover.current = false
+    builtRef.current?.chart.clearCrosshairPosition()
+    hidePlus.current()
+  }
+  const openPlusMenu = () => {
+    const at = plusAt.current
+    const el = containerRef.current
+    if (!at || !el) return
+    hidePlus.current()
+    setMenu(menuAt(el, at.x + 16, at.y - 8, at.price))
+  }
 
   // Price alerts on this symbol as dashed lines with a bell.
   const alertKey = (props.alertLevels ?? []).join(',')
@@ -458,16 +647,19 @@ export function PriceChart(outer: Props) {
   const legendProps = { result: data.studies, time: barTime, theme, onAction: onStudyAction }
 
   return (
-    <div className="chart-wrap">
-      <div ref={containerRef} className="chart" />
+    // isolate: its layers (legend, menus, +) stay under the panel's loading/error covers.
+    <div className="absolute inset-0 isolate">
+      {/* The chart handles its own drag and pinch: no page scroll/zoom on it. */}
+      <div ref={containerRef} className="absolute inset-0 touch-none" />
       {built && paneTops.length > 0 && (
         <>
-          <div className="pane-legend" style={{ top: paneTops[0] + 6 }}>
+          <div className={legendBox} style={{ top: paneTops[0] + 6 }}>
             <MainLegend
               title={title}
               candles={display}
               index={index}
               live={props.isLive ?? false}
+              refreshing={props.refreshing ?? false}
               open={legendOpen}
               onToggle={toggleLegend}
             />
@@ -481,14 +673,14 @@ export function PriceChart(outer: Props) {
             )}
           </div>
           {built.volumePane !== null && paneTops[built.volumePane] !== undefined && (
-            <div className="pane-legend" style={{ top: paneTops[built.volumePane] + 4 }}>
-              <div className="legend-row study">
-                <span className="legend-title">Vol</span>
-                <b>{merged[index] ? fmtVolume(merged[index].volume) : '–'}</b>
-                <span className="legend-actions">
-                  <button title="Remove" onClick={onHideVolume}>
+            <div className={legendBox} style={{ top: paneTops[built.volumePane] + 4 }}>
+              <div className={cx(legendRow, studyRow)} tabIndex={-1}>
+                <span className="text-fg">Vol</span>
+                <b className="font-normal">{merged[index] ? fmtVolume(merged[index].volume) : '–'}</b>
+                <span className={legendActions}>
+                  <LegendButton title="Remove" onClick={onHideVolume}>
                     <CloseIcon />
-                  </button>
+                  </LegendButton>
                 </span>
               </div>
             </div>
@@ -499,7 +691,7 @@ export function PriceChart(outer: Props) {
               const pane = built.studies[s.uid]?.pane
               if (pane === undefined || paneTops[pane] === undefined) return null
               return (
-                <div key={s.uid} className="pane-legend" style={{ top: paneTops[pane] + 4 }}>
+                <div key={s.uid} className={legendBox} style={{ top: paneTops[pane] + 4 }}>
                   <StudyLegend inst={s} def={catalog[s.id]} {...legendProps} />
                 </div>
               )
@@ -507,7 +699,11 @@ export function PriceChart(outer: Props) {
         </>
       )}
       {away && (
-        <button className="recenter-button" onClick={recenter} title="Back to the latest bar (reset zoom and price scale)">
+        <button
+          className="absolute right-[76px] bottom-10 z-[15] inline-flex h-8 animate-pop cursor-pointer items-center gap-1.5 rounded-full border border-line bg-raised pr-3 pl-2.5 text-[12px] font-semibold text-accent shadow-[var(--shadow)] transition hover:bg-hover max-md:right-[62px] max-md:bottom-[34px]"
+          onClick={recenter}
+          title="Back to the latest bar (reset zoom and price scale)"
+        >
           <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
             <circle cx="9" cy="9" r="3" />
             <path d="M9 1.5v3M9 13.5v3M1.5 9h3M13.5 9h3" />
@@ -525,21 +721,44 @@ export function PriceChart(outer: Props) {
           color={display[display.length - 1].close >= display[display.length - 1].open ? theme.up : theme.down}
         />
       )}
+      {built && props.onPriceAlert && (
+        <button
+          ref={plusRef}
+          // Shown and moved from the crosshair handler (data-show, transform).
+          className="absolute top-0 left-0 z-[16] hidden size-6 cursor-pointer items-center justify-center rounded-full border border-accent bg-surface text-accent shadow-[var(--shadow)] transition-colors hover:bg-accent hover:text-accent-fg data-[show]:flex data-[touch]:size-8"
+          aria-label="Alert or line at this price"
+          title="Alert or line at this price"
+          onMouseEnter={onPlusEnter}
+          onMouseLeave={onPlusLeave}
+          onClick={openPlusMenu}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+            <path d="M6 1.5v9M1.5 6h9" />
+          </svg>
+        </button>
+      )}
       {menu && (
-        <div className="chart-menu" role="menu" style={{ left: menu.x, top: menu.y }}>
+        <div
+          ref={menuRef}
+          className="absolute z-[45] flex min-w-[220px] animate-pop flex-col rounded-xl border border-line bg-raised p-1 text-fg shadow-[var(--shadow)]"
+          role="menu"
+          style={{ left: menu.x, top: menu.y }}
+        >
           {props.onPriceAlert && (
             <button
               role="menuitem"
+              className={menuItem}
               onClick={() => {
                 props.onPriceAlert!(roundPrice(menu.price))
                 setMenu(null)
               }}
             >
-              🔔 Alert when price crosses <b>{fmt(roundPrice(menu.price))}</b>
+              <span aria-hidden>🔔</span> Alert when price crosses <b className="font-semibold">{fmt(roundPrice(menu.price))}</b>
             </button>
           )}
           <button
             role="menuitem"
+            className={menuItem}
             onClick={() => {
               props.onDrawingsChange([
                 ...props.drawings,
@@ -548,37 +767,57 @@ export function PriceChart(outer: Props) {
               setMenu(null)
             }}
           >
-            ― Horizontal line at <b>{fmt(roundPrice(menu.price))}</b>
+            <span aria-hidden className="text-muted">
+              ―
+            </span>{' '}
+            Horizontal line at <b className="font-semibold">{fmt(roundPrice(menu.price))}</b>
           </button>
         </div>
       )}
       {drawing.selected && (
-        <div className="drawing-floater" role="toolbar" aria-label="Selected drawing">
-          {drawing.selected.type !== 'long' && drawing.selected.type !== 'short' &&
+        <div
+          className="absolute top-2 left-1/2 z-20 flex -translate-x-1/2 animate-pop items-center gap-1 rounded-xl border border-line bg-raised px-1.5 py-1 shadow-[var(--shadow)]"
+          role="toolbar"
+          aria-label="Selected drawing"
+        >
+          {drawing.selected.type !== 'long' &&
+            drawing.selected.type !== 'short' &&
             theme.series.map((c, n) => (
               <button
                 key={c}
-                className={`swatch-button ${drawing.selected?.color === `slot:${n}` ? 'active' : ''}`}
+                className={cx(
+                  'mx-0.5 size-5 cursor-pointer rounded-full border-2 transition hover:scale-110',
+                  drawing.selected?.color === `slot:${n}` ? 'border-fg' : 'border-transparent',
+                )}
                 style={{ background: c }}
                 aria-label={`Color ${n + 1}`}
+                aria-pressed={drawing.selected?.color === `slot:${n}`}
                 onClick={() => drawing.setColor(`slot:${n}`)}
               />
             ))}
           {(drawing.selected.type === 'hline' || drawing.selected.type === 'trend') && props.onDrawingAlert && (
-            <button className="icon-button" title="Alert when price crosses this line" onClick={() => props.onDrawingAlert?.(drawing.selected!)}>
-              🔔
-            </button>
+            <IconButton label="Alert when price crosses this line" onClick={() => props.onDrawingAlert?.(drawing.selected!)}>
+              <span aria-hidden>🔔</span>
+            </IconButton>
           )}
-          <button className="icon-button" title="Remove (Delete)" onClick={drawing.remove}>
+          <IconButton label="Remove (Delete)" onClick={drawing.remove}>
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
               <path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11" />
             </svg>
-          </button>
+          </IconButton>
         </div>
       )}
     </div>
   )
 }
+
+// Where the chart's menu opens: at (x, y), kept inside the chart.
+function menuAt(el: HTMLElement, x: number, y: number, price: number) {
+  const { width, height } = el.getBoundingClientRect()
+  return { x: Math.max(4, Math.min(x, width - 234)), y: Math.max(4, Math.min(y, height - 96)), price }
+}
+
+const menuItem = 'flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-2 text-left text-[13px] whitespace-nowrap transition hover:bg-hover'
 
 // --- chart construction -----------------------------------------------------------
 
@@ -861,11 +1100,39 @@ function valueAt(points: LinePoint[] | undefined, time: number | undefined): num
   return undefined
 }
 
+// Legend parts. Rows take pointer events; the box around them lets the chart
+// under it pan. Touch screens have no hover: a tapped (focused) row shows its
+// buttons instead.
+const legendBox = 'pointer-events-none absolute right-20 left-2 z-[5] text-[13px] tabular-nums max-md:right-14 max-md:text-[12px]'
+const legendRow = 'flex min-h-[22px] w-fit max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-[4px] px-1 text-fg'
+const studyRow = 'group pointer-events-auto outline-none hover:bg-hover [@media(hover:none)]:focus-within:bg-hover'
+const legendActions = 'hidden gap-0.5 group-hover:inline-flex [@media(hover:none)]:group-focus-within:inline-flex'
+
+function LegendButton({ title, onClick, children }: { title: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className="inline-flex cursor-pointer rounded-[4px] border border-line bg-raised p-0.5 text-muted transition hover:text-fg [@media(hover:none)]:p-1.5"
+    >
+      {children}
+    </button>
+  )
+}
+
+const Chevron = ({ up }: { up: boolean }) => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <path d={up ? 'M3 7.5l3-3 3 3' : 'M3 4.5l3 3 3-3'} />
+  </svg>
+)
+
 function MainLegend({
   title,
   candles,
   index,
   live,
+  refreshing,
   open,
   onToggle,
 }: {
@@ -873,6 +1140,7 @@ function MainLegend({
   candles: Candle[]
   index: number
   live: boolean
+  refreshing: boolean
   open: boolean
   onToggle: () => void
 }) {
@@ -882,28 +1150,31 @@ function MainLegend({
   const change = prev ? bar.close - prev.close : 0
   const pct = prev ? (change / prev.close) * 100 : 0
   const sign = change >= 0 ? '+' : ''
+  const tone = change >= 0 ? 'text-up' : 'text-down'
   return (
-    <div className={`legend-row main ${open ? '' : 'folded'}`}>
+    <div className={cx(legendRow, 'mb-0.5', !open && 'bg-surface/75 backdrop-blur-[2px]')}>
       <button
-        className="legend-fold"
+        className="pointer-events-auto -ml-1 inline-flex size-5 cursor-pointer items-center justify-center rounded text-muted transition hover:bg-hover hover:text-fg [@media(hover:none)]:size-7"
         onClick={onToggle}
         aria-expanded={open}
         title={open ? 'Hide legend (prices and indicator values)' : 'Show legend'}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-          <path d={open ? 'M3 7.5l3-3 3 3' : 'M3 4.5l3 3 3-3'} />
-        </svg>
+        <Chevron up={open} />
       </button>
-      <span className="legend-symbol">{title}</span>
+      <span className="text-[14px] font-medium max-md:text-[13px]">{title}</span>
       {live && (
-        <span className="live-dot" title="Live prices streaming">
+        <span className="text-[11px] font-semibold tracking-[0.04em] text-up" title="Live prices streaming">
           ● LIVE
         </span>
       )}
+      {refreshing && <Spinner size={11} className="text-muted" />}
       {open && (
-        <span className={`ohlc ${change >= 0 ? 'up' : 'down'}`}>
-          O<b>{fmt(bar.open)}</b> H<b>{fmt(bar.high)}</b> L<b>{fmt(bar.low)}</b> C<b>{fmt(bar.close)}</b>{' '}
-          <b>
+        <span className="text-muted">
+          O<b className={cx('mr-1.5 ml-0.5 font-normal', tone)}>{fmt(bar.open)}</b>H
+          <b className={cx('mr-1.5 ml-0.5 font-normal', tone)}>{fmt(bar.high)}</b>L
+          <b className={cx('mr-1.5 ml-0.5 font-normal', tone)}>{fmt(bar.low)}</b>C
+          <b className={cx('mr-1.5 ml-0.5 font-normal', tone)}>{fmt(bar.close)}</b>
+          <b className={cx('font-normal', tone)}>
             {sign}
             {fmt(change)} ({sign}
             {pct.toFixed(2)}%)
@@ -911,7 +1182,7 @@ function MainLegend({
         </span>
       )}
       {!open && (
-        <b className={change >= 0 ? 'up-text' : 'down-text'}>
+        <b className={cx('font-medium', tone)}>
           {fmt(bar.close)} {sign}
           {pct.toFixed(2)}%
         </b>
@@ -934,23 +1205,20 @@ function OverlayLegends({
   render: (s: StudyInstance) => ReactNode
 }) {
   if (!studies.length) return null
-  const chevron = (up: boolean) => (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-      <path d={up ? 'M3 7.5l3-3 3 3' : 'M3 4.5l3 3 3-3'} />
-    </svg>
-  )
+  const chip =
+    'pointer-events-auto my-0.5 inline-flex h-[22px] cursor-pointer items-center gap-1 rounded-full border border-line bg-surface/85 text-[12px] text-muted backdrop-blur-[2px] transition hover:border-muted hover:text-fg'
   if (!open)
     return (
-      <button className="legend-chip" onClick={onToggle} aria-expanded={false} title="Show indicator values">
-        {chevron(false)}
+      <button className={cx(chip, 'pr-2 pl-1')} onClick={onToggle} aria-expanded={false} title="Show indicator values">
+        <Chevron up={false} />
         {studies.length} indicator{studies.length > 1 ? 's' : ''}
       </button>
     )
   return (
     <>
       {studies.map(render)}
-      <button className="legend-chip only-icon" onClick={onToggle} aria-expanded title="Collapse indicators">
-        {chevron(true)}
+      <button className={cx(chip, 'w-[22px] justify-center')} onClick={onToggle} aria-expanded aria-label="Collapse indicators" title="Collapse indicators">
+        <Chevron up />
       </button>
     </>
   )
@@ -974,30 +1242,29 @@ function StudyLegend({
   const outputs = result[inst.uid]?.outputs
   return (
     // Focusable so a tap on a touch screen selects the row and shows its buttons.
-    <div className={`legend-row study ${inst.visible ? '' : 'is-hidden'}`} tabIndex={-1}>
-      <span className="legend-title">{studyTitle(def, inst)}</span>
+    <div className={cx(legendRow, studyRow)} tabIndex={-1}>
+      <span className={inst.visible ? 'text-fg' : 'text-muted'}>{studyTitle(def, inst)}</span>
       {inst.visible &&
         def.outputs.map((o) => {
           const v = valueAt(outputs?.[o.key], time)
           const token = inst.colors[o.key] ?? 'slot:0'
-          const color =
-            token === 'signed' ? (v !== undefined && v < 0 ? theme.down : theme.up) : resolveColor(token, theme)
+          const color = token === 'signed' ? (v !== undefined && v < 0 ? theme.down : theme.up) : resolveColor(token, theme)
           return (
-            <b key={o.key} style={{ color }} title={o.name}>
+            <b key={o.key} className="font-normal" style={{ color }} title={o.name}>
               {v === undefined ? '∅' : Math.abs(v) >= 1e5 ? fmtVolume(v) : fmt(v)}
             </b>
           )
         })}
-      <span className="legend-actions">
-        <button title={inst.visible ? 'Hide' : 'Show'} onClick={() => onAction(inst.uid, 'toggle')}>
+      <span className={legendActions}>
+        <LegendButton title={inst.visible ? 'Hide' : 'Show'} onClick={() => onAction(inst.uid, 'toggle')}>
           {inst.visible ? <EyeIcon /> : <EyeOffIcon />}
-        </button>
-        <button title="Settings" onClick={() => onAction(inst.uid, 'settings')}>
+        </LegendButton>
+        <LegendButton title="Settings" onClick={() => onAction(inst.uid, 'settings')}>
           <GearIcon />
-        </button>
-        <button title="Remove" onClick={() => onAction(inst.uid, 'remove')}>
+        </LegendButton>
+        <LegendButton title="Remove" onClick={() => onAction(inst.uid, 'remove')}>
           <CloseIcon />
-        </button>
+        </LegendButton>
       </span>
     </div>
   )

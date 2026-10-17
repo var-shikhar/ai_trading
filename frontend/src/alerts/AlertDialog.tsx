@@ -1,18 +1,35 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { api, type InstrumentHit } from '../api/client'
-import { ConditionCard } from '../scanner/ScannerPanel'
-import { CONDITION_DEFS, type ScanCatalog } from '../scanner/types'
-import { Modal } from '../ui/Modal'
+import { AddCondition, ConditionCard } from '../scanner/ScannerPanel'
+import { CONDITION_DEFS } from '../scanner/types'
+import { useToasts } from '../state/ui'
+import { Button, Field, Input, Modal, Segmented, Select, Skeleton, cx, ErrorText } from '../ui/kit'
 import { useAlertActions } from './queries'
-import { FREQUENCIES, PRICE_OPS, toInput, type Alert, type AlertIn, type Channel } from './types'
+import { toInput, type Alert, type AlertIn, type Channel } from './types'
 
 const TFS = ['5m', '15m', '30m', '1h', '2h', '4h', '1D', '1W']
-const fmt = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 2 })
+const fmt = (v: number) => v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const round = (v: number) => Math.round(v * 100) / 100
 
-/** Create or edit an alert. A price alert is one line ("crosses ₹X");
- * everything else is under "More options". `initial` pre-fills it (from the
- * chart's "Alert at price", or a drawn line's bell). */
+// The usual choices, as tappable chips; rarer saved ones still show.
+const PRICE_CHOICES: [string, string][] = [
+  ['crosses', 'Crosses'],
+  ['crosses_above', 'Goes above'],
+  ['crosses_below', 'Goes below'],
+  ['change_up', 'Up % today'],
+  ['change_down', 'Down % today'],
+]
+const OTHER_OPS: Record<string, string> = { above: 'Is above', below: 'Is below' }
+const CHANNELS: { id: Channel; label: string; icon: string }[] = [
+  { id: 'app', label: 'App', icon: '🔔' },
+  { id: 'telegram', label: 'Telegram', icon: '✈' },
+  { id: 'email', label: 'Email', icon: '✉' },
+]
+
+/** Create or edit an alert. A price alert is the price and one tap for the
+ * condition; repeat, expiry and note are under "More options". `initial`
+ * pre-fills it (the chart's "+", a drawn line's bell). */
 export function AlertDialog({
   symbol,
   initial,
@@ -31,7 +48,6 @@ export function AlertDialog({
     symbol: symbol.symbol,
     ticker: symbol.ticker,
     name: '',
-    // "Crosses" fires whichever way the price reaches the level.
     config: { op: 'crosses', value: 0 },
     tf: '1D',
     frequency: 'once',
@@ -41,33 +57,40 @@ export function AlertDialog({
     ...initial,
     ...(editing ? toInput(editing) : {}),
   }))
-  const [ltp, setLtp] = useState<number | null>(null)
-  const [scanCatalog, setScanCatalog] = useState<ScanCatalog | null>(null)
   const [more, setMore] = useState(false)
   const { save } = useAlertActions()
+  const push = useToasts((s) => s.push)
+  const submitting = useRef(false)
 
   const set = (patch: Partial<AlertIn>) => setA((x) => ({ ...x, ...patch }))
   const setConfig = (patch: Partial<AlertIn['config']>) => setA((x) => ({ ...x, config: { ...x.config, ...patch } }))
 
-  // Current price: shown next to the level, and the starting level of a new alert.
+  // Current price: shown big, and the starting level of a new alert.
   const priceSymbol = a.kind === 'price' || a.kind === 'drawing' ? a.symbol : null
-  useEffect(() => {
-    if (!priceSymbol) return
-    api.quotes([priceSymbol]).then((q) => {
-      const p = q[priceSymbol]?.ltp
-      if (!p) return
-      setLtp(p)
-      setA((x) => (x.kind === 'price' && !x.config.value ? { ...x, config: { ...x.config, value: round(p) } } : x))
-    }, () => {})
-  }, [priceSymbol])
-  useEffect(() => {
-    if (a.kind === 'scan' || a.kind === 'condition') api.scannerCatalog().then(setScanCatalog, () => {})
-  }, [a.kind])
+  const quote = useQuery({
+    queryKey: ['quote', priceSymbol],
+    queryFn: () => api.quotes([priceSymbol!]).then((q) => q[priceSymbol!] ?? null),
+    enabled: !!priceSymbol,
+    staleTime: 15_000,
+  })
+  const ltp = quote.data?.ltp ?? null
+  // A new price alert starts at the current price until a level is typed.
+  const [typed, setTyped] = useState(!!a.config.value)
+  const isPct = (o: string | undefined) => !!o?.startsWith('change')
+  // (A % alert has no sensible default: it waits for a number.)
+  const value = a.kind === 'price' && !typed && ltp && !isPct(a.config.op) ? round(ltp) : Number(a.config.value) || 0
+  const scanCatalog = useQuery({
+    queryKey: ['scanner', 'catalog'],
+    queryFn: api.scannerCatalog,
+    staleTime: Infinity,
+    enabled: a.kind === 'scan' || a.kind === 'condition',
+  })
 
   const switchKind = (kind: AlertIn['kind']) => {
     if (kind === a.kind) return
+    if (kind === 'price') setTyped(false)
     if (kind === 'price')
-      set({ kind, config: { op: 'crosses', value: ltp ? round(ltp) : 0 }, symbol: symbol.symbol, ticker: symbol.ticker })
+      set({ kind, frequency: 'once', config: { op: 'crosses', value: 0 }, symbol: symbol.symbol, ticker: symbol.ticker })
     if (kind === 'condition')
       set({
         kind,
@@ -82,154 +105,210 @@ export function AlertDialog({
         symbol: null,
         ticker: null,
         frequency: 'every',
-        config: { universe: 'nifty50', at: '15:45', conditions: [{ type: 'breakout', params: { ...CONDITION_DEFS.breakout.defaults } }] },
+        config: { universe: 'nifty50', at: '15:45', conditions: [{ type: 'new_high', params: { ...CONDITION_DEFS.new_high.defaults } }] },
       })
   }
 
-  const pctOp = a.config.op?.startsWith('change') ?? false
+  const op = a.config.op ?? 'crosses'
+  const pctOp = op.startsWith('change')
   const conditions = a.config.conditions ?? []
   const invalid =
-    a.kind === 'price'
-      ? !(Number(a.config.value) > 0)
-      : (a.kind === 'condition' || a.kind === 'scan') && conditions.length === 0
-  const create = async () => {
+    a.kind === 'price' ? !(value > 0) : (a.kind === 'condition' || a.kind === 'scan') ? conditions.length === 0 : false
+
+  const submit = async () => {
+    if (submitting.current || invalid) return
+    submitting.current = true
     // Asked here, on a tap: browsers ignore permission prompts without one.
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
     try {
-      await save.mutateAsync({ id: editing?.id, body: { ...a, status: 'active' } })
+      const body: AlertIn = { ...a, status: 'active', config: a.kind === 'price' ? { ...a.config, value } : a.config }
+      await save.mutateAsync({ id: editing?.id, body })
+      push(editing ? 'Alert updated' : `Alert set${a.ticker ? ` on ${a.ticker}` : ''}`)
       onClose()
     } catch {
-      // shown below from save.error
+      submitting.current = false // shown below; let them fix it and retry
     }
   }
 
-  const priceRow = (
-    <div className="alert-price">
-      <span className="alert-sentence">
-        <b>{a.ticker}</b>
-        <select value={a.config.op} onChange={(e) => setConfig({ op: e.target.value })} aria-label="Condition">
-          {PRICE_OPS.filter(([op]) => a.kind === 'price' || !op.startsWith('change')).map(([op, l]) => (
-            <option key={op} value={op}>
-              {l.toLowerCase()}
-            </option>
-          ))}
-        </select>
-        {a.kind === 'price' ? (
-          <span className="alert-value">
-            {!pctOp && <span className="muted">₹</span>}
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.05"
-              min="0"
-              value={a.config.value || ''}
-              placeholder={pctOp ? '%' : 'price'}
-              onChange={(e) => setConfig({ value: e.target.value === '' ? 0 : Number(e.target.value) })}
-              aria-label={pctOp ? 'Percent' : 'Price'}
-            />
-            {pctOp && <span className="muted">%</span>}
-          </span>
-        ) : (
-          <b>{a.config.points?.length === 1 ? 'your horizontal line' : 'your trend line'}</b>
-        )}
-      </span>
-      {a.kind === 'price' && !pctOp && ltp !== null && (
-        <>
-          <p className="note">
-            Now ₹{fmt(ltp)}
-            {Number(a.config.value) > 0 &&
-              ` · level is ${fmt(Math.abs((Number(a.config.value) / ltp - 1) * 100))}% ${Number(a.config.value) >= ltp ? 'above' : 'below'}`}
-          </p>
-          <div className="chip-row">
-            {[-5, -2, -1, 0, 1, 2, 5].map((p) => (
-              <button key={p} className="chip" onClick={() => setConfig({ value: round(ltp * (1 + p / 100)) })}>
-                {p === 0 ? 'Now' : `${p > 0 ? '+' : ''}${p}%`}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
+  const choices = OTHER_OPS[op] ? [...PRICE_CHOICES, [op, OTHER_OPS[op]] as [string, string]] : PRICE_CHOICES
+  const distance = ltp && value > 0 && !pctOp ? (value / ltp - 1) * 100 : null
 
   return (
     <Modal
-      title={editing ? 'Edit alert' : a.kind === 'drawing' ? 'Alert on your line' : 'New alert'}
+      title={
+        <span className="flex items-center gap-2">
+          {editing ? 'Edit alert' : 'New alert'}
+          {a.ticker && <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-[12px] font-semibold text-accent">{a.ticker}</span>}
+        </span>
+      }
       onClose={onClose}
-      width={480}
+      width={460}
       footer={
         <>
-          {save.error && <span className="status err small">{save.error.message}</span>}
-          <span className="spacer" />
-          <button className="secondary-button" onClick={onClose}>
+          <span className="flex-1" />
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button className="primary-button" disabled={invalid || save.isPending} onClick={create}>
-            {save.isPending ? 'Saving…' : editing ? 'Save' : 'Create alert'}
-          </button>
+          </Button>
+          <Button variant="primary" disabled={invalid} loading={save.isPending} onClick={submit}>
+            {editing ? 'Save' : 'Create alert'}
+          </Button>
         </>
       }
     >
-      {a.kind !== 'drawing' && !editing && (
-        <div className="segmented small kind-switch" role="group" aria-label="Alert type">
-          {(
-            [
+      <div className="flex flex-col gap-5">
+        {a.kind !== 'drawing' && !editing && (
+          <Segmented
+            className="w-full"
+            value={a.kind}
+            onChange={switchKind}
+            options={[
               ['price', 'Price'],
               ['condition', 'Indicator'],
               ['scan', 'Daily scan'],
-            ] as const
-          ).map(([k, l]) => (
-            <button key={k} className={a.kind === k ? 'active' : ''} onClick={() => switchKind(k)}>
-              {l}
-            </button>
-          ))}
-        </div>
-      )}
+            ]}
+          />
+        )}
 
-      {(a.kind === 'price' || a.kind === 'drawing') && priceRow}
+        {(a.kind === 'price' || a.kind === 'drawing') && (
+          <>
+            {/* Current price */}
+            <div className="flex items-center justify-between rounded-xl bg-hover px-4 py-3">
+              <span className="text-[12px] font-medium text-muted">Current price</span>
+              {quote.isPending && priceSymbol ? (
+                <Skeleton className="h-5 w-24" />
+              ) : ltp ? (
+                <span className="flex items-baseline gap-2">
+                  <b className="text-[17px] font-semibold tabular-nums">₹{fmt(ltp)}</b>
+                  {quote.data?.chp != null && (
+                    <span className={cx('text-[12px] font-medium tabular-nums', quote.data.chp >= 0 ? 'text-up' : 'text-down')}>
+                      {quote.data.chp >= 0 ? '+' : ''}
+                      {quote.data.chp.toFixed(2)}%
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-[13px] text-muted">unavailable</span>
+              )}
+            </div>
 
-      {a.kind === 'condition' && (
-        <div className="form-grid">
-          <label>
-            <span>{a.ticker} on</span>
-            <select value={a.tf ?? '1D'} onChange={(e) => set({ tf: e.target.value })}>
+            {/* Condition */}
+            <div className="flex flex-col gap-2">
+              <span className="text-[12px] font-medium text-muted">Alert me when the price</span>
+              <div className="flex flex-wrap gap-1.5">
+                {choices
+                  .filter(([o]) => a.kind === 'price' || !o.startsWith('change'))
+                  .map(([o, label]) => (
+                    <button
+                      key={o}
+                      onClick={() => {
+                        // Switching between a price and a % keeps no number: 2450 isn't a sensible 2450%.
+                        if (isPct(o) !== isPct(op)) {
+                          setTyped(false)
+                          setConfig({ op: o, value: 0 })
+                        } else setConfig({ op: o })
+                      }}
+                      aria-pressed={op === o}
+                      className={cx(
+                        'rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition',
+                        op === o ? 'border-accent bg-accent text-accent-fg' : 'border-line text-fg hover:bg-hover',
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            {a.kind === 'price' ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-4 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  {!pctOp && <span className="text-[22px] text-muted">₹</span>}
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.05"
+                    min="0"
+                    value={value || ''}
+                    placeholder={pctOp ? 'e.g. 3' : 'Price'}
+                    onChange={(e) => {
+                      setTyped(true)
+                      setConfig({ value: e.target.value === '' ? 0 : Number(e.target.value) })
+                    }}
+                    aria-label={pctOp ? 'Percent' : 'Price'}
+                    className="h-14 min-w-0 flex-1 bg-transparent text-[24px] font-semibold tabular-nums text-fg outline-none"
+                  />
+                  {pctOp && <span className="text-[22px] text-muted">%</span>}
+                </div>
+                {distance !== null && (
+                  <p className={cx('text-[12px] font-medium', distance >= 0 ? 'text-up' : 'text-down')}>
+                    {distance >= 0 ? '▲' : '▼'} {Math.abs(distance).toFixed(2)}% {distance >= 0 ? 'above' : 'below'} the current price
+                  </p>
+                )}
+                {!pctOp && ltp && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {[-5, -2, -1, 0, 1, 2, 5].map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => {
+                          setTyped(true)
+                          setConfig({ value: round(ltp * (1 + p / 100)) })
+                        }}
+                        className="rounded-md bg-hover px-2.5 py-1 text-[12px] font-medium text-muted transition hover:text-fg"
+                      >
+                        {p === 0 ? 'Now' : `${p > 0 ? '+' : ''}${p}%`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-accent-soft px-4 py-3 text-[13px] text-accent">
+                Fires when the price {op === 'crosses' ? 'crosses' : op === 'crosses_above' ? 'goes above' : 'goes below'} your{' '}
+                {a.config.points?.length === 1 ? 'horizontal line' : 'trend line (extended to the right)'}.
+              </p>
+            )}
+          </>
+        )}
+
+        {a.kind === 'condition' && (
+          <Field label={`${a.ticker} timeframe`}>
+            <Select value={a.tf ?? '1D'} onChange={(e) => set({ tf: e.target.value })}>
               {TFS.map((t) => (
                 <option key={t}>{t}</option>
               ))}
-            </select>
-          </label>
-        </div>
-      )}
-      {a.kind === 'scan' && scanCatalog && (
-        <div className="form-grid">
-          <label>
-            <span>Stocks</span>
-            <select value={a.config.universe} onChange={(e) => setConfig({ universe: e.target.value })}>
-              {scanCatalog.universes.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Every day at (IST)</span>
-            <input type="time" value={a.config.at ?? '15:45'} onChange={(e) => setConfig({ at: e.target.value })} />
-          </label>
-          <label>
-            <span>Name</span>
-            <input value={a.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. Nifty 500 breakouts" />
-          </label>
-        </div>
-      )}
-      {(a.kind === 'condition' || a.kind === 'scan') && (
-        <>
-          <p className="note">
-            {a.kind === 'condition'
-              ? 'Alerts when all of these hold on a closed bar (never on a forming one).'
-              : 'Runs after the close; tells you only the stocks that newly match.'}
-          </p>
-          <div className="alert-conditions">
+            </Select>
+          </Field>
+        )}
+        {a.kind === 'scan' && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Stocks" className="sm:col-span-2">
+              {scanCatalog.data ? (
+                <Select value={a.config.universe} onChange={(e) => setConfig({ universe: e.target.value })}>
+                  {scanCatalog.data.universes.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Skeleton className="h-10 w-full" />
+              )}
+            </Field>
+            <Field label="Every trading day at (IST)">
+              <Input type="time" value={a.config.at ?? '15:45'} onChange={(e) => setConfig({ at: e.target.value })} />
+            </Field>
+            <Field label="Name">
+              <Input value={a.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. Breakouts" />
+            </Field>
+          </div>
+        )}
+        {(a.kind === 'condition' || a.kind === 'scan') && (
+          <div className="flex flex-col gap-2">
+            <p className="text-[12px] text-muted">
+              {a.kind === 'condition'
+                ? 'Fires when all of these hold on a closed bar (never on a forming one).'
+                : 'Runs after the close and tells you only the stocks that newly match.'}
+            </p>
             {conditions.map((c, i) => (
               <ConditionCard
                 key={i}
@@ -238,71 +317,87 @@ export function AlertDialog({
                 onRemove={() => setConfig({ conditions: conditions.filter((_, j) => j !== i) })}
               />
             ))}
-            <select
-              className="add-condition"
-              value=""
-              aria-label="Add condition"
-              onChange={(e) => {
-                const def = CONDITION_DEFS[e.target.value]
-                if (def) setConfig({ conditions: [...conditions, { type: e.target.value, params: { ...def.defaults } }] })
-              }}
-            >
-              <option value="">+ Add condition (all must match)</option>
-              {Object.entries(CONDITION_DEFS).map(([k, d]) => (
-                <option key={k} value={k}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </>
-      )}
-
-      <div className="alert-notify">
-        <span className="muted">Notify me in</span>
-        {(['app', 'telegram', 'email'] as Channel[])
-          .filter((ch) => channels[ch])
-          .map((ch) => (
-            <label key={ch} className="check">
-              <input
-                type="checkbox"
-                checked={a.channels.includes(ch)}
-                onChange={(e) => set({ channels: e.target.checked ? [...a.channels, ch] : a.channels.filter((c) => c !== ch) })}
-              />
-              {ch === 'app' ? 'App' : ch === 'telegram' ? 'Telegram' : 'Email'}
-            </label>
-          ))}
-      </div>
-
-      <button className="link-button more-toggle" onClick={() => setMore(!more)} aria-expanded={more}>
-        {more ? '▾' : '▸'} More options
-      </button>
-      {more && (
-        <div className="form-grid">
-          <label>
-            <span>Alert</span>
-            <select value={a.frequency} onChange={(e) => set({ frequency: e.target.value as AlertIn['frequency'] })}>
-              {FREQUENCIES.filter(([f]) => a.kind !== 'scan' || f !== 'once_per_bar').map(([f, l]) => (
-                <option key={f} value={f}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Until (blank = no end)</span>
-            <input
-              type="date"
-              value={a.expires?.slice(0, 10) ?? ''}
-              onChange={(e) => set({ expires: e.target.value ? `${e.target.value}T23:59:59` : null })}
+            <AddCondition
+              available={Object.keys(CONDITION_DEFS)}
+              label="+ Add condition (all must match)"
+              onAdd={(c) => setConfig({ conditions: [...conditions, c] })}
             />
-          </label>
-          <label>
-            <span>Note</span>
-            <input value={a.message} onChange={(e) => set({ message: e.target.value })} placeholder="Shown in the notification" />
-          </label>
+          </div>
+        )}
+
+        {/* Notify */}
+        <div className="flex flex-col gap-2">
+          <span className="text-[12px] font-medium text-muted">Notify me in</span>
+          <div className="flex flex-wrap gap-1.5">
+            {CHANNELS.map((ch) => {
+              const on = a.channels.includes(ch.id)
+              const available = channels[ch.id]
+              return (
+                <button
+                  key={ch.id}
+                  // A channel no longer set up can still be switched off.
+                  disabled={!available && !on}
+                  title={available ? undefined : 'Set it up in Profile & notifications'}
+                  aria-pressed={on}
+                  onClick={() => {
+                    const next = on ? a.channels.filter((c) => c !== ch.id) : [...a.channels, ch.id]
+                    if (next.length) set({ channels: next }) // at least one
+                  }}
+                  className={cx(
+                    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition disabled:opacity-40',
+                    on ? 'border-accent bg-accent-soft text-accent' : 'border-line text-muted hover:bg-hover',
+                  )}
+                >
+                  <span aria-hidden>{ch.icon}</span> {ch.label}
+                  {on && <span aria-hidden>✓</span>}
+                </button>
+              )
+            })}
+          </div>
         </div>
-      )}
+
+        <div>
+          <button onClick={() => setMore(!more)} aria-expanded={more} className="flex items-center gap-1 text-[13px] font-medium text-accent">
+            <span className={cx('inline-block transition', more && 'rotate-90')}>▸</span> More options
+          </button>
+          {more && (
+            <div className="mt-3 grid animate-pop grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Repeat" className="sm:col-span-2">
+                <Segmented
+                  className="w-full"
+                  size="sm"
+                  value={a.frequency}
+                  onChange={(frequency) => set({ frequency })}
+                  options={
+                    a.kind === 'scan'
+                      ? [
+                          ['once', 'Once'],
+                          ['every', 'Every day'],
+                        ]
+                      : [
+                          ['once', 'Once'],
+                          ['once_per_bar', 'Once per bar'],
+                          ['every', 'Every time'],
+                        ]
+                  }
+                />
+              </Field>
+              <Field label="Until" hint="Blank = no end">
+                <Input
+                  type="date"
+                  value={a.expires?.slice(0, 10) ?? ''}
+                  onChange={(e) => set({ expires: e.target.value ? `${e.target.value}T23:59:59` : null })}
+                />
+              </Field>
+              <Field label="Note" hint="Shown in the notification">
+                <Input value={a.message} onChange={(e) => set({ message: e.target.value })} placeholder="Optional" />
+              </Field>
+            </div>
+          )}
+        </div>
+
+        <ErrorText>{save.error?.message}</ErrorText>
+      </div>
     </Modal>
   )
 }

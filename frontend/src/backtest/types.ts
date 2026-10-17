@@ -141,3 +141,25 @@ export interface ChartBacktestResult {
   from: number
   to: number
 }
+
+// --- shared formatting ------------------------------------------------------------------------
+
+export const pct = (v: number | null | undefined, sign = true) =>
+  v === null || v === undefined ? '–' : `${sign && v > 0 ? '+' : ''}${v.toFixed(2)}%`
+export const num = (v: number | null | undefined, d = 2) => (v === null || v === undefined ? '–' : v.toFixed(d))
+export const inr = (v: number | null | undefined) =>
+  v === null || v === undefined ? '–' : `₹${v.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+export const tone = (v: number | null | undefined): 'pos' | 'neg' | undefined =>
+  v === null || v === undefined || v === 0 ? undefined : v > 0 ? 'pos' : 'neg'
+/** Text color for a tone (profit green, loss red). */
+export const toneClass = (v: number | null | undefined) => {
+  const t = tone(v)
+  return t === 'pos' ? 'text-up' : t === 'neg' ? 'text-down' : ''
+}
+
+// The rule part of a Lab setup: what a strategy is, independent of which
+// symbols or dates it's tested on (an agent can later create or tune these).
+export const RULE_KEYS = [
+  'tf', 'side', 'entry', 'exit_conditions', 'stop_type', 'stop_value', 'target_type', 'target_value',
+  'trail_type', 'trail_value', 'max_bars', 'sizing', 'size_value', 'max_positions', 'cost_pct', 'slippage_pct',
+] as const

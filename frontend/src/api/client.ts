@@ -271,7 +271,7 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     checkSession(res.status, body.detail)
-    throw new ApiError(res.status, body.detail ?? res.statusText)
+    throw new ApiError(res.status, errorText(body.detail) ?? res.statusText)
   }
   return res.json() as Promise<T>
 }
