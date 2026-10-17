@@ -23,3 +23,10 @@ Everything lives in `research/data/` (git-ignored). Each source below can be reb
 - **Bhavcopy prices are raw.** Splits, bonuses and dividends aren't adjusted (RELIANCE had 1:1 bonuses in 2017 and 2024). Before using them for returns, build an adjustment from NSE's corporate-actions data, or use `prevclose` jumps (on the day after a corporate action, NSE sets the adjusted previous close).
 - **Yahoo 1h:** bars start 09:15 and are hourly to 15:15 (the last bar is 15 minutes). It's unadjusted on purpose so appended history stays consistent; adjustment happens at load time.
 - **Licensing:** NSE bhavcopies are public downloads, intended for personal and research use. We don't redistribute the data; it stays local and git-ignored.
+
+## NSE download status (17 Oct 2026)
+- **Complete for 2005-01-03 to 2026-10-16:** 5,399 cash-market files and 5,397 F&O files. `common/verify_bhav.py` writes its report to `data/verify_bhav.txt`.
+  - Every NIFTY trading day is covered except the Sunday session of 25 Jun 2006. F&O also lacks 9 Oct 2013 and 30 Mar 2021.
+  - 4,454 EQ symbols in total. 1,624 stopped trading, of which 169 were liquid (≥ ₹5 cr a day): HDFC, SATYAMCOMP, RCOM, JPASSOCIAT, HDIL, IBULHSGFIN and others. Some of these are renames (INFOSYSTCH→INFY, TISCO→TATASTEEL, ZOMATO→ETERNAL), so a symbol-change map is needed.
+  - **Prices vs Yahoo:** day returns correlate 0.996 (median; minimum 0.977) once 365 split/bonus days are excluded. The raw bhavcopy shows those days as −50% to −90%.
+- **Weekend sessions:** the fetcher now also tries Saturdays and Sundays. That re-run was cut short because NSE blocked the IP after it was switched to 10 workers. Nothing bad was recorded: only 404s count as "no file". When the block lifts, re-run with `--workers=3`; it only fills in the remaining weekend days.
