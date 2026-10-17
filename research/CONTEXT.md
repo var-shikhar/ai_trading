@@ -88,6 +88,15 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
    hourly-to-daily timeframes**, not intraday and not the daily momentum book.
    This replaces decision 3's "002 is a daily study". It needs Fyers 1h
    history (Phase 1 in `ROADMAP.md`).
+5. **Timeframe for 002 (2026-10-17): 1h is the trading timeframe**, with daily
+   as the higher timeframe. Build it timeframe-agnostic (the higher, trading
+   and lower timeframes are parameters) and test it on both 1h and daily as
+   trading timeframes. If it only works on one, proceed with that one; that's
+   acceptable.
+6. **Data (2026-10-17):** keep every copy, including the old
+   `backend/data/market.duckdb` snapshot in the worktree. More data is
+   welcome. Prefer open sources (`DATA.md`). The sibling `indicator` folder
+   is read-only, and anything taken from it is copied.
 
 ## Environment and rules
 - **Work only in the worktree** `C:\Users\varsh\Downloads\indicator-research`
