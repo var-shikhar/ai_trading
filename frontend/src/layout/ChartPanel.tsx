@@ -11,7 +11,7 @@ import {
 import { PriceChart, type ChartType, type ScaleMode, type StudyAction } from '../chart/PriceChart'
 import type { ChartTheme } from '../chart/theme'
 import type { Drawing, DrawingTool } from '../drawings/types'
-import type { ChartPatternResult } from '../patterns/chartPatterns'
+import { visiblePatterns, type ChartPatternResult } from '../patterns/chartPatterns'
 import { chartSettings, patternMode, type PatternSettings } from '../patterns/PatternPanel'
 import { defaultStudies, type StudyInstance } from '../studies/model'
 import { applyTick, type LiveBar } from '../live/bars'
@@ -262,7 +262,7 @@ export function ChartPanel(p: Props) {
 
   // --- patterns --------------------------------------------------------------------
   const mode = patternMode(config.patternSettings)
-  const { sensitivity, showZones } = chartSettings(config.patternSettings)
+  const { sensitivity, showZones, hidden } = chartSettings(config.patternSettings)
   const candleOn = config.showPatterns && mode === 'candles'
   const chartOn = config.showPatterns && mode === 'chart'
 
@@ -381,7 +381,7 @@ export function ChartPanel(p: Props) {
           onCrosshairTime={p.onCrosshairTime}
           syncRange={p.syncRange}
           onVisibleTimeRange={p.onVisibleTimeRange}
-          chartPatterns={chartOn ? patterns.chart : null}
+          chartPatterns={chartOn ? visiblePatterns(patterns.chart, hidden) : null}
           showZones={showZones}
           highlightPattern={p.highlightPattern}
           liveBar={liveBar && chartKey === key ? liveBar.bar : null}

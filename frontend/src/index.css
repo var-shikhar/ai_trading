@@ -1034,6 +1034,37 @@ select {
 .hit-list button:hover {
   background: var(--hover);
 }
+/* Chart patterns: an eye per row to hide/show it on the chart. */
+.hit-list li.with-eye {
+  display: flex;
+  align-items: center;
+}
+.hit-list li.with-eye > button:last-child {
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+}
+.hit-list .eye-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: auto;
+  padding: 8px 4px 8px 10px;
+  color: var(--muted);
+}
+.hit-list .eye-button:hover {
+  color: var(--fg);
+  background: none;
+}
+.hit-list li.is-hidden > button:last-child {
+  opacity: 0.45;
+}
+.pattern-visibility {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 6px;
+  font-size: 12px;
+}
 .hit-name {
   overflow: hidden;
   text-overflow: ellipsis;

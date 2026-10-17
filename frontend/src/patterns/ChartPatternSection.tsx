@@ -27,6 +27,17 @@ export function ChartPatternSection({
   const patterns = [...(result?.patterns ?? [])]
     .filter((p) => settings.showFailed || p.status !== 'failed')
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || b.end_time - a.end_time)
+  const hidden = new Set(settings.hidden ?? [])
+  // Keep only keys of patterns still found, so the list doesn't grow forever.
+  const current = new Set((result?.patterns ?? []).map(patternKey))
+  const setHidden = (keys: Iterable<string>) => set({ hidden: [...keys].filter((k) => current.has(k)) })
+  const toggle = (k: string) => {
+    const next = new Set(hidden)
+    if (next.has(k)) next.delete(k)
+    else next.add(k)
+    setHidden(next)
+  }
+  const allHidden = patterns.length > 0 && patterns.every((p) => hidden.has(patternKey(p)))
 
   return (
     <>
@@ -58,9 +69,32 @@ export function ChartPatternSection({
         {error && <p className="status err">{error}</p>}
         {loading && !result && <p className="status">Scanning…</p>}
         {result && patterns.length === 0 && <p className="status">No chart patterns on the loaded bars.</p>}
+        {patterns.length > 0 && (
+          <div className="pattern-visibility">
+            <span className="muted">
+              {patterns.length - patterns.filter((p) => hidden.has(patternKey(p))).length} of {patterns.length} on the chart
+            </span>
+            <button
+              className="link-button"
+              onClick={() =>
+                setHidden(allHidden ? [...hidden].filter((k) => !patterns.some((p) => patternKey(p) === k)) : [...hidden, ...patterns.map(patternKey)])
+              }
+            >
+              {allHidden ? 'Show all' : 'Hide all'}
+            </button>
+          </div>
+        )}
         <ul className="hit-list">
           {patterns.map((p) => (
-            <li key={patternKey(p)}>
+            <li key={patternKey(p)} className={`with-eye ${hidden.has(patternKey(p)) ? 'is-hidden' : ''}`}>
+              <button
+                className="eye-button"
+                aria-pressed={!hidden.has(patternKey(p))}
+                title={hidden.has(patternKey(p)) ? 'Show on the chart' : 'Hide from the chart'}
+                onClick={() => toggle(patternKey(p))}
+              >
+                <EyeIcon off={hidden.has(patternKey(p))} />
+              </button>
               <button className={highlight === patternKey(p) ? 'picked' : ''} onClick={() => onPick(p)}>
                 <span className={`dir ${p.direction}`}>{p.direction === 'bullish' ? '▲' : p.direction === 'bearish' ? '▼' : '◆'}</span>
                 <span className="hit-name">
@@ -107,5 +141,15 @@ export function ChartPatternSection({
         )}
       </div>
     </>
+  )
+}
+
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M1.5 9s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" />
+      <circle cx="9" cy="9" r="2.2" />
+      {off && <path d="M3 15L15 3" />}
+    </svg>
   )
 }

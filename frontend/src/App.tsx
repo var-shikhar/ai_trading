@@ -404,19 +404,6 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
                     </svg>
                   </button>
                 )}
-                <button
-                  className={`tool-button ${chartStrategy.enabled ? 'selected' : ''}`}
-                  title="Backtest a strategy on this chart"
-                  onClick={() => {
-                    if (!chartStrategy.enabled) patchStrategy({ enabled: true })
-                    setDock('strategy')
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-                    <path d="M2 15h14M4 12l3-4 3 2 5-6" />
-                  </svg>
-                  <span className="btn-label">{chartStrategy.enabled ? chartStrategy.name : 'Strategy'}</span>
-                </button>
               </>
             }
           />

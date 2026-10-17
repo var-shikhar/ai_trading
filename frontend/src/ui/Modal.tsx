@@ -15,12 +15,24 @@ export function Modal({
   width?: number
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  // Parents often pass a new onClose each render (e.g. on every live price
+  // tick); read it through a ref so the effects below run once.
+  const closeRef = useRef(onClose)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    closeRef.current = onClose
+  })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current()
     window.addEventListener('keydown', onKey)
-    ref.current?.querySelector<HTMLElement>('input, button, select')?.focus()
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [])
+  // Focus once on open, a text field first: refocusing on every render moved
+  // focus to the close button and dismissed the phone keyboard mid-typing.
+  useEffect(() => {
+    const el = ref.current
+    if (!el || el.contains(document.activeElement)) return
+    ;(el.querySelector<HTMLElement>('input:not([type=checkbox]), textarea, select') ?? el.querySelector<HTMLElement>('button'))?.focus()
+  }, [])
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>

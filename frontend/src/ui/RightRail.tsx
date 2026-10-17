@@ -22,13 +22,13 @@ const ITEMS: { id: Dock; title: string; icon: ReactNode }[] = [
       </>,
     ),
   },
-  { id: 'strategy', title: 'Strategy on chart (backtest live)', icon: icon(<path d="M3 16h14M5 13l3-4 3 2 5-6" />) },
+  // The strategy on the chart ('strategy' dock) is hidden for now; its panel
+  // and report still work if it was switched on before.
 ]
 
 const MOBILE_TABS: { id: Dock | null; label: string }[] = [
   { id: null, label: 'Chart' },
   { id: 'patterns', label: 'Patterns' },
-  { id: 'strategy', label: 'Strategy' },
   { id: 'alerts', label: 'Alerts' },
 ]
 

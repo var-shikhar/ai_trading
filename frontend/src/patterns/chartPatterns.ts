@@ -36,6 +36,8 @@ export interface ChartPatternSettings {
   sensitivity: Sensitivity
   showZones: boolean
   showFailed: boolean
+  /** Patterns (patternKey) the user hid from the chart. */
+  hidden?: string[]
 }
 
 export const DEFAULT_CHART_PATTERN_SETTINGS: ChartPatternSettings = {
@@ -45,3 +47,10 @@ export const DEFAULT_CHART_PATTERN_SETTINGS: ChartPatternSettings = {
 }
 
 export const patternKey = (p: ChartPattern) => `${p.type}:${p.start_time}`
+
+/** The result without the patterns the user hid (zones are kept). */
+export function visiblePatterns(result: ChartPatternResult | null, hidden: string[] | undefined): ChartPatternResult | null {
+  if (!result || !hidden?.length) return result
+  const off = new Set(hidden)
+  return { ...result, patterns: result.patterns.filter((p) => !off.has(patternKey(p))) }
+}
