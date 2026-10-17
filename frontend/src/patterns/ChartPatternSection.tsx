@@ -144,7 +144,7 @@ export function ChartPatternSection({
   )
 }
 
-function EyeIcon({ off }: { off: boolean }) {
+export function EyeIcon({ off }: { off: boolean }) {
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <path d="M1.5 9s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" />

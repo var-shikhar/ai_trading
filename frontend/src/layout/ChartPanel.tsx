@@ -12,7 +12,7 @@ import { PriceChart, type ChartType, type ScaleMode, type StudyAction } from '..
 import type { ChartTheme } from '../chart/theme'
 import type { Drawing, DrawingTool } from '../drawings/types'
 import { visiblePatterns, type ChartPatternResult } from '../patterns/chartPatterns'
-import { chartSettings, patternMode, type PatternSettings } from '../patterns/PatternPanel'
+import { chartSettings, hitKey, patternMode, type PatternSettings } from '../patterns/PatternPanel'
 import { defaultStudies, type StudyInstance } from '../studies/model'
 import { applyTick, type LiveBar } from '../live/bars'
 import { live } from '../live/liveClient'
@@ -284,7 +284,9 @@ export function ChartPanel(p: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, chartOn, chartPatternKey])
 
-  const patternKey = `${key}|${limit}|${JSON.stringify(config.patternSettings)}`
+  // Only what the scan uses: hiding hits or chart-pattern settings don't rescan.
+  const { preset: scanPreset, custom: scanCustom, inContext: scanInContext } = config.patternSettings
+  const patternKey = `${key}|${limit}|${scanPreset}|${scanCustom.join(',')}|${scanInContext}`
   useEffect(() => {
     if (!authenticated || !candleOn) {
       setPatterns((s) => ({ ...s, result: null, loading: false, error: null }))
@@ -313,10 +315,13 @@ export function ChartPanel(p: Props) {
   }, [authenticated, candleOn, patternKey])
 
   const markers = useMemo(() => {
-    const own = candleOn && patterns.result && p.patternCatalog ? toMarkers(patterns.result, p.patternCatalog, theme) : []
+    const own =
+      candleOn && patterns.result && p.patternCatalog
+        ? toMarkers(patterns.result, p.patternCatalog, theme, config.patternSettings.hiddenHits)
+        : []
     const extra = p.extraMarkers ?? []
     return extra.length ? [...own, ...extra].sort((a, b) => (a.time as number) - (b.time as number)) : own
-  }, [candleOn, patterns.result, p.patternCatalog, theme, p.extraMarkers])
+  }, [candleOn, patterns.result, p.patternCatalog, theme, p.extraMarkers, config.patternSettings.hiddenHits])
 
   // --- report up to the app (only the active chart drives the bars) ---------------
   const status = loading
@@ -393,11 +398,18 @@ export function ChartPanel(p: Props) {
   )
 }
 
-function toMarkers(result: PatternResult, catalog: PatternCatalog, theme: ChartTheme): SeriesMarker<Time>[] {
+function toMarkers(
+  result: PatternResult,
+  catalog: PatternCatalog,
+  theme: ChartTheme,
+  hidden: string[] = [],
+): SeriesMarker<Time>[] {
   const labels = Object.fromEntries(catalog.patterns.map((p) => [p.id, p.label]))
+  const off = new Set(hidden)
   // One marker per bar and side; several patterns on the same bar share it.
   const byBar = new Map<string, SeriesMarker<Time>>()
   for (const h of result.hits) {
+    if (off.has(hitKey(h))) continue
     const above = h.direction !== 'bullish'
     const id = `${h.time}|${above}`
     const label = labels[h.pattern] ?? h.pattern

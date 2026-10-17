@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Direction, PatternCatalog, PatternHit, PatternInfo, PatternResult } from '../api/client'
-import { ChartPatternSection } from './ChartPatternSection'
+import { ChartPatternSection, EyeIcon } from './ChartPatternSection'
 import {
   DEFAULT_CHART_PATTERN_SETTINGS,
   type ChartPattern,
@@ -16,7 +16,11 @@ export interface PatternSettings {
   inContext: boolean
   mode?: 'candles' | 'chart' // older saved settings lack these
   chart?: ChartPatternSettings
+  /** Candlestick hits (hitKey) the user hid from the chart. */
+  hiddenHits?: string[]
 }
+
+export const hitKey = (h: { time: number; pattern: string }) => `${h.time}-${h.pattern}`
 
 export const patternMode = (s: PatternSettings) => s.mode ?? 'candles'
 export const chartSettings = (s: PatternSettings) => ({ ...DEFAULT_CHART_PATTERN_SETTINGS, ...s.chart })
@@ -78,11 +82,10 @@ export function PatternPanel({
   const modeTabs = (
     <>
       <div className="watch-head">
-        <b>Patterns</b>
-        <span className="spacer" />
-        <label className="switch" title={shown ? 'Remove the patterns from the chart' : 'Draw the patterns on the chart'}>
+        {/* Master switch for all of them; each row's eye hides just that one. */}
+        <label className="switch" title={shown ? 'Remove all patterns from the chart' : 'Draw the patterns on the chart'}>
           <input type="checkbox" checked={shown} onChange={(e) => onShown(e.target.checked)} />
-          <span>Show on chart</span>
+          <span>Patterns on chart</span>
         </label>
       </div>
       <div className="tabs mode-tabs" role="tablist" aria-label="Pattern type">
@@ -133,6 +136,19 @@ function CandlestickSection({
   const hits = useMemo(() => [...(result?.hits ?? [])].reverse(), [result])
 
   const set = (patch: Partial<PatternSettings>) => onSettings({ ...settings, ...patch })
+  const hidden = new Set(settings.hiddenHits ?? [])
+  // Keep only keys of hits still found, so the list doesn't grow forever.
+  const setHidden = (keys: Iterable<string>) => {
+    const current = new Set(hits.map(hitKey))
+    set({ hiddenHits: [...keys].filter((k) => current.has(k)) })
+  }
+  const toggle = (k: string) => {
+    const next = new Set(hidden)
+    if (next.has(k)) next.delete(k)
+    else next.add(k)
+    setHidden(next)
+  }
+  const allHidden = hits.length > 0 && hits.every((h) => hidden.has(hitKey(h)))
 
   return (
     <aside className="pattern-panel">
@@ -185,10 +201,22 @@ function CandlestickSection({
         {tab === 'hits' && result && (
           <>
             {hits.length === 0 && <p className="status">No patterns on the loaded bars.</p>}
+            {hits.length > 0 && (
+              <div className="pattern-visibility">
+                <span className="muted">
+                  {hits.length - hits.filter((h) => hidden.has(hitKey(h))).length} of {hits.length} on the chart
+                </span>
+                <button className="link-button" onClick={() => setHidden(allHidden ? [] : hits.map(hitKey))}>
+                  {allHidden ? 'Show all' : 'Hide all'}
+                </button>
+              </div>
+            )}
             <ul className="hit-list">
               {hits.map((h) => (
                 <HitRow
-                  key={`${h.time}-${h.pattern}`}
+                  key={hitKey(h)}
+                  hidden={hidden.has(hitKey(h))}
+                  onToggle={() => toggle(hitKey(h))}
                   hit={h}
                   info={byId[h.pattern]}
                   intraday={intraday}
@@ -255,7 +283,11 @@ function HitRow({
   intraday,
   outcomeBars,
   onFocus,
+  hidden,
+  onToggle,
 }: {
+  hidden: boolean
+  onToggle: () => void
   hit: PatternHit
   info: PatternInfo | undefined
   intraday: boolean
@@ -265,7 +297,15 @@ function HitRow({
   const predicted = hit.direction === 'bullish' ? 1 : hit.direction === 'bearish' ? -1 : 0
   const worked = hit.move_pct === null || predicted === 0 ? null : hit.move_pct * predicted > 0
   return (
-    <li>
+    <li className={`with-eye ${hidden ? 'is-hidden' : ''}`}>
+      <button
+        className="eye-button"
+        aria-pressed={!hidden}
+        title={hidden ? 'Show on the chart' : 'Hide from the chart'}
+        onClick={onToggle}
+      >
+        <EyeIcon off={hidden} />
+      </button>
       <button onClick={() => onFocus(hit.time)}>
         <span className={`dir ${hit.direction}`}>{ARROW[hit.direction]}</span>
         <span className="hit-name">
