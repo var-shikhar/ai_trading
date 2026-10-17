@@ -37,12 +37,13 @@ research/.venv/Scripts/python.exe research/common/fetch_yf.py          # daily N
 | Path | What |
 |---|---|
 | `ROADMAP.md` | phased plan from research to deployment, with gates |
+| `DATA.md` | data sources (Yahoo daily/1h, NSE bhavcopy cash + F&O, Fyers copy), coverage, rebuild commands |
 | `notes/ytc_synthesis.md` | **start here:** all YTC sources joined up with our results, ranked rules for strategy 002 (hourly→daily) |
 | `notes/ytc.md` | YTC Price Action Trader concepts (vols 2–3), mapped to daily/weekly swing trading, with page refs |
 | `notes/ytc_vol4_6.md` | YTC PAT vols 1, 3 (rest), 4–6: entry zone, management, risk, process, production requirements |
 | `notes/ytc_scalper.md` | YTC Scalper: lower-timeframe entry (channel/limit entries), scratching, exits |
 | `notes/ytc_blogs.md` | YTC blog posts 1–150: S/R selection, traps, acceptance/rejection, time stops |
-| `common/` | PDF extraction (`extract_pdf.py`) and page viewer (`pages.py <from> <to> [ytc / scalper / blogs]`), data loading (`data.py`, `fetch_yf.py`, `universe.py`), YTC swings/trend (`structure.py`), portfolio simulation and stats (`portfolio.py`) |
+| `common/` | PDF extraction (`extract_pdf.py`) and page viewer (`pages.py <from> <to> [ytc / scalper / blogs]`), data loading and fetchers (`data.py`, `fetch_yf.py`, `fetch_yf_1h.py`, `fetch_nse_bhav.py`, `clean_fyers_copy.py`, `universe.py`), YTC swings/trend (`structure.py`), portfolio simulation and stats (`portfolio.py`) |
 | `01_market_analysis/` | base rates: drift, regimes, structure state, volatility, pullback depth/duration, breakouts/BOF, reversal and momentum, gaps. Findings in `report.md`, raw output in `out/summary.txt` |
 | `strategies/001_pullback_failure/` | strategy 001: YTC PB/CPB failure in strong stocks. `spec.md`, `backtest.py`, `results.md`. **Verdict: dropped** (small timing edge over random entries; loses to buy & hold as a portfolio) |
 

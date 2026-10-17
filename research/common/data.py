@@ -13,7 +13,9 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 YF_DB = ROOT / "research" / "data" / "yf.duckdb"
-APP_DB = ROOT / "backend" / "data" / "market.duckdb"
+# Market-data-only copy of the app's Fyers cache (common/clean_fyers_copy.py).
+# The app's own file also holds login tokens and user data; research never reads it.
+APP_DB = ROOT / "research" / "data" / "fyers_snapshot" / "fyers_market.duckdb"
 INDEX_NAMES = ("NIFTY50", "BANKNIFTY")
 
 
