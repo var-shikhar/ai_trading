@@ -402,6 +402,8 @@ export function ChartPanel(p: Props) {
           onPriceAlert={p.onPriceAlert ? (price) => p.onPriceAlert!(price, symbol) : undefined}
           alertLevels={p.alertLevels}
           isLive={isLive}
+          tf={tf}
+          symbol={symbol.symbol}
         />
       )}
     </section>

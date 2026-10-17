@@ -26,6 +26,8 @@ import { DrawingsPrimitive } from '../drawings/DrawingsPrimitive'
 import type { Drawing, DrawingTool } from '../drawings/types'
 import { Mapper } from '../drawings/mapper'
 import { drawingId } from '../drawings/types'
+import { sessionFor } from './candleClose'
+import { CandleTimer } from './CandleTimer'
 import { withLiveBar } from '../live/bars'
 import { useDrawings } from '../drawings/useDrawings'
 import type { ChartPatternResult } from '../patterns/chartPatterns'
@@ -87,6 +89,9 @@ interface Props {
   /** Bar being formed from live ticks (replaces/extends the last bar). */
   liveBar?: Candle | null
   isLive?: boolean
+  /** Chart interval and symbol: the candle countdown needs them. */
+  tf?: string
+  symbol?: string
   /** "Alert on this line" from the selected drawing's toolbar. */
   onDrawingAlert?: (d: Drawing) => void
   /** Right-click / long-press menu: "Alert when price crosses ₹X". */
@@ -509,6 +514,16 @@ export function PriceChart(outer: Props) {
           </svg>
           <span>Now</span>
         </button>
+      )}
+      {built && props.isLive && props.tf && props.symbol && display.length > 0 && (
+        <CandleTimer
+          chart={built.chart}
+          series={built.main}
+          price={display[display.length - 1].close}
+          tf={props.tf}
+          session={sessionFor(props.symbol)}
+          color={display[display.length - 1].close >= display[display.length - 1].open ? theme.up : theme.down}
+        />
       )}
       {menu && (
         <div className="chart-menu" role="menu" style={{ left: menu.x, top: menu.y }}>

@@ -2966,3 +2966,17 @@ a.menu-main {
   margin: 8px 0 4px;
   padding: 0;
 }
+
+/* Time left in the forming candle, under the last-price label on the axis. */
+.candle-timer {
+  position: absolute;
+  right: 0;
+  z-index: 6;
+  padding: 1px 0;
+  color: #fff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  pointer-events: none;
+  border-radius: 0 0 2px 2px;
+}
