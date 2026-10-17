@@ -37,11 +37,15 @@ research/.venv/Scripts/python.exe research/common/fetch_yf.py          # daily N
 | Path | What |
 |---|---|
 | `ROADMAP.md` | phased plan from research to deployment, with gates |
+| `notes/ytc_synthesis.md` | **start here:** all YTC sources joined up with our results, ranked rules for strategy 002 (hourly→daily) |
 | `notes/ytc.md` | YTC Price Action Trader concepts (vols 2–3), mapped to daily/weekly swing trading, with page refs |
-| `common/` | PDF extraction (`extract_pdf.py`) and page viewer (`pages.py <from> <to> [ytc|scalper|blogs]`), data loading (`data.py`, `fetch_yf.py`, `universe.py`), YTC swings/trend (`structure.py`), portfolio simulation and stats (`portfolio.py`) |
+| `notes/ytc_vol4_6.md` | YTC PAT vols 1, 3 (rest), 4–6: entry zone, management, risk, process, production requirements |
+| `notes/ytc_scalper.md` | YTC Scalper: lower-timeframe entry (channel/limit entries), scratching, exits |
+| `notes/ytc_blogs.md` | YTC blog posts 1–150: S/R selection, traps, acceptance/rejection, time stops |
+| `common/` | PDF extraction (`extract_pdf.py`) and page viewer (`pages.py <from> <to> [ytc / scalper / blogs]`), data loading (`data.py`, `fetch_yf.py`, `universe.py`), YTC swings/trend (`structure.py`), portfolio simulation and stats (`portfolio.py`) |
 | `01_market_analysis/` | base rates: drift, regimes, structure state, volatility, pullback depth/duration, breakouts/BOF, reversal and momentum, gaps. Findings in `report.md`, raw output in `out/summary.txt` |
 | `strategies/001_pullback_failure/` | strategy 001: YTC PB/CPB failure in strong stocks. `spec.md`, `backtest.py`, `results.md`. **Verdict: dropped** (small timing edge over random entries; loses to buy & hold as a portfolio) |
 
 ## Sources
-- Lance Beggs, *YTC Price Action Trader* (6 volumes in 1). The main source for 001. The PDF stays local.
+- Lance Beggs: *YTC Price Action Trader* (6 volumes in 1), *YTC Scalper*, and the YTC blog collection (posts 1–150). All read in full; see `notes/`. The PDFs stay local.
 - Part Time Larry (YouTube): Python tooling patterns (TA-Lib candlestick scanners, breakout/consolidation screeners, backtesting). Its scanner ideas (consolidation, breakouts, candlestick patterns) already exist in the app. The analysis here tested breakouts and found no stand-alone edge on daily NSE large caps.

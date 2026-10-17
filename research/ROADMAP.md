@@ -7,12 +7,12 @@ Agreed with the user on 17 Oct 2026. The aim is quality over speed: each phase e
 2. The first strategy to build is a **swing strategy on the hourly-to-daily timeframes**: daily/weekly structure and setups, with 1h (maybe 15m) used for the entry and trade management.
 3. The daily momentum book becomes a later candidate.
 
-## Phase 0: Source study (in progress)
+## Phase 0: Source study (done 17 Oct 2026; waiting for the user to pick rules)
 - [x] YTC Price Action Trader, vols 2–3 → `notes/ytc.md`
-- [ ] YTC Price Action Trader, vols 1 and 4–6 (business, trade management, development, review) → `notes/ytc_vol4_6.md`
-- [ ] YTC Scalper (lower-timeframe adaptation: entries, stops, scratching) → `notes/ytc_scalper.md`
-- [ ] YTC blog posts 1–100 → `notes/ytc_blogs.md`
-- [ ] Synthesis → `notes/ytc_synthesis.md`: the YTC method mapped to weekly / daily / 1h, plus a ranked list of testable rules (how mechanical each is, what data it needs, how to test it against a random baseline).
+- [x] YTC Price Action Trader, vols 1 and 4–6 (business, trade management, development, review) → `notes/ytc_vol4_6.md`
+- [x] YTC Scalper (lower-timeframe adaptation: entries, stops, scratching) → `notes/ytc_scalper.md`
+- [x] YTC blog posts 1–150 (the PDF holds two ebooks) → `notes/ytc_blogs.md`
+- [x] Synthesis → `notes/ytc_synthesis.md`: the YTC method mapped to weekly / daily / 1h, plus a ranked list of testable rules (how mechanical each is, what data it needs, how to test it against a random baseline).
 - **Gate:** the user reviews the synthesis and picks the rules for the hourly-to-daily strategy.
 
 ## Phase 1: Data foundation

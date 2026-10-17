@@ -65,7 +65,7 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
 
 ## Next steps
 **Follow `ROADMAP.md`.** Phase 0 (the book study) is in progress. Strategy 002 is the hourly-to-daily swing strategy (decision 4 below).
-1. Finish the notes in `notes/` (ytc_scalper, ytc_blogs, ytc_vol4_6), then write `notes/ytc_synthesis.md` and get the user's pick of rules.
+1. Book study done (17 Oct 2026): `notes/ytc_synthesis.md` is the entry point. Next: the user picks the Tier 1 rules and answers its §9 decisions, then write `strategies/002_*/spec.md`. Stage A daily-only tests run on Yahoo; Stage B (1h entry layer) needs Fyers 1h history.
 2. **Later candidate** (was the lead for 002): a low-turnover momentum book, where 001's pullback-failure trigger only decides when to buy a top-momentum name, and exits are a trail or a rank drop. Judge it against equal-weight buy & hold and against random-timing entries into the same names.
 3. **Other candidates:**
    - Short-term reversal inside strong stocks (decaying after 2019; costs are the hurdle).
