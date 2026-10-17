@@ -14,7 +14,7 @@ import asyncio
 import logging
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 import sqlalchemy as sa
@@ -38,6 +38,11 @@ COLUMNS = ["time", "open", "high", "low", "close", "volume"]
 
 def now_ist() -> int:
     return int(time.time()) + IST_OFFSET
+
+
+def now_ist_naive() -> datetime:
+    """IST wall time (expiry dates are entered in IST; the server may run in UTC)."""
+    return datetime.fromtimestamp(now_ist(), timezone.utc).replace(tzinfo=None)
 
 
 # --- storage (all alerts are kept in memory; the database is written on change) ---------
@@ -144,6 +149,11 @@ class AlertEngine:
         if self.client:
             await self.hub.remove(self.client)
 
+    def forget(self, alert_id: str) -> None:
+        """An edited or deleted alert starts over: no crossing against a tick
+        seen under its old settings."""
+        self.prev.pop(alert_id, None)
+
     async def refresh(self) -> None:
         """Re-read alerts and subscribe to the symbols price/drawing alerts need."""
         symbols = sorted({a["symbol"] for a in list_alerts() if a["status"] == "active" and a["kind"] in ("price", "drawing")})
@@ -234,7 +244,7 @@ class AlertEngine:
             await asyncio.sleep(LOOP_SECONDS)
 
     def _expired(self, a: dict) -> bool:
-        if a["expires"] and datetime.fromisoformat(a["expires"]) < datetime.now():
+        if a["expires"] and datetime.fromisoformat(a["expires"]) < now_ist_naive():
             _write(a["id"], status="expired")
             a["status"] = "expired"
             return True
@@ -244,7 +254,10 @@ class AlertEngine:
         if not self.fyers_ready():
             self.status = "paused: Fyers login required"
             return
-        self.status = "running"
+        if self.status != "running":
+            # Fyers is back (e.g. the daily login): subscribe the price and
+            # drawing alerts again, or they'd never see a tick.
+            await self.refresh()
         now = now or now_ist()
         for a in list_alerts():
             if a["status"] != "active" or a["kind"] != "condition" or self._expired(a):

@@ -56,6 +56,10 @@ export const PAGES: { id: Page; label: string; short?: string; title: string; ic
 
 const pageDef = (id: Page) => PAGES.find((p) => p.id === id)!
 
+/** Sections hidden for now (their code stays): the Strategy Lab. */
+export const HIDDEN_PAGES: Page[] = ['lab']
+const shown = (list: typeof PAGES) => list.filter((p) => !HIDDEN_PAGES.includes(p.id))
+
 /** Phone tab bar, watchlist first (as in broker apps): a stock opens its
  * chart from the watchlist, screener or signals, with a back arrow. */
 export const MOBILE_PAGES: typeof PAGES = [
@@ -133,7 +137,7 @@ export function NavRail({
           <path d="M6 17l4.5-5 3.5 3 6-7" fill="none" stroke="var(--accent-fg)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
-      {(mobile ? MOBILE_PAGES : PAGES).map((p) => (
+      {shown(mobile ? MOBILE_PAGES : PAGES).map((p) => (
         <button
           key={p.id}
           className={`nav-item ${page === p.id ? 'active' : ''}`}

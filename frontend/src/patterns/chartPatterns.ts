@@ -38,6 +38,8 @@ export interface ChartPatternSettings {
   showFailed: boolean
   /** Patterns (patternKey) the user hid from the chart. */
   hidden?: string[]
+  /** Support/resistance zones (zoneKey) the user hid from the chart. */
+  hiddenZones?: string[]
 }
 
 export const DEFAULT_CHART_PATTERN_SETTINGS: ChartPatternSettings = {
@@ -48,9 +50,20 @@ export const DEFAULT_CHART_PATTERN_SETTINGS: ChartPatternSettings = {
 
 export const patternKey = (p: ChartPattern) => `${p.type}:${p.start_time}`
 
-/** The result without the patterns the user hid (zones are kept). */
-export function visiblePatterns(result: ChartPatternResult | null, hidden: string[] | undefined): ChartPatternResult | null {
-  if (!result || !hidden?.length) return result
+export const zoneKey = (z: Zone) => `${z.kind}:${z.low.toFixed(2)}:${z.high.toFixed(2)}`
+
+/** The result without the patterns and zones the user hid. */
+export function visiblePatterns(
+  result: ChartPatternResult | null,
+  hidden: string[] | undefined,
+  hiddenZones: string[] | undefined,
+): ChartPatternResult | null {
+  if (!result || (!hidden?.length && !hiddenZones?.length)) return result
   const off = new Set(hidden)
-  return { ...result, patterns: result.patterns.filter((p) => !off.has(patternKey(p))) }
+  const offZones = new Set(hiddenZones)
+  return {
+    ...result,
+    patterns: result.patterns.filter((p) => !off.has(patternKey(p))),
+    zones: result.zones.filter((z) => !offZones.has(zoneKey(z))),
+  }
 }

@@ -2897,3 +2897,72 @@ a.menu-main {
     bottom: 34px;
   }
 }
+
+/* Right-click / long-press menu on the chart. */
+.chart-menu {
+  position: absolute;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+}
+.chart-menu button {
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chart-menu button:hover {
+  background: var(--hover);
+}
+
+/* Alert dialog: a price alert reads as one sentence. */
+.alert-price {
+  margin: 12px 0 6px;
+}
+.alert-sentence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.alert-sentence select,
+.alert-value input {
+  font: inherit;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.alert-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.alert-value input {
+  width: 9em;
+  font-weight: 600;
+}
+.alert-price .note {
+  margin: 8px 0 0;
+}
+.alert-notify {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 14px 0 4px;
+}
+.more-toggle {
+  margin: 8px 0 4px;
+  padding: 0;
+}

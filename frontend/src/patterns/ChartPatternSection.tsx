@@ -1,4 +1,4 @@
-import { patternKey, type ChartPattern, type ChartPatternResult, type ChartPatternSettings } from './chartPatterns'
+import { patternKey, zoneKey, type ChartPattern, type ChartPatternResult, type ChartPatternSettings } from './chartPatterns'
 import { formatBarTime } from './PatternPanel'
 
 const STATUS_ORDER = { forming: 0, confirmed: 1, failed: 2 }
@@ -110,35 +110,7 @@ export function ChartPatternSection({
             </li>
           ))}
         </ul>
-        {result && settings.showZones && result.zones.length > 0 && (
-          <>
-            <p className="note section-title">Zones (strongest first)</p>
-            <table className="stats">
-              <thead>
-                <tr>
-                  <th>Zone</th>
-                  <th className="num">Range</th>
-                  <th className="num">Touches</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.zones.map((z) => (
-                  <tr key={`${z.low}-${z.high}`}>
-                    <td>
-                      <span className={`dir ${z.kind === 'support' ? 'bullish' : 'bearish'}`}>■</span>{' '}
-                      {z.kind === 'support' ? 'Support' : 'Resistance'}
-                    </td>
-                    <td className="num">
-                      {z.low.toLocaleString('en-IN', { maximumFractionDigits: 2 })} –{' '}
-                      {z.high.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="num">{z.touches}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
+        {result && settings.showZones && result.zones.length > 0 && <ZoneList zones={result.zones} settings={settings} set={set} />}
       </div>
     </>
   )
@@ -151,5 +123,60 @@ export function EyeIcon({ off }: { off: boolean }) {
       <circle cx="9" cy="9" r="2.2" />
       {off && <path d="M3 15L15 3" />}
     </svg>
+  )
+}
+
+/** Support/resistance levels, strongest first, each with its own eye. */
+function ZoneList({
+  zones,
+  settings,
+  set,
+}: {
+  zones: ChartPatternResult['zones']
+  settings: ChartPatternSettings
+  set: (patch: Partial<ChartPatternSettings>) => void
+}) {
+  const hidden = new Set(settings.hiddenZones ?? [])
+  const current = new Set(zones.map(zoneKey))
+  const setHidden = (keys: Iterable<string>) => set({ hiddenZones: [...keys].filter((k) => current.has(k)) })
+  const toggle = (k: string) => {
+    const next = new Set(hidden)
+    if (next.has(k)) next.delete(k)
+    else next.add(k)
+    setHidden(next)
+  }
+  const allHidden = zones.every((z) => hidden.has(zoneKey(z)))
+  const fmt = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 2 })
+  return (
+    <>
+      <div className="pattern-visibility section-title">
+        <b>Support &amp; resistance</b>
+        <button className="link-button" onClick={() => setHidden(allHidden ? [] : zones.map(zoneKey))}>
+          {allHidden ? 'Show all' : 'Hide all'}
+        </button>
+      </div>
+      <ul className="hit-list">
+        {zones.map((z) => {
+          const k = zoneKey(z)
+          const off = hidden.has(k)
+          return (
+            <li key={k} className={`with-eye ${off ? 'is-hidden' : ''}`}>
+              <button className="eye-button" aria-pressed={!off} title={off ? 'Show on the chart' : 'Hide from the chart'} onClick={() => toggle(k)}>
+                <EyeIcon off={off} />
+              </button>
+              <button className="zone-row" onClick={() => toggle(k)}>
+                <span className={`dir ${z.kind === 'support' ? 'bullish' : 'bearish'}`}>{z.kind === 'support' ? 'S' : 'R'}</span>
+                <span className="hit-name">
+                  {fmt(z.low)} – {fmt(z.high)}
+                </span>
+                <span className="hit-time">
+                  {z.kind === 'support' ? 'Support' : 'Resistance'} · {z.touches} touches
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </>
   )
 }

@@ -188,3 +188,30 @@ def test_alerts_api_validation_and_crud():
         assert client.post("/api/alerts/test", json=["telegram"]).json() == {"telegram": "not configured"}
         client.delete(f"/api/alerts/{created['id']}")
         assert client.get("/api/alerts").json()["alerts"] == []
+
+
+async def test_price_alerts_resubscribe_when_fyers_comes_back(settings):
+    """The engine starts while Fyers is logged out (the token expires daily);
+    after the login, price alerts must get ticks without anyone editing them."""
+    from tests.test_candles import service
+
+    hub = FakeHub()
+    ready = {"ok": False}
+    e = eng.AlertEngine(hub, service(settings), lambda: ready["ok"])
+    eng.save_alert(owner=ME, a={"kind": "price", "symbol": "NSE:SBIN-EQ", "ticker": "SBIN",
+                                "config": {"op": "crosses", "value": 800}, "frequency": "once", "channels": ["app"]})
+    await e.refresh()
+    assert hub.subscribed == [] and e.status.startswith("paused")
+    ready["ok"] = True
+    await e.check_bars()
+    assert hub.subscribed == ["NSE:SBIN-EQ"] and e.status == "running"
+
+
+def test_price_alert_needs_a_positive_level():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    body = {"kind": "price", "symbol": "NSE:SBIN-EQ", "ticker": "SBIN", "config": {"op": "crosses", "value": 0}}
+    with TestClient(app) as client:
+        assert client.post("/api/alerts", json=body).status_code == 422

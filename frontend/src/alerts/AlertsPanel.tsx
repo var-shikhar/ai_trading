@@ -1,29 +1,38 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type InstrumentHit } from '../api/client'
 import { onAlertEvent } from '../live/liveClient'
 import { AlertDialog } from './AlertDialog'
-import { SignalsList } from './SignalsList'
-import { PRICE_OPS, toInput, type Alert, type AlertEvent, type AlertIn, type AlertList } from './types'
+import { useAlertActions, useAlerts } from './queries'
+import { PRICE_OPS, type Alert, type AlertIn } from './types'
 
 const opName = Object.fromEntries(PRICE_OPS)
+const inr = (v: number | undefined) => `₹${(v ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
 
+/** One line in plain words, e.g. "crosses ₹2,950" or "1D · RSI conditions". */
 function describe(a: Alert): string {
-  if (a.kind === 'price') {
-    const pct = a.config.op?.startsWith('change')
-    return `${opName[a.config.op ?? ''] ?? a.config.op} ${pct ? `${a.config.value}%` : a.config.value?.toLocaleString('en-IN')}`
-  }
-  if (a.kind === 'drawing') return `${opName[a.config.op ?? ''] ?? a.config.op} ${a.config.points?.length === 1 ? 'horizontal line' : 'trend line'}`
+  const op = (opName[a.config.op ?? ''] ?? a.config.op ?? '').toLowerCase()
+  if (a.kind === 'price') return a.config.op?.startsWith('change') ? `${op.replace('%', `${a.config.value}%`)}` : `${op} ${inr(a.config.value)}`
+  if (a.kind === 'drawing') return `${op} your ${a.config.points?.length === 1 ? 'horizontal line' : 'trend line'}`
   const n = a.config.conditions?.length ?? 0
-  if (a.kind === 'scan') return `${a.config.universe} daily at ${a.config.at} · ${n} condition${n === 1 ? '' : 's'}`
-  return `${a.tf} · ${n} condition${n === 1 ? '' : 's'}`
+  const conds = `${n} condition${n === 1 ? '' : 's'}`
+  if (a.kind === 'scan') return `${a.config.universe} · daily at ${a.config.at} · ${conds}`
+  return `${a.tf} bar close · ${conds}`
+}
+
+const STATUS_LABEL: Record<Alert['status'], string> = {
+  active: 'Active',
+  paused: 'Paused',
+  triggered: 'Fired',
+  expired: 'Expired',
 }
 
 const when = (t: number) => {
-  const iso = new Date(t * 1000).toISOString()
-  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`
+  const iso = new Date(t * 1000).toISOString() // IST wall time as epoch
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${iso.slice(11, 16)}`
 }
 
-/** Alerts side panel: list, log, create, pause/resume, test notifications. */
+/** Alerts side panel: your alerts and what fired. */
 export function AlertsPanel({
   symbol,
   createRequest,
@@ -31,30 +40,21 @@ export function AlertsPanel({
   onOpen,
 }: {
   symbol: InstrumentHit
-  /** A pre-filled alert to create (e.g. from a drawing's Alert button). */
+  /** A pre-filled alert to create (from the chart's "Alert at price" or a drawn line's bell). */
   createRequest: Partial<AlertIn> | null
   onCreateHandled: () => void
   onOpen: (s: InstrumentHit) => void
 }) {
-  const [data, setData] = useState<AlertList | null>(null)
-  const [events, setEvents] = useState<AlertEvent[]>([])
-  const [tab, setTab] = useState<'alerts' | 'signals' | 'log'>('alerts')
+  const qc = useQueryClient()
+  const alerts = useAlerts()
+  const history = useQuery({ queryKey: ['alerts', 'events'], queryFn: api.alertEvents, refetchInterval: 60_000 })
+  const actions = useAlertActions()
+  const [tab, setTab] = useState<'alerts' | 'history'>('alerts')
   const [dialog, setDialog] = useState<{ initial?: Partial<AlertIn>; editing?: Alert } | null>(null)
   const [testResult, setTestResult] = useState<string | null>(null)
 
-  const reload = useCallback(() => {
-    api.alerts().then(setData, () => {})
-    api.alertEvents().then(setEvents, () => {})
-  }, [])
-  useEffect(() => {
-    reload()
-    const id = setInterval(reload, 30000) // engine status and fired counts
-    const off = onAlertEvent(() => reload())
-    return () => {
-      clearInterval(id)
-      off()
-    }
-  }, [reload])
+  // A fired alert changes its status and the history.
+  useEffect(() => onAlertEvent(() => qc.invalidateQueries({ queryKey: ['alerts'] })), [qc])
 
   useEffect(() => {
     if (createRequest) {
@@ -63,65 +63,78 @@ export function AlertsPanel({
     }
   }, [createRequest, onCreateHandled])
 
-  const toggle = async (a: Alert) => {
-    await api.updateAlert(a.id, toInput(a, a.status === 'active' ? 'paused' : 'active'))
-    reload()
-  }
-  const remove = async (a: Alert) => {
-    await api.deleteAlert(a.id)
-    reload()
-  }
-
+  const data = alerts.data
+  const list = data?.alerts ?? []
   const paused = data && data.engine !== 'running' && data.engine !== 'starting'
+  const active = list.filter((a) => a.status === 'active').length
+
   return (
     <aside className="pattern-panel alerts-panel" aria-label="Alerts">
       <div className="watch-head">
-        <b>Alerts</b>
+        <div className="tabs inline" role="tablist">
+          <button role="tab" className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}>
+            Alerts{data ? ` (${active} on)` : ''}
+          </button>
+          <button role="tab" className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
+            History
+          </button>
+        </div>
         <span className="spacer" />
-        <button className="primary-button small" onClick={() => setDialog({})}>
-          + Alert
+        <button className="add-button" onClick={() => setDialog({})}>
+          + New alert
         </button>
       </div>
-      {paused && <p className="banner">Alerts paused: {data!.engine.replace('paused: ', '')}. Connect Fyers to resume.</p>}
-      <div className="tabs" role="tablist">
-        <button role="tab" className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}>
-          Alerts {data ? `(${data.alerts.filter((a) => a.status === 'active').length} active)` : ''}
-        </button>
-        <button role="tab" className={tab === 'signals' ? 'active' : ''} onClick={() => setTab('signals')}>
-          Signals
-        </button>
-        <button role="tab" className={tab === 'log' ? 'active' : ''} onClick={() => setTab('log')}>
-          Log
-        </button>
-      </div>
+      {paused && <p className="banner">Alerts are paused: Fyers is not connected. They resume once it is.</p>}
+      {(alerts.error || actions.error) && <p className="status err pad">{(alerts.error ?? actions.error)?.message}</p>}
+
       <div className="panel-body">
         {tab === 'alerts' && data && (
           <>
-            {data.alerts.length === 0 && <p className="status">No alerts yet. Create one with “+ Alert”, or select a line you drew and click its bell.</p>}
+            {list.length === 0 && (
+              <div className="empty-state">
+                <p>No alerts yet. Three ways to make one:</p>
+                <p className="note">
+                  • <b>+ New alert</b> above (price, indicator or a daily scan)
+                  <br />• On the chart: <b>right-click</b> (or <b>long-press</b> on a phone) at a price → <i>Alert at this price</i>
+                  <br />• Draw a line, select it and tap its <b>bell</b>
+                </p>
+              </div>
+            )}
             <ul className="alert-list">
-              {data.alerts.map((a) => (
+              {list.map((a) => (
                 <li key={a.id} className={`alert-item ${a.status}`}>
                   <button
                     className="alert-main"
                     onClick={() =>
-                      a.symbol && onOpen({ symbol: a.symbol, ticker: a.ticker ?? a.symbol, name: '', kind: a.symbol.startsWith('MCX:') ? 'COM' : 'EQ' })
+                      a.symbol &&
+                      onOpen({
+                        symbol: a.symbol,
+                        ticker: a.ticker ?? a.symbol,
+                        name: '',
+                        kind: a.symbol.startsWith('MCX:') ? 'COM' : a.symbol.endsWith('-INDEX') ? 'INDEX' : 'EQ',
+                      })
                     }
                   >
-                    <b>{a.kind === 'scan' ? a.name || 'Scan' : a.ticker}</b>
+                    <b>{a.kind === 'scan' ? a.name || 'Daily scan' : a.ticker}</b>
                     <span className="muted">{describe(a)}</span>
                     <span className="alert-meta">
-                      <em className={`badge ${a.status === 'active' ? 'confirmed' : a.status === 'triggered' ? 'forming' : ''}`}>{a.status}</em>
-                      {a.fire_count > 0 && <span className="muted"> fired {a.fire_count}×</span>}
+                      <em className={`badge ${a.status === 'active' ? 'confirmed' : a.status === 'triggered' ? 'forming' : ''}`}>
+                        {STATUS_LABEL[a.status]}
+                      </em>
+                      {a.fire_count > 0 && <span className="muted"> · fired {a.fire_count}×</span>}
                     </span>
                   </button>
                   <span className="alert-actions">
                     <button title="Edit" onClick={() => setDialog({ editing: a })}>
                       ✎
                     </button>
-                    <button title={a.status === 'active' ? 'Pause' : 'Resume'} onClick={() => toggle(a)}>
+                    <button
+                      title={a.status === 'active' ? 'Pause' : 'Turn on again'}
+                      onClick={() => actions.setStatus.mutate({ a, status: a.status === 'active' ? 'paused' : 'active' })}
+                    >
                       {a.status === 'active' ? '❚❚' : '▶'}
                     </button>
-                    <button title="Delete" onClick={() => remove(a)}>
+                    <button title="Delete" onClick={() => window.confirm(`Delete this alert on ${a.ticker ?? a.name}?`) && actions.remove.mutate(a)}>
                       ×
                     </button>
                   </span>
@@ -136,21 +149,19 @@ export function AlertsPanel({
                   setTestResult(Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(' · '))
                 }}
               >
-                Send test notification
+                Send a test notification
               </button>
               {testResult && <span className="status small">{testResult}</span>}
             </div>
-            <p className="note pad">
-              Telegram: {data.channels.telegram ? 'on' : 'not set up'} · Email: {data.channels.email ? 'on' : 'not set up'}{' '}
-              (configure in backend/.env).
-            </p>
+            {!data.channels.telegram && !data.channels.email && (
+              <p className="note pad">Only in-app notifications: add Telegram or email in Me → Profile &amp; notifications.</p>
+            )}
           </>
         )}
-        {tab === 'signals' && <SignalsList onOpen={onOpen} />}
-        {tab === 'log' && (
+        {tab === 'history' && (
           <ul className="hit-list">
-            {events.length === 0 && <p className="status">Nothing has fired yet.</p>}
-            {events.map((e) => (
+            {history.data?.length === 0 && <p className="status pad">Nothing has fired yet.</p>}
+            {history.data?.map((e) => (
               <li key={e.id} className="event-row">
                 <b>{e.title}</b>
                 <span className="muted">{when(e.time)}</span>
@@ -166,7 +177,6 @@ export function AlertsPanel({
           initial={dialog.initial}
           editing={dialog.editing}
           channels={data.channels}
-          onSaved={reload}
           onClose={() => setDialog(null)}
         />
       )}

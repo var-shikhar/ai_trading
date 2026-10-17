@@ -6,8 +6,8 @@ import { onAlertEvent, type AlertMessage } from '../live/liveClient'
 export function AlertToasts() {
   const [toasts, setToasts] = useState<(AlertMessage & { key: number })[]>([])
 
+  // (Notification permission is asked when an alert is created, on a tap.)
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
     return onAlertEvent((m) => {
       const key = Date.now() + Math.random()
       setToasts((t) => [...t.slice(-4), { ...m, key }])
@@ -35,9 +35,15 @@ export function AlertToasts() {
   )
 }
 
+// One audio context for the app: browsers cap how many can exist, so a new
+// one per alert stopped the chime after a few alerts.
+let audio: AudioContext | null = null
+
 function chime() {
   try {
-    const ctx = new AudioContext()
+    audio ??= new AudioContext()
+    const ctx = audio
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {})
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.frequency.value = 880

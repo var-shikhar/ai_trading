@@ -38,6 +38,7 @@ import {
 } from './backtest/ChartStrategy'
 import type { ChartStrategy } from './backtest/types'
 import { AlertsPanel } from './alerts/AlertsPanel'
+import { alertLevels, useAlerts } from './alerts/queries'
 import { AlertToasts } from './alerts/AlertToasts'
 import { SignalsPage } from './alerts/SignalsPage'
 import type { AlertIn } from './alerts/types'
@@ -47,7 +48,7 @@ import { defaultStudies, newStudy } from './studies/model'
 import { StudySettings } from './studies/StudySettings'
 import { BottomBar } from './ui/BottomBar'
 import { InstallPrompt } from './ui/InstallPrompt'
-import { NavRail, type Page } from './ui/NavRail'
+import { HIDDEN_PAGES, NavRail, type Page } from './ui/NavRail'
 import { MobileChartTabs, RightRail, type Dock } from './ui/RightRail'
 import { AccountPage } from './ui/AccountPage'
 import { TopBar } from './ui/TopBar'
@@ -171,7 +172,9 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
   const [desktopPage, setDesktopPage] = usePref<Page>('page', 'chart')
   const [mobilePage, setMobilePage] = usePref<Page>('pageMobile', 'watchlist')
   const phoneOnly = (p: Page) => p === 'watchlist' || p === 'account'
-  const page: Page = mobile ? mobilePage : phoneOnly(desktopPage) ? 'chart' : desktopPage
+  const rawPage: Page = mobile ? mobilePage : phoneOnly(desktopPage) ? 'chart' : desktopPage
+  // A hidden section saved as the last page opens home instead.
+  const page: Page = HIDDEN_PAGES.includes(rawPage) ? (mobile ? 'watchlist' : 'chart') : rawPage
   // The tab a stock's chart was opened from (where "back" returns).
   const [chartFrom, setChartFrom] = usePref<Page>('chartFrom', 'watchlist')
   // Pages stay mounted once opened, so a scan or a backtest survives a trip to the chart.
@@ -194,7 +197,22 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
   const [mobileDock, setMobileDock] = useState<Dock | null>(null)
   const dock = mobile ? mobileDock : desktopDock
   const setDock = mobile ? setMobileDock : setDesktopDock
+  // Touch screens (phones in any orientation, tablets): a tap outside an open
+  // panel closes it, like a bottom sheet. Desktop keeps it docked.
+  const touch = useMediaQuery('(pointer: coarse)')
+  useEffect(() => {
+    if (!dock || !(mobile || touch)) return
+    const onDown = (e: PointerEvent) => {
+      const el = e.target as HTMLElement
+      // Only taps on the chart and its bars; not the panel itself, its
+      // toggles (which toggle on their own), dialogs or menus.
+      if (el.closest('.chart-grid, .topbar, .bottombar') && !el.closest('.dock, .menu, .modal-backdrop')) setDock(null)
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    return () => document.removeEventListener('pointerdown', onDown, true)
+  }, [dock, mobile, touch, setDock])
   const [alertRequest, setAlertRequest] = useState<Partial<AlertIn> | null>(null)
+  const alertsQuery = useAlerts()
   const clearAlertRequest = useCallback(() => setAlertRequest(null), [])
   // Lab backtest trades shown on the chart for the symbol last opened from its results.
   const [tradeMarks, setTradeMarks] = useState<{ symbol: string; markers: SeriesMarker<Time>[] } | null>(null)
@@ -506,6 +524,17 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
                         onVisibleTimeRange={sync.time && i === active ? onVisibleTimeRange : undefined}
                         highlightPattern={i === active ? highlight : null}
                         extraMarkers={marks}
+                        alertLevels={alertLevels(alertsQuery.data, config.symbol.symbol)}
+                        onPriceAlert={(price, sym) => {
+                          setAlertRequest({
+                            kind: 'price',
+                            symbol: sym.symbol,
+                            ticker: sym.ticker,
+                            config: { op: 'crosses', value: price },
+                            frequency: 'once',
+                          })
+                          setDock('alerts')
+                        }}
                         onDrawingAlert={(d, sym) => {
                           const points =
                             d.type === 'hline' ? [{ time: 0, price: d.price }] : d.type === 'trend' ? [d.a, d.b] : null

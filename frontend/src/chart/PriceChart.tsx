@@ -10,6 +10,7 @@ import {
   LineStyle,
   PriceScaleMode,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type LogicalRange,
@@ -24,6 +25,7 @@ import type { Candle, LinePoint, StudyChartData, StudyDef } from '../api/client'
 import { DrawingsPrimitive } from '../drawings/DrawingsPrimitive'
 import type { Drawing, DrawingTool } from '../drawings/types'
 import { Mapper } from '../drawings/mapper'
+import { drawingId } from '../drawings/types'
 import { withLiveBar } from '../live/bars'
 import { useDrawings } from '../drawings/useDrawings'
 import type { ChartPatternResult } from '../patterns/chartPatterns'
@@ -66,6 +68,9 @@ interface Props {
   onNeedMore: () => void
   onStudyAction: (uid: string, action: StudyAction) => void
   onHideVolume: () => void
+  /** "Now" pressed: the parent may re-apply its own view (e.g. the bottom
+   * bar's range ending at the latest bar). False = use the default zoom. */
+  onRecenter?: () => boolean
   tool: DrawingTool
   onToolDone: () => void
   drawings: Drawing[]
@@ -84,6 +89,10 @@ interface Props {
   isLive?: boolean
   /** "Alert on this line" from the selected drawing's toolbar. */
   onDrawingAlert?: (d: Drawing) => void
+  /** Right-click / long-press menu: "Alert when price crosses ₹X". */
+  onPriceAlert?: (price: number) => void
+  /** Active price alerts on this symbol, drawn as dashed lines. */
+  alertLevels?: number[]
   /** Phone-sized: smaller axis text and fewer decimals (set internally). */
   compact?: boolean
 }
@@ -133,6 +142,8 @@ export function PriceChart(outer: Props) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   // Shows the "back to now" button, like re-center in a maps app.
   const [away, setAway] = useState(false)
+  // Right-click / long-press menu at a price.
+  const [menu, setMenu] = useState<{ x: number; y: number; price: number } | null>(null)
 
   useLayoutEffect(() => {
     propsRef.current = props
@@ -346,12 +357,94 @@ export function PriceChart(outer: Props) {
     onChange: props.onDrawingsChange,
   })
 
+  // Right-click (mouse) or long-press (touch) on the price pane: a small menu
+  // to set an alert or draw a line at that price, as in TradingView.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const open = (clientX: number, clientY: number) => {
+      const b = builtRef.current
+      if (!b || propsRef.current.tool !== 'cursor') return false
+      const box = el.getBoundingClientRect()
+      const x = clientX - box.left
+      const y = clientY - box.top
+      const paneBottom = b.chart.panes()[0]?.getHeight() ?? box.height
+      const price = y <= paneBottom ? b.main.coordinateToPrice(y) : null
+      if (price === null || !(price > 0)) return false
+      setMenu({ x: Math.min(x, box.width - 230), y, price })
+      return true
+    }
+    const onContext = (e: MouseEvent) => {
+      if (open(e.clientX, e.clientY)) e.preventDefault()
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let start: { x: number; y: number } | null = null
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return
+      start = { x: e.clientX, y: e.clientY }
+      timer = setTimeout(() => start && open(start.x, start.y), 550)
+    }
+    const cancel = () => {
+      clearTimeout(timer)
+      start = null
+    }
+    const onMove = (e: PointerEvent) => {
+      if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) cancel()
+    }
+    el.addEventListener('contextmenu', onContext)
+    el.addEventListener('pointerdown', onDown)
+    el.addEventListener('pointermove', onMove)
+    el.addEventListener('pointerup', cancel)
+    el.addEventListener('pointercancel', cancel)
+    return () => {
+      cancel()
+      el.removeEventListener('contextmenu', onContext)
+      el.removeEventListener('pointerdown', onDown)
+      el.removeEventListener('pointermove', onMove)
+      el.removeEventListener('pointerup', cancel)
+      el.removeEventListener('pointercancel', cancel)
+    }
+  }, [])
+  useEffect(() => {
+    if (!menu) return
+    const close = (e: Event) => !(e.target as HTMLElement).closest?.('.chart-menu') && setMenu(null)
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(null)
+    // Next tick, so the long-press that opened it doesn't close it.
+    const id = setTimeout(() => document.addEventListener('pointerdown', close, true))
+    window.addEventListener('keydown', onKey)
+    return () => {
+      clearTimeout(id)
+      document.removeEventListener('pointerdown', close, true)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
+
+  // Price alerts on this symbol as dashed lines with a bell.
+  const alertKey = (props.alertLevels ?? []).join(',')
+  useEffect(() => {
+    const b = builtRef.current
+    if (!b || !alertKey) return
+    const lines: IPriceLine[] = alertKey.split(',').map((v) =>
+      b.main.createPriceLine({
+        price: Number(v),
+        color: theme.series[3], // amber, like an alert
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: '🔔',
+      }),
+    )
+    return () => {
+      if (builtRef.current === b) lines.forEach((l) => b.main.removePriceLine(l))
+    }
+  }, [built, alertKey, theme])
+
   // Back to the latest bar at the normal zoom, every price axis auto-fitted.
   const recenter = () => {
     const b = builtRef.current
     if (!b) return
     b.chart.panes().forEach((_, i) => b.chart.priceScale('right', i).applyOptions({ autoScale: true }))
-    showLatest(b.chart, b.main.data().length, compact)
+    if (!props.onRecenter?.()) showLatest(b.chart, b.main.data().length, compact)
     setAway(false)
   }
 
@@ -416,6 +509,33 @@ export function PriceChart(outer: Props) {
           </svg>
           <span>Now</span>
         </button>
+      )}
+      {menu && (
+        <div className="chart-menu" role="menu" style={{ left: menu.x, top: menu.y }}>
+          {props.onPriceAlert && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                props.onPriceAlert!(roundPrice(menu.price))
+                setMenu(null)
+              }}
+            >
+              🔔 Alert when price crosses <b>{fmt(roundPrice(menu.price))}</b>
+            </button>
+          )}
+          <button
+            role="menuitem"
+            onClick={() => {
+              props.onDrawingsChange([
+                ...props.drawings,
+                { id: drawingId(), type: 'hline', color: 'slot:0', price: roundPrice(menu.price) },
+              ])
+              setMenu(null)
+            }}
+          >
+            ― Horizontal line at <b>{fmt(roundPrice(menu.price))}</b>
+          </button>
+        </div>
       )}
       {drawing.selected && (
         <div className="drawing-floater" role="toolbar" aria-label="Selected drawing">
@@ -693,6 +813,9 @@ function heikinAshi(candles: Candle[]): Candle[] {
   }
   return out
 }
+
+/** A price from a screen position, rounded like a typed one. */
+const roundPrice = (v: number) => (v >= 1000 ? Math.round(v) : Math.round(v * 20) / 20)
 
 // --- legends ------------------------------------------------------------------------
 

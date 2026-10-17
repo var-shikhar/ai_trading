@@ -95,6 +95,8 @@ interface Props {
   /** Extra markers for this chart's symbol (e.g. backtest entries/exits). */
   extraMarkers?: SeriesMarker<Time>[]
   onDrawingAlert?: (d: Drawing, symbol: InstrumentHit) => void
+  onPriceAlert?: (price: number, symbol: InstrumentHit) => void
+  alertLevels?: number[]
 }
 
 export function ChartPanel(p: Props) {
@@ -262,7 +264,7 @@ export function ChartPanel(p: Props) {
 
   // --- patterns --------------------------------------------------------------------
   const mode = patternMode(config.patternSettings)
-  const { sensitivity, showZones, hidden } = chartSettings(config.patternSettings)
+  const { sensitivity, showZones, hidden, hiddenZones } = chartSettings(config.patternSettings)
   const candleOn = config.showPatterns && mode === 'candles'
   const chartOn = config.showPatterns && mode === 'chart'
 
@@ -378,6 +380,12 @@ export function ChartPanel(p: Props) {
           onNeedMore={loadMore}
           onStudyAction={onStudyAction}
           onHideVolume={() => p.onConfig({ showVolume: false })}
+          onRecenter={() => {
+            // A picked range (1D, 1M, ...) is shown again, ending at the latest bar.
+            if (!activeRange) return false
+            setPendingRange(activeRange)
+            return true
+          }}
           tool={p.tool}
           onToolDone={p.onToolDone}
           drawings={p.drawings}
@@ -386,11 +394,13 @@ export function ChartPanel(p: Props) {
           onCrosshairTime={p.onCrosshairTime}
           syncRange={p.syncRange}
           onVisibleTimeRange={p.onVisibleTimeRange}
-          chartPatterns={chartOn ? visiblePatterns(patterns.chart, hidden) : null}
+          chartPatterns={chartOn ? visiblePatterns(patterns.chart, hidden, hiddenZones) : null}
           showZones={showZones}
           highlightPattern={p.highlightPattern}
           liveBar={liveBar && chartKey === key ? liveBar.bar : null}
           onDrawingAlert={p.onDrawingAlert ? (d) => p.onDrawingAlert!(d, symbol) : undefined}
+          onPriceAlert={p.onPriceAlert ? (price) => p.onPriceAlert!(price, symbol) : undefined}
+          alertLevels={p.alertLevels}
           isLive={isLive}
         />
       )}

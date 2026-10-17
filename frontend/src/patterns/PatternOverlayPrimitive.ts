@@ -48,6 +48,48 @@ export class PatternOverlayPrimitive implements ISeriesPrimitive<Time> {
 
 const fmt = (v: number) => v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+interface Label {
+  text: string
+  x: number
+  y: number // baseline-middle
+  align: 'left' | 'center' | 'right'
+  color: string
+  alpha: number
+}
+
+const LABEL_H = 15
+const PAD = 4
+
+/** Draws labels on pills, moving each up or down until it doesn't overlap
+ * one already placed (earlier labels win: pass the important ones first). */
+function placeLabels(ctx: CanvasRenderingContext2D, labels: Label[], theme: ChartTheme) {
+  const placed: { x1: number; x2: number; y1: number; y2: number }[] = []
+  const hits = (x1: number, x2: number, y1: number, y2: number) =>
+    placed.some((b) => x1 < b.x2 && x2 > b.x1 && y1 < b.y2 && y2 > b.y1)
+  ctx.font = FONT
+  ctx.textBaseline = 'middle'
+  for (const l of labels) {
+    const w = ctx.measureText(l.text).width + PAD * 2
+    const x1 = l.align === 'left' ? l.x : l.align === 'right' ? l.x - w : l.x - w / 2
+    // Try the spot, then alternately above and below it.
+    let y = l.y
+    for (let step = 1; step <= 12 && hits(x1, x1 + w, y - LABEL_H / 2, y + LABEL_H / 2); step++) {
+      y = l.y + (step % 2 ? -1 : 1) * Math.ceil(step / 2) * (LABEL_H + 2)
+    }
+    placed.push({ x1, x2: x1 + w, y1: y - LABEL_H / 2, y2: y + LABEL_H / 2 })
+    ctx.globalAlpha = 0.85 * l.alpha
+    ctx.fillStyle = theme.surface
+    ctx.beginPath()
+    ctx.roundRect(x1, y - LABEL_H / 2, w, LABEL_H, 4)
+    ctx.fill()
+    ctx.globalAlpha = l.alpha
+    ctx.fillStyle = l.color
+    ctx.textAlign = 'left'
+    ctx.fillText(l.text, x1 + PAD, y + 0.5)
+  }
+  ctx.globalAlpha = 1
+}
+
 function color(p: ChartPattern, theme: ChartTheme): string {
   return p.direction === 'bullish' ? theme.up : p.direction === 'bearish' ? theme.down : theme.series[0]
 }
@@ -64,6 +106,7 @@ class ZonesRenderer implements IPrimitivePaneRenderer {
     target.useMediaCoordinateSpace(({ context: ctx }) => {
       const width = mapper.width
       ctx.font = FONT
+      const labels: Label[] = []
       for (const z of result.zones) {
         const y1 = mapper.y(z.high)
         const y2 = mapper.y(z.low)
@@ -73,11 +116,16 @@ class ZonesRenderer implements IPrimitivePaneRenderer {
         ctx.fillStyle = c
         ctx.fillRect(0, y1, width, Math.max(1, y2 - y1))
         ctx.globalAlpha = 1
-        ctx.fillStyle = c
-        ctx.textAlign = 'right'
-        ctx.textBaseline = 'bottom'
-        ctx.fillText(`${z.kind === 'support' ? 'S' : 'R'} · ${z.touches} touches`, width - 6, y1 - 2)
+        labels.push({
+          text: `${z.kind === 'support' ? 'S' : 'R'} · ${z.touches} touches`,
+          x: width - 6,
+          y: y1 - LABEL_H / 2 - 1,
+          align: 'right',
+          color: c,
+          alpha: 1,
+        })
       }
+      placeLabels(ctx, labels, theme)
     })
   }
 }
@@ -93,6 +141,7 @@ class PatternsRenderer implements IPrimitivePaneRenderer {
     if (!result || !mapper) return
     target.useMediaCoordinateSpace(({ context: ctx }) => {
       ctx.font = FONT
+      const labels: (Label & { first: boolean })[] = []
       for (const p of result.patterns) {
         const on = highlight === patternKey(p)
         const c = color(p, theme)
@@ -147,9 +196,7 @@ class PatternsRenderer implements IPrimitivePaneRenderer {
             ctx.lineTo(x + 60, y)
             ctx.stroke()
             ctx.setLineDash([])
-            ctx.textAlign = 'left'
-            ctx.textBaseline = 'middle'
-            ctx.fillText(`Target ${fmt(p.target)}`, x + 64, y)
+            labels.push({ text: `Target ${fmt(p.target)}`, x: x + 64, y, align: 'left', color: c, alpha: ctx.globalAlpha, first: on })
           }
         }
 
@@ -157,14 +204,21 @@ class PatternsRenderer implements IPrimitivePaneRenderer {
         if (started) {
           ctx.setLineDash([])
           const first = mapper.x(p.points[0].time) ?? lastX
-          const label = `${p.name} · ${p.status}`
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'bottom'
-          ctx.fillText(label, (first + lastX) / 2, topY - 6)
+          labels.push({
+            text: `${p.name} · ${p.status}`,
+            x: (first + lastX) / 2,
+            y: topY - 6 - LABEL_H / 2,
+            align: 'center',
+            color: c,
+            alpha: ctx.globalAlpha,
+            first: on,
+          })
         }
       }
       ctx.globalAlpha = 1
       ctx.setLineDash([])
+      // The picked pattern's labels keep their spot; others move aside.
+      placeLabels(ctx, [...labels.filter((l) => l.first), ...labels.filter((l) => !l.first)], theme)
     })
   }
 }

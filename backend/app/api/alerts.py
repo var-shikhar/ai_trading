@@ -40,6 +40,13 @@ class AlertIn(BaseModel):
             raise ValueError("Alert needs a symbol")
         if self.kind == "price" and ("op" not in c or "value" not in c):
             raise ValueError("Price alert needs op and value")
+        if self.kind == "price":
+            try:
+                value = float(c["value"])
+            except (TypeError, ValueError):
+                raise ValueError("Price alert needs a number") from None
+            if value <= 0:
+                raise ValueError("Enter a price (or %) above 0")
         if self.kind == "drawing" and not (1 <= len(c.get("points", [])) <= 2):
             raise ValueError("Drawing alert needs the line's points")
         if self.kind in ("condition", "scan"):
@@ -71,6 +78,7 @@ async def update(alert_id: str, body: AlertIn, user: str = Depends(current_user)
     if not alert_engine.get_alert(alert_id, owner=user):
         raise HTTPException(404, "Alert not found")
     a = alert_engine.save_alert({**body.model_dump(), "id": alert_id}, owner=user)
+    get_engine().forget(alert_id)
     await get_engine().refresh()
     return a
 
@@ -78,6 +86,7 @@ async def update(alert_id: str, body: AlertIn, user: str = Depends(current_user)
 @router.delete("/{alert_id}")
 async def delete(alert_id: str, user: str = Depends(current_user)):
     alert_engine.delete_alert(alert_id, owner=user)
+    get_engine().forget(alert_id)
     await get_engine().refresh()
     return {"ok": True}
 
