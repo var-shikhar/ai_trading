@@ -69,6 +69,12 @@ const STARTER_SYMBOLS = [
   sym('NSE:HDFCBANK-EQ', 'HDFCBANK', 'HDFC BANK LTD', 'EQ'),
 ]
 const LETTERS = 'abcd'
+const DOCK_TITLES: Record<Dock, string> = {
+  watchlist: 'Watchlist',
+  alerts: 'Alerts',
+  patterns: 'Patterns',
+  strategy: 'Strategy',
+}
 // Omit applied to each member of the union separately.
 type CommandInput = PanelCommand extends infer C ? (C extends unknown ? Omit<C, 'seq'> : never) : never
 
@@ -128,6 +134,26 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
   const [tool, setTool] = useState<DrawingTool>('cursor')
   // Phones: drawing tools are hidden until the pencil in the top bar is on.
   const [drawOpen, setDrawOpen] = useState(false)
+  // Chart only: every bar and panel hidden; also the browser's own full
+  // screen where it exists (Android, desktop; not iPhone Safari).
+  const [fullscreen, setFullscreen] = useState(false)
+  const toggleFullscreen = useCallback((on: boolean) => {
+    setFullscreen(on)
+    const doc = document as Document & { fullscreenElement: Element | null }
+    if (on && !doc.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {})
+    if (!on && doc.fullscreenElement) document.exitFullscreen?.().catch(() => {})
+  }, [])
+  useEffect(() => {
+    // Leaving the browser's full screen (Back, Esc) leaves ours too.
+    const onChange = () => !document.fullscreenElement && setFullscreen(false)
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFullscreen(false)
+    document.addEventListener('fullscreenchange', onChange)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [])
   const [commands, setCommands] = useState<Record<number, PanelCommand>>({})
   const commandSeq = useRef(0)
   const [status, setStatus] = useState({ text: '', activeRange: null as string | null })
@@ -341,7 +367,9 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
   }
 
   return (
-    <div className={`app ${mobile && page === 'chart' ? 'stock-screen' : ''}`}>
+    <div
+      className={`app ${mobile && page === 'chart' ? 'stock-screen' : ''} ${fullscreen && page === 'chart' ? 'chart-fullscreen' : ''}`}
+    >
       <NavRail
         mobile={mobile}
         // On a phone, a stock's chart belongs to the tab it was opened from.
@@ -389,6 +417,11 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
             onBack={mobile ? () => goTo(chartFrom === 'chart' ? 'watchlist' : chartFrom) : undefined}
             extra={
               <>
+                <button className="tool-button" title="Full screen chart" aria-label="Full screen chart" onClick={() => toggleFullscreen(true)}>
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                    <path d="M2.5 6.5v-4h4M11.5 2.5h4v4M15.5 11.5v4h-4M6.5 15.5h-4v-4" />
+                  </svg>
+                </button>
                 {mobile && (
                   <button
                     className={`tool-button ${drawOpen ? 'selected' : ''}`}
@@ -491,8 +524,24 @@ function App({ user, onSignOut }: { user: UserInfo; onSignOut: () => void }) {
                   )
                 })}
             </main>
+            {fullscreen && (
+              <button className="exit-fullscreen" title="Exit full screen" onClick={() => toggleFullscreen(false)}>
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                  <path d="M6.5 2.5v4h-4M15.5 6.5h-4v-4M11.5 15.5v-4h4M2.5 11.5h4v4" />
+                </svg>
+                Exit full screen
+              </button>
+            )}
             {dock && (
               <div className="dock" key={dock}>
+                <div className="dock-head">
+                  <b>{DOCK_TITLES[dock]}</b>
+                  <button className="icon-button" aria-label={`Close ${DOCK_TITLES[dock]}`} title="Close" onClick={() => setDock(null)}>
+                    <svg width="16" height="16" viewBox="0 0 18 18" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                      <path d="M4.5 4.5l9 9M13.5 4.5l-9 9" />
+                    </svg>
+                  </button>
+                </div>
                 {dock === 'patterns' && patternCatalog && (
                   <PatternPanel
                     catalog={patternCatalog}

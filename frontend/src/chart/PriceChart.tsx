@@ -41,6 +41,7 @@ export type StudyAction = 'toggle' | 'settings' | 'remove'
 
 // Bars shown when a symbol/timeframe is first opened.
 const INITIAL_VISIBLE_BARS = 150
+const INITIAL_VISIBLE_BARS_PHONE = 70
 // Ask for more history when the left edge is within this many bars.
 const LOAD_MORE_THRESHOLD = 20
 const STRETCH = { price: 6, volume: 1.4, study: 1.8 }
@@ -130,6 +131,8 @@ export function PriceChart(outer: Props) {
   const [paneTops, setPaneTops] = useState<number[]>([])
   const [built, setBuilt] = useState<Built | null>(null)
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
+  // Shows the "back to now" button, like re-center in a maps app.
+  const [away, setAway] = useState(false)
 
   useLayoutEffect(() => {
     propsRef.current = props
@@ -159,13 +162,20 @@ export function PriceChart(outer: Props) {
     if (savedRangeRef.current && loadedKeyRef.current === p.datasetKey) {
       chart.timeScale().setVisibleLogicalRange(savedRangeRef.current)
     } else {
-      showLatest(chart, candlesRef.current.length)
+      showLatest(chart, candlesRef.current.length, p.compact)
     }
     loadedKeyRef.current = p.datasetKey
 
     chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
       if (r && r.from < LOAD_MORE_THRESHOLD && propsRef.current.data.has_more) propsRef.current.onNeedMore()
+      setAway(isAway(chart, b.main))
     })
+    // Dragging/scaling the price axis turns its auto-scale off: check after gestures.
+    const el = containerRef.current!
+    const recheck = () => requestAnimationFrame(() => builtRef.current === b && setAway(isAway(chart, b.main)))
+    el.addEventListener('pointerup', recheck)
+    el.addEventListener('wheel', recheck, { passive: true })
+    el.addEventListener('dblclick', recheck)
     chart.subscribeCrosshairMove((e: MouseEventParams<Time>) => {
       const time = e.time === undefined ? null : (e.time as number)
       setHover(time)
@@ -180,6 +190,9 @@ export function PriceChart(outer: Props) {
     setContainer(containerRef.current)
 
     return () => {
+      el.removeEventListener('pointerup', recheck)
+      el.removeEventListener('wheel', recheck)
+      el.removeEventListener('dblclick', recheck)
       savedRangeRef.current = chart.timeScale().getVisibleLogicalRange()
       builtRef.current = null
       chart.remove()
@@ -195,7 +208,7 @@ export function PriceChart(outer: Props) {
     const previous = same ? b.chart.timeScale().getVisibleRange() : null
     applyData(b, propsRef.current, candles)
     if (previous) b.chart.timeScale().setVisibleRange(previous)
-    else showLatest(b.chart, candles.length)
+    else showLatest(b.chart, candles.length, compact)
     loadedKeyRef.current = datasetKey
   }, [candles, data.studies, datasetKey, theme, compact])
 
@@ -333,6 +346,15 @@ export function PriceChart(outer: Props) {
     onChange: props.onDrawingsChange,
   })
 
+  // Back to the latest bar at the normal zoom, every price axis auto-fitted.
+  const recenter = () => {
+    const b = builtRef.current
+    if (!b) return
+    b.chart.panes().forEach((_, i) => b.chart.priceScale('right', i).applyOptions({ autoScale: true }))
+    showLatest(b.chart, b.main.data().length, compact)
+    setAway(false)
+  }
+
   const index = hoverIndex(merged, hover)
   const barTime = merged[index]?.time
   const legendProps = { result: data.studies, time: barTime, theme, onAction: onStudyAction }
@@ -385,6 +407,15 @@ export function PriceChart(outer: Props) {
               )
             })}
         </>
+      )}
+      {away && (
+        <button className="recenter-button" onClick={recenter} title="Back to the latest bar (reset zoom and price scale)">
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+            <circle cx="9" cy="9" r="3" />
+            <path d="M9 1.5v3M9 13.5v3M1.5 9h3M13.5 9h3" />
+          </svg>
+          <span>Now</span>
+        </button>
       )}
       {drawing.selected && (
         <div className="drawing-floater" role="toolbar" aria-label="Selected drawing">
@@ -632,8 +663,17 @@ function applyStyles(b: Built, p: Props) {
   }
 }
 
-function showLatest(chart: IChartApi, n: number) {
-  if (n > 0) chart.timeScale().setVisibleLogicalRange({ from: n - INITIAL_VISIBLE_BARS, to: n + 8 })
+function showLatest(chart: IChartApi, n: number, compact = false) {
+  const bars = compact ? INITIAL_VISIBLE_BARS_PHONE : INITIAL_VISIBLE_BARS
+  if (n > 0) chart.timeScale().setVisibleLogicalRange({ from: n - bars, to: n + (compact ? 3 : 8) })
+}
+
+/** Scrolled back from the latest bar, or the price axis was dragged off auto. */
+function isAway(chart: IChartApi, main: ISeriesApi<SeriesType>): boolean {
+  const r = chart.timeScale().getVisibleLogicalRange()
+  const n = main.data().length
+  if (r && n && r.to < n - 1) return true
+  return chart.panes().some((_, i) => !chart.priceScale('right', i).options().autoScale)
 }
 
 function heikinAshi(candles: Candle[]): Candle[] {
