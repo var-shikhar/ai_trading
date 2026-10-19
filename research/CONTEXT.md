@@ -85,7 +85,7 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
    and test on Yahoo daily. Before anything goes into the app, re-check the
    chosen rules on Fyers data, since that's what the app trades on.
 3. **Intraday: daily first, intraday later.** Strategy 002 is a daily study.
-   Prepare the Fyers 1h/15m bulk download for a later strategy (003). The user
+   Prepare the Fyers 1h/15m bulk download for a later intraday-entry strategy (number to be assigned; 003 is now the momentum book). The user
    runs anything that needs the shared Fyers login.
 4. **Update (2026-10-17): finish the book study first** (Scalper, Blogs, YTC
    vols 1 and 4–6). **The first strategy after that is a swing strategy on the
