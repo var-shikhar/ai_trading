@@ -67,6 +67,7 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
 **Follow `ROADMAP.md`.**
 - Phase 0 (the book study) is done.
 - Phase 1 data is done for the research stage: survivorship-free adjusted daily from NSE bhavcopies, adjusted Yahoo 1h, F&O futures (see `DATA.md`).
+- **Strategy 003 tested (2026-10-19): DROP** (`strategies/003_momentum_book_timed/results.md`). The untimed momentum book doesn't beat equal-weight buy & hold; 002 timing beat random in-sample (p = 0.00) but not in 2019-26 (p = 0.62). Across 001-003 no strategy beats buy & hold after costs on the survivorship-free universe. Next: the user chooses a direction (results.md "What this means"). 2019-26 is a "seen" period now; forward paper trading is the only clean out-of-sample test left.
 - **Strategy 002 tested (2026-10-19), see `strategies/002_trap_pullback_wholesale/results.md`.** Daily: REVISE. The trap + limit entry + trail beat random out-of-sample (+0.038R cash / +0.102R futures per trade, p = 0.04), but the portfolio makes only +2.6% / +7.1% CAGR vs 18.4% for equal-weight buy & hold. 1h: DROP (worse than random out-of-sample). The 2019-26 period is now used: further tuning must be judged in-sample only. Next: propose strategy 003, using 002's daily trap + limit entry as the timing layer inside a fully invested momentum book (new spec), and/or Tier 2 filters tested in-sample.
 1. Book study done (17 Oct 2026): `notes/ytc_synthesis.md` is the entry point. Next: the user picks the Tier 1 rules and answers its §9 decisions, then write `strategies/002_*/spec.md`. Stage A daily-only tests run on Yahoo; Stage B (1h entry layer) needs Fyers 1h history.
 2. **Later candidate** (was the lead for 002): a low-turnover momentum book, where 001's pullback-failure trigger only decides when to buy a top-momentum name, and exits are a trail or a rank drop. Judge it against equal-weight buy & hold and against random-timing entries into the same names.
@@ -84,7 +85,7 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
    and test on Yahoo daily. Before anything goes into the app, re-check the
    chosen rules on Fyers data, since that's what the app trades on.
 3. **Intraday: daily first, intraday later.** Strategy 002 is a daily study.
-   Prepare the Fyers 1h/15m bulk download for a later strategy (003). The user
+   Prepare the Fyers 1h/15m bulk download for a later intraday-entry strategy (number to be assigned; 003 is now the momentum book). The user
    runs anything that needs the shared Fyers login.
 4. **Update (2026-10-17): finish the book study first** (Scalper, Blogs, YTC
    vols 1 and 4–6). **The first strategy after that is a swing strategy on the

@@ -1,0 +1,73 @@
+﻿
+{'variant': 'chosen', 'in_sample_B0_cagr': np.float64(9.771), 'in_sample_B0_dd': np.float64(-76.636), 
+'in_sample_B0_cagr_dd': np.float64(0.127), 'in_sample_B1_cagr': np.float64(12.507), 'in_sample_B1_dd': 
+np.float64(-39.953), 'in_sample_B1_cagr_dd': np.float64(0.313), 'in_sample_b1_minus_b0_month%': np.float64(-0.03), 
+'in_sample_b1_minus_b2_month%': np.float64(0.346), 'seen_B0_cagr': np.float64(17.804), 'seen_B0_dd': 
+np.float64(-42.407), 'seen_B0_cagr_dd': np.float64(0.42), 'seen_B1_cagr': np.float64(11.234), 'seen_B1_dd': 
+np.float64(-38.536), 'seen_B1_cagr_dd': np.float64(0.292), 'seen_b1_minus_b0_month%': np.float64(-0.592), 
+'seen_b1_minus_b2_month%': np.float64(-0.064)}
+{'variant': 'n -5', 'in_sample_B0_cagr': np.float64(10.875), 'in_sample_B0_dd': np.float64(-76.233), 
+'in_sample_B0_cagr_dd': np.float64(0.143), 'in_sample_B1_cagr': np.float64(13.286), 'in_sample_B1_dd': 
+np.float64(-38.864), 'in_sample_B1_cagr_dd': np.float64(0.342), 'in_sample_b1_minus_b0_month%': np.float64(-0.068), 
+'seen_B0_cagr': np.float64(16.924), 'seen_B0_dd': np.float64(-44.096), 'seen_B0_cagr_dd': np.float64(0.384), 
+'seen_B1_cagr': np.float64(14.114), 'seen_B1_dd': np.float64(-36.27), 'seen_B1_cagr_dd': np.float64(0.389), 
+'seen_b1_minus_b0_month%': np.float64(-0.356)}
+{'variant': 'n +5', 'in_sample_B0_cagr': np.float64(10.206), 'in_sample_B0_dd': np.float64(-74.799), 
+'in_sample_B0_cagr_dd': np.float64(0.136), 'in_sample_B1_cagr': np.float64(10.821), 'in_sample_B1_dd': 
+np.float64(-45.573), 'in_sample_B1_cagr_dd': np.float64(0.237), 'in_sample_b1_minus_b0_month%': np.float64(-0.16), 
+'seen_B0_cagr': np.float64(17.979), 'seen_B0_dd': np.float64(-40.891), 'seen_B0_cagr_dd': np.float64(0.44), 
+'seen_B1_cagr': np.float64(12.087), 'seen_B1_dd': np.float64(-37.925), 'seen_B1_cagr_dd': np.float64(0.319), 
+'seen_b1_minus_b0_month%': np.float64(-0.524)}
+{'variant': 'lookback switch', 'in_sample_B0_cagr': np.float64(11.156), 'in_sample_B0_dd': np.float64(-65.306), 
+'in_sample_B0_cagr_dd': np.float64(0.171), 'in_sample_B1_cagr': np.float64(6.538), 'in_sample_B1_dd': 
+np.float64(-20.999), 'in_sample_B1_cagr_dd': np.float64(0.311), 'in_sample_b1_minus_b0_month%': np.float64(-0.658), 
+'seen_B0_cagr': np.float64(13.068), 'seen_B0_dd': np.float64(-48.169), 'seen_B0_cagr_dd': np.float64(0.271), 
+'seen_B1_cagr': np.float64(1.614), 'seen_B1_dd': np.float64(-26.649), 'seen_B1_cagr_dd': np.float64(0.061), 
+'seen_b1_minus_b0_month%': np.float64(-1.13)}
+{'variant': 'window -5', 'in_sample_B0_cagr': np.float64(9.771), 'in_sample_B0_dd': np.float64(-76.636), 
+'in_sample_B0_cagr_dd': np.float64(0.127), 'in_sample_B1_cagr': np.float64(8.686), 'in_sample_B1_dd': 
+np.float64(-32.249), 'in_sample_B1_cagr_dd': np.float64(0.269), 'in_sample_b1_minus_b0_month%': np.float64(-0.376), 
+'in_sample_b1_minus_b2_month%': np.float64(0.22), 'seen_B0_cagr': np.float64(17.804), 'seen_B0_dd': 
+np.float64(-42.407), 'seen_B0_cagr_dd': np.float64(0.42), 'seen_B1_cagr': np.float64(5.7), 'seen_B1_dd': 
+np.float64(-39.833), 'seen_B1_cagr_dd': np.float64(0.143), 'seen_b1_minus_b0_month%': np.float64(-1.057), 
+'seen_b1_minus_b2_month%': np.float64(-0.175)}
+{'variant': 'window +5', 'in_sample_B0_cagr': np.float64(9.771), 'in_sample_B0_dd': np.float64(-76.636), 
+'in_sample_B0_cagr_dd': np.float64(0.127), 'in_sample_B1_cagr': np.float64(11.378), 'in_sample_B1_dd': 
+np.float64(-51.044), 'in_sample_B1_cagr_dd': np.float64(0.223), 'in_sample_b1_minus_b0_month%': np.float64(-0.072), 
+'in_sample_b1_minus_b2_month%': np.float64(0.19), 'seen_B0_cagr': np.float64(17.804), 'seen_B0_dd': 
+np.float64(-42.407), 'seen_B0_cagr_dd': np.float64(0.42), 'seen_B1_cagr': np.float64(13.4), 'seen_B1_dd': 
+np.float64(-40.593), 'seen_B1_cagr_dd': np.float64(0.33), 'seen_b1_minus_b0_month%': np.float64(-0.383), 
+'seen_b1_minus_b2_month%': np.float64(0.037)}
+{'variant': 'fallback switch', 'in_sample_B0_cagr': np.float64(9.771), 'in_sample_B0_dd': np.float64(-76.636), 
+'in_sample_B0_cagr_dd': np.float64(0.127), 'in_sample_B1_cagr': np.float64(11.715), 'in_sample_B1_dd': 
+np.float64(-67.143), 'in_sample_B1_cagr_dd': np.float64(0.174), 'in_sample_b1_minus_b0_month%': np.float64(0.079), 
+'in_sample_b1_minus_b2_month%': np.float64(0.038), 'seen_B0_cagr': np.float64(17.804), 'seen_B0_dd': 
+np.float64(-42.407), 'seen_B0_cagr_dd': np.float64(0.42), 'seen_B1_cagr': np.float64(17.322), 'seen_B1_dd': 
+np.float64(-45.32), 'seen_B1_cagr_dd': np.float64(0.382), 'seen_b1_minus_b0_month%': np.float64(-0.031), 
+'seen_b1_minus_b2_month%': np.float64(0.101)}
+{'variant': 'buffer 1.5', 'in_sample_B0_cagr': np.float64(11.157), 'in_sample_B0_dd': np.float64(-73.919), 
+'in_sample_B0_cagr_dd': np.float64(0.151), 'in_sample_B1_cagr': np.float64(10.431), 'in_sample_B1_dd': 
+np.float64(-37.363), 'in_sample_B1_cagr_dd': np.float64(0.279), 'in_sample_b1_minus_b0_month%': np.float64(-0.307), 
+'seen_B0_cagr': np.float64(22.114), 'seen_B0_dd': np.float64(-43.297), 'seen_B0_cagr_dd': np.float64(0.511), 
+'seen_B1_cagr': np.float64(13.013), 'seen_B1_dd': np.float64(-36.355), 'seen_B1_cagr_dd': np.float64(0.358), 
+'seen_b1_minus_b0_month%': np.float64(-0.811)}
+{'variant': 'buffer 3', 'in_sample_B0_cagr': np.float64(11.897), 'in_sample_B0_dd': np.float64(-73.762), 
+'in_sample_B0_cagr_dd': np.float64(0.161), 'in_sample_B1_cagr': np.float64(12.323), 'in_sample_B1_dd': 
+np.float64(-50.536), 'in_sample_B1_cagr_dd': np.float64(0.244), 'in_sample_b1_minus_b0_month%': np.float64(-0.138), 
+'seen_B0_cagr': np.float64(22.5), 'seen_B0_dd': np.float64(-40.475), 'seen_B0_cagr_dd': np.float64(0.556), 
+'seen_B1_cagr': np.float64(19.547), 'seen_B1_dd': np.float64(-42.768), 'seen_B1_cagr_dd': np.float64(0.457), 
+'seen_b1_minus_b0_month%': np.float64(-0.206)}
+{'variant': 'futures costs', 'in_sample_B0_cagr': np.float64(10.118), 'in_sample_B0_dd': np.float64(-76.527), 
+'in_sample_B0_cagr_dd': np.float64(0.132), 'in_sample_B1_cagr': np.float64(12.755), 'in_sample_B1_dd': 
+np.float64(-39.838), 'in_sample_B1_cagr_dd': np.float64(0.32), 'in_sample_b1_minus_b0_month%': np.float64(-0.038), 
+'seen_B0_cagr': np.float64(18.163), 'seen_B0_dd': np.float64(-42.374), 'seen_B0_cagr_dd': np.float64(0.429), 
+'seen_B1_cagr': np.float64(11.483), 'seen_B1_dd': np.float64(-38.527), 'seen_B1_cagr_dd': np.float64(0.298), 
+'seen_b1_minus_b0_month%': np.float64(-0.599)}
+{'variant': 'rebalance first day', 'in_sample_B0_cagr': np.float64(9.886), 'in_sample_B0_dd': np.float64(-74.299), 
+'in_sample_B0_cagr_dd': np.float64(0.133), 'in_sample_B1_cagr': np.float64(12.916), 'in_sample_B1_dd': 
+np.float64(-41.306), 'in_sample_B1_cagr_dd': np.float64(0.313), 'in_sample_b1_minus_b0_month%': np.float64(0.009), 
+'seen_B0_cagr': np.float64(21.613), 'seen_B0_dd': np.float64(-42.458), 'seen_B0_cagr_dd': np.float64(0.509), 
+'seen_B1_cagr': np.float64(9.464), 'seen_B1_dd': np.float64(-40.436), 'seen_B1_cagr_dd': np.float64(0.234), 
+'seen_b1_minus_b0_month%': np.float64(-1.021)}
+
+

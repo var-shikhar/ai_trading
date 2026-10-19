@@ -1,0 +1,52 @@
+﻿
+benchmarks in-sample: {'equal_weight_buy_hold_cagr%': np.float64(15.47), 'equal_weight_buy_hold_maxdd%': 
+np.float64(-73.02), 'nifty50_cagr%': np.float64(10.47), 'nifty50_maxdd%': np.float64(-59.86)}
+B0 10 12-1 {'cagr%': np.float64(10.875), 'maxdd%': np.float64(-76.233), 'cagr_dd': np.float64(0.143), 'sharpe': 
+np.float64(0.506), 'mean_month%': np.float64(1.24), 'positions': 308, 'turnover_per_yr': 23.849}
+B0 10 6-1 {'cagr%': np.float64(14.423), 'maxdd%': np.float64(-68.256), 'cagr_dd': np.float64(0.211), 'sharpe': 
+np.float64(0.605), 'mean_month%': np.float64(1.506), 'positions': 540, 'turnover_per_yr': 41.814}
+B0 15 12-1 {'cagr%': np.float64(9.771), 'maxdd%': np.float64(-76.636), 'cagr_dd': np.float64(0.127), 'sharpe': 
+np.float64(0.476), 'mean_month%': np.float64(1.151), 'positions': 394, 'turnover_per_yr': 30.508}
+B0 15 6-1 {'cagr%': np.float64(11.156), 'maxdd%': np.float64(-65.306), 'cagr_dd': np.float64(0.171), 'sharpe': 
+np.float64(0.517), 'mean_month%': np.float64(1.253), 'positions': 682, 'turnover_per_yr': 52.809}
+B0 20 12-1 {'cagr%': np.float64(10.206), 'maxdd%': np.float64(-74.799), 'cagr_dd': np.float64(0.136), 'sharpe': 
+np.float64(0.497), 'mean_month%': np.float64(1.16), 'positions': 455, 'turnover_per_yr': 35.232}
+B0 20 6-1 {'cagr%': np.float64(12.698), 'maxdd%': np.float64(-65.873), 'cagr_dd': np.float64(0.193), 'sharpe': 
+np.float64(0.576), 'mean_month%': np.float64(1.345), 'positions': 758, 'turnover_per_yr': 58.694}
+no B0 cell beats equal-weight buy & hold CAGR 15.5%: H3(1) rejected in-sample; carrying N=15/12-1
+chosen B0: {'n': 15, 'lookback': '12-1', 'entry': 'B0', 'window': 15, 'fallback': 'market', 'buffer': 2.0, 
+'rebalance': 'last', 'cost': 'cash'} no cell beat EW B&H in-sample
+B1 10 market {'window': 10, 'fallback': 'market', 'cagr%': np.float64(11.7146), 'maxdd%': np.float64(-67.143), 
+'cagr_dd': np.float64(0.1745), 'sharpe': np.float64(0.5605), 'mean_month%': np.float64(1.2306), 'positions': 409, 
+'turnover_per_yr': 31.67, 'b2_mean_month%': np.float64(1.193), 'timing_value_month%': np.float64(0.0376), 'p_vs_b2': 
+0.4, 'entry_improvement%_mean': np.float64(1.6369), 'entry_improvement%_median': np.float64(0.4156), 'no_signal%': 
+68.4706, 'b1_minus_b0_month%': np.float64(0.0794), 't_month_b1_vs_b0': np.float64(0.5841)}
+B1 10 skip {'window': 10, 'fallback': 'skip', 'cagr%': np.float64(12.5074), 'maxdd%': np.float64(-39.9527), 'cagr_dd': 
+np.float64(0.3131), 'sharpe': np.float64(0.7576), 'mean_month%': np.float64(1.1212), 'positions': 266, 
+'turnover_per_yr': 20.5971, 'b2_mean_month%': np.float64(0.775), 'timing_value_month%': np.float64(0.3463), 'p_vs_b2': 
+0.0, 'entry_improvement%_mean': np.float64(1.8827), 'entry_improvement%_median': np.float64(1.1956), 'no_signal%': 
+81.2331, 'b1_minus_b0_month%': np.float64(-0.03), 't_month_b1_vs_b0': np.float64(-0.0846)}
+B1 15 market {'window': 15, 'fallback': 'market', 'cagr%': np.float64(12.3465), 'maxdd%': np.float64(-66.368), 
+'cagr_dd': np.float64(0.186), 'sharpe': np.float64(0.588), 'mean_month%': np.float64(1.256), 'positions': 412, 
+'turnover_per_yr': 31.9023, 'b2_mean_month%': np.float64(1.1647), 'timing_value_month%': np.float64(0.0912), 
+'p_vs_b2': 0.2, 'entry_improvement%_mean': np.float64(2.2747), 'entry_improvement%_median': np.float64(0.8905), 
+'no_signal%': 58.4112, 'b1_minus_b0_month%': np.float64(0.1047), 't_month_b1_vs_b0': np.float64(0.7209)}
+B1 15 skip {'window': 15, 'fallback': 'skip', 'cagr%': np.float64(11.3776), 'maxdd%': np.float64(-51.0445), 'cagr_dd': 
+np.float64(0.2229), 'sharpe': np.float64(0.6385), 'mean_month%': np.float64(1.0788), 'positions': 305, 
+'turnover_per_yr': 23.617, 'b2_mean_month%': np.float64(0.8889), 'timing_value_month%': np.float64(0.1899), 'p_vs_b2': 
+0.12, 'entry_improvement%_mean': np.float64(1.9225), 'entry_improvement%_median': np.float64(1.1922), 'no_signal%': 
+75.2739, 'b1_minus_b0_month%': np.float64(-0.0724), 't_month_b1_vs_b0': np.float64(-0.2535)}
+B1 20 market {'window': 20, 'fallback': 'market', 'cagr%': np.float64(11.8269), 'maxdd%': np.float64(-67.3257), 
+'cagr_dd': np.float64(0.1757), 'sharpe': np.float64(0.5704), 'mean_month%': np.float64(1.2345), 'positions': 382, 
+'turnover_per_yr': 29.5793, 'b2_mean_month%': np.float64(1.1555), 'timing_value_month%': np.float64(0.079), 'p_vs_b2': 
+0.12, 'entry_improvement%_mean': np.float64(0.5983), 'entry_improvement%_median': np.float64(0.3188), 'no_signal%': 
+51.3924, 'b1_minus_b0_month%': np.float64(0.0833), 't_month_b1_vs_b0': np.float64(0.5529)}
+B1 20 skip {'window': 20, 'fallback': 'skip', 'cagr%': np.float64(14.2142), 'maxdd%': np.float64(-50.9036), 'cagr_dd': 
+np.float64(0.2792), 'sharpe': np.float64(0.7606), 'mean_month%': np.float64(1.2871), 'positions': 316, 
+'turnover_per_yr': 24.4687, 'b2_mean_month%': np.float64(0.9744), 'timing_value_month%': np.float64(0.3127), 
+'p_vs_b2': 0.0, 'entry_improvement%_mean': np.float64(2.236), 'entry_improvement%_median': np.float64(1.2825), 
+'no_signal%': 63.1166, 'b1_minus_b0_month%': np.float64(0.1359), 't_month_b1_vs_b0': np.float64(0.4572)}
+chosen B1: {'n': 15, 'lookback': '12-1', 'entry': 'B1', 'window': 10, 'fallback': 'skip', 'buffer': 2.0, 'rebalance': 
+'last', 'cost': 'cash'}
+
+
