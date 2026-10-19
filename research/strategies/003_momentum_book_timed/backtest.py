@@ -344,7 +344,7 @@ def evaluate(b0: Book, b1: Book, per: str) -> dict:
         for k, r in (("B0", r0), ("B1", r1)):
             r["equity"].to_csv(OUT / f"equity_{per}_{k}_{cost}.csv")
             r["positions"].to_csv(OUT / f"positions_{per}_{k}_{cost}.csv", index=False)
-        yr = lambda e: {int(y): round(float(v) * 100, 1) for y, v in e.resample("YE").last().pct_change().dropna().items()}
+        yr = lambda e: {int(y.year): round(float(v) * 100, 1) for y, v in e.resample("YE").last().pct_change().dropna().items()}
         out[cost]["by_year_B0%"], out[cost]["by_year_B1%"] = yr(r0["equity"]), yr(r1["equity"])
     return out
 

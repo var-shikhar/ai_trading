@@ -46,7 +46,7 @@ research/.venv/Scripts/python.exe research/common/fetch_yf.py          # daily N
 | `common/` | PDF extraction (`extract_pdf.py`) and page viewer (`pages.py <from> <to> [ytc / scalper / blogs]`), data loading and fetchers (`data.py`, `fetch_yf.py`, `fetch_yf_1h.py`, `fetch_nse_bhav.py`, `clean_fyers_copy.py`, `universe.py`), YTC swings/trend (`structure.py`), portfolio simulation and stats (`portfolio.py`) |
 | `02_timeframe_check/` | is 1h workable? swing size vs costs on 1h / daily / weekly, 1h session structure, cash vs futures costs (`report.md`) |
 | `01_market_analysis/` | base rates: drift, regimes, structure state, volatility, pullback depth/duration, breakouts/BOF, reversal and momentum, gaps. Findings in `report.md`, raw output in `out/summary.txt` |
-| `strategies/003_momentum_book_timed/` | strategy 003: fully invested monthly momentum book; 002's daily trap + limit entry as timing layer vs random timing. `spec.md` written, not yet tested |
+| `strategies/003_momentum_book_timed/` | strategy 003: monthly momentum book; 002 timing layer vs random timing. **Verdict: drop** (book doesn't beat buy & hold; timing value didn't persist 2019-26). `spec.md`, `results.md` |
 | `strategies/002_trap_pullback_wholesale/` | strategy 002: YTC trap pullback, wholesale (limit/hybrid) entry, two-part exit; 1h trading timeframe (daily as comparison). **Verdict: daily REVISE (beats random OOS, loses to buy & hold as a portfolio); 1h DROP.** `spec.md`, `results.md` |
 | `strategies/001_pullback_failure/` | strategy 001: YTC PB/CPB failure in strong stocks. `spec.md`, `backtest.py`, `results.md`. **Verdict: dropped** (small timing edge over random entries; loses to buy & hold as a portfolio) |
 
