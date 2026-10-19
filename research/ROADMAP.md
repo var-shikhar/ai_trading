@@ -25,7 +25,7 @@ Agreed with the user on 17 Oct 2026. The aim is quality over speed: each phase e
 - **Data checks:** missing bars and session times (09:15–15:30 IST, with 1h bars aligned to the session); corporate actions; and agreement between Fyers, Yahoo and bhavcopy daily bars.
 - **Gate:** a data audit report.
 
-## Phase 2: Strategy 002, hourly-to-daily swing
+## Phase 2: Strategy 002, hourly-to-daily swing (tested 19 Oct 2026: daily REVISE, 1h DROP; see `strategies/002_trap_pullback_wholesale/results.md`)
 - `spec.md` is written before any testing. It covers the rules, the timeframe roles, and what would falsify the idea.
 - **A design choice to settle in the spec:**
   - (a) daily is the trading timeframe and 1h is used only for the entry and stop; or

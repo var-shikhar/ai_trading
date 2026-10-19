@@ -1,0 +1,79 @@
+﻿
+{'variant': 'chosen', 'is_cash_n': 2510, 'is_cash_avgR': np.float64(0.064), 'is_cash_t_month': np.float64(2.392), 
+'is_fut_n': 2510, 'is_fut_avgR': np.float64(0.119), 'is_fut_t_month': np.float64(2.757), 'oos_cash_n': 2256, 
+'oos_cash_avgR': np.float64(0.038), 'oos_cash_t_month': np.float64(2.334), 'oos_fut_n': 2256, 'oos_fut_avgR': 
+np.float64(0.102), 'oos_fut_t_month': np.float64(2.873)}
+{'variant': 'mom_min -0.1', 'is_cash_n': 3502, 'is_cash_avgR': np.float64(0.048), 'is_cash_t_month': 
+np.float64(2.732), 'is_fut_n': 3502, 'is_fut_avgR': np.float64(0.103), 'is_fut_t_month': np.float64(3.288), 
+'oos_cash_n': 3071, 'oos_cash_avgR': np.float64(0.024), 'oos_cash_t_month': np.float64(2.115), 'oos_fut_n': 3071, 
+'oos_fut_avgR': np.float64(0.089), 'oos_fut_t_month': np.float64(2.734)}
+{'variant': 'mom_min +0.1', 'is_cash_n': 1609, 'is_cash_avgR': np.float64(0.082), 'is_cash_t_month': 
+np.float64(2.267), 'is_fut_n': 1609, 'is_fut_avgR': np.float64(0.136), 'is_fut_t_month': np.float64(2.617), 
+'oos_cash_n': 1416, 'oos_cash_avgR': np.float64(0.045), 'oos_cash_t_month': np.float64(2.187), 'oos_fut_n': 1416, 
+'oos_fut_avgR': np.float64(0.106), 'oos_fut_t_month': np.float64(2.593)}
+{'variant': 'max_pb_bars x0.67', 'is_cash_n': 1707, 'is_cash_avgR': np.float64(0.047), 'is_cash_t_month': 
+np.float64(2.086), 'is_fut_n': 1707, 'is_fut_avgR': np.float64(0.106), 'is_fut_t_month': np.float64(2.58), 
+'oos_cash_n': 1543, 'oos_cash_avgR': np.float64(0.013), 'oos_cash_t_month': np.float64(2.259), 'oos_fut_n': 1543, 
+'oos_fut_avgR': np.float64(0.081), 'oos_fut_t_month': np.float64(2.809)}
+{'variant': 'max_pb_bars x1.5', 'is_cash_n': 2891, 'is_cash_avgR': np.float64(0.08), 'is_cash_t_month': 
+np.float64(2.673), 'is_fut_n': 2891, 'is_fut_avgR': np.float64(0.133), 'is_fut_t_month': np.float64(3.158), 
+'oos_cash_n': 2595, 'oos_cash_avgR': np.float64(0.009), 'oos_cash_t_month': np.float64(2.122), 'oos_fut_n': 2595, 
+'oos_fut_avgR': np.float64(0.07), 'oos_fut_t_month': np.float64(2.684)}
+{'variant': 'entry_window -', 'is_cash_n': 2450, 'is_cash_avgR': np.float64(0.067), 'is_cash_t_month': 
+np.float64(2.441), 'is_fut_n': 2450, 'is_fut_avgR': np.float64(0.12), 'is_fut_t_month': np.float64(2.794), 
+'oos_cash_n': 2187, 'oos_cash_avgR': np.float64(0.035), 'oos_cash_t_month': np.float64(2.344), 'oos_fut_n': 2187, 
+'oos_fut_avgR': np.float64(0.096), 'oos_fut_t_month': np.float64(2.83)}
+{'variant': 'entry_window +', 'is_cash_n': 2533, 'is_cash_avgR': np.float64(0.064), 'is_cash_t_month': 
+np.float64(2.531), 'is_fut_n': 2533, 'is_fut_avgR': np.float64(0.119), 'is_fut_t_month': np.float64(2.896), 
+'oos_cash_n': 2276, 'oos_cash_avgR': np.float64(0.032), 'oos_cash_t_month': np.float64(2.332), 'oos_fut_n': 2276, 
+'oos_fut_avgR': np.float64(0.096), 'oos_fut_t_month': np.float64(2.877)}
+{'variant': 'stop_buf 0.05', 'is_cash_n': 2471, 'is_cash_avgR': np.float64(0.059), 'is_cash_t_month': 
+np.float64(2.085), 'is_fut_n': 2471, 'is_fut_avgR': np.float64(0.115), 'is_fut_t_month': np.float64(2.598), 
+'oos_cash_n': 2223, 'oos_cash_avgR': np.float64(0.044), 'oos_cash_t_month': np.float64(2.349), 'oos_fut_n': 2223, 
+'oos_fut_avgR': np.float64(0.109), 'oos_fut_t_month': np.float64(2.907)}
+{'variant': 'stop_buf 0.2', 'is_cash_n': 2557, 'is_cash_avgR': np.float64(0.011), 'is_cash_t_month': 
+np.float64(2.068), 'is_fut_n': 2557, 'is_fut_avgR': np.float64(0.065), 'is_fut_t_month': np.float64(2.473), 
+'oos_cash_n': 2291, 'oos_cash_avgR': np.float64(0.027), 'oos_cash_t_month': np.float64(2.121), 'oos_fut_n': 2291, 
+'oos_fut_avgR': np.float64(0.088), 'oos_fut_t_month': np.float64(2.703)}
+{'variant': 'max_bars x0.5', 'is_cash_n': 2559, 'is_cash_avgR': np.float64(0.037), 'is_cash_t_month': 
+np.float64(2.486), 'is_fut_n': 2559, 'is_fut_avgR': np.float64(0.092), 'is_fut_t_month': np.float64(3.039), 
+'oos_cash_n': 2293, 'oos_cash_avgR': np.float64(-0.009), 'oos_cash_t_month': np.float64(2.181), 'oos_fut_n': 2293, 
+'oos_fut_avgR': np.float64(0.055), 'oos_fut_t_month': np.float64(2.855)}
+{'variant': 'max_bars x2', 'is_cash_n': 2484, 'is_cash_avgR': np.float64(0.086), 'is_cash_t_month': np.float64(2.544), 
+'is_fut_n': 2484, 'is_fut_avgR': np.float64(0.141), 'is_fut_t_month': np.float64(2.884), 'oos_cash_n': 2245, 
+'oos_cash_avgR': np.float64(0.046), 'oos_cash_t_month': np.float64(2.381), 'oos_fut_n': 2245, 'oos_fut_avgR': 
+np.float64(0.11), 'oos_fut_t_month': np.float64(2.886)}
+{'variant': 't1_gate 0.75', 'is_cash_n': 2510, 'is_cash_avgR': np.float64(0.064), 'is_cash_t_month': 
+np.float64(2.392), 'is_fut_n': 2510, 'is_fut_avgR': np.float64(0.119), 'is_fut_t_month': np.float64(2.757), 
+'oos_cash_n': 2256, 'oos_cash_avgR': np.float64(0.038), 'oos_cash_t_month': np.float64(2.334), 'oos_fut_n': 2256, 
+'oos_fut_avgR': np.float64(0.102), 'oos_fut_t_month': np.float64(2.873)}
+{'variant': 't1_gate 1.5', 'is_cash_n': 2510, 'is_cash_avgR': np.float64(0.064), 'is_cash_t_month': np.float64(2.392), 
+'is_fut_n': 2510, 'is_fut_avgR': np.float64(0.119), 'is_fut_t_month': np.float64(2.757), 'oos_cash_n': 2256, 
+'oos_cash_avgR': np.float64(0.038), 'oos_cash_t_month': np.float64(2.334), 'oos_fut_n': 2256, 'oos_fut_avgR': 
+np.float64(0.102), 'oos_fut_t_month': np.float64(2.873)}
+{'variant': 'nochase 0.25', 'is_cash_n': 2510, 'is_cash_avgR': np.float64(0.064), 'is_cash_t_month': 
+np.float64(2.392), 'is_fut_n': 2510, 'is_fut_avgR': np.float64(0.119), 'is_fut_t_month': np.float64(2.757), 
+'oos_cash_n': 2256, 'oos_cash_avgR': np.float64(0.038), 'oos_cash_t_month': np.float64(2.334), 'oos_fut_n': 2256, 
+'oos_fut_avgR': np.float64(0.102), 'oos_fut_t_month': np.float64(2.873)}
+{'variant': 'nochase 1.0', 'is_cash_n': 2510, 'is_cash_avgR': np.float64(0.064), 'is_cash_t_month': np.float64(2.392), 
+'is_fut_n': 2510, 'is_fut_avgR': np.float64(0.119), 'is_fut_t_month': np.float64(2.757), 'oos_cash_n': 2256, 
+'oos_cash_avgR': np.float64(0.038), 'oos_cash_t_month': np.float64(2.334), 'oos_fut_n': 2256, 'oos_fut_avgR': 
+np.float64(0.102), 'oos_fut_t_month': np.float64(2.873)}
+{'variant': 'chan 14', 'is_cash_n': 2920, 'is_cash_avgR': np.float64(0.019), 'is_cash_t_month': np.float64(2.32), 
+'is_fut_n': 2920, 'is_fut_avgR': np.float64(0.072), 'is_fut_t_month': np.float64(2.829), 'oos_cash_n': 2632, 
+'oos_cash_avgR': np.float64(0.035), 'oos_cash_t_month': np.float64(1.845), 'oos_fut_n': 2632, 'oos_fut_avgR': 
+np.float64(0.098), 'oos_fut_t_month': np.float64(2.47)}
+{'variant': 'chan 30', 'is_cash_n': 1886, 'is_cash_avgR': np.float64(0.022), 'is_cash_t_month': np.float64(1.898), 
+'is_fut_n': 1886, 'is_fut_avgR': np.float64(0.077), 'is_fut_t_month': np.float64(2.382), 'oos_cash_n': 1704, 
+'oos_cash_avgR': np.float64(0.04), 'oos_cash_t_month': np.float64(2.112), 'oos_fut_n': 1704, 'oos_fut_avgR': 
+np.float64(0.104), 'oos_fut_t_month': np.float64(2.524)}
+{'variant': 'min_risk_atr 0.25', 'is_cash_n': 2918, 'is_cash_avgR': np.float64(0.011), 'is_cash_t_month': 
+np.float64(2.044), 'is_fut_n': 2918, 'is_fut_avgR': np.float64(0.081), 'is_fut_t_month': np.float64(2.715), 
+'oos_cash_n': 2512, 'oos_cash_avgR': np.float64(0.019), 'oos_cash_t_month': np.float64(2.133), 'oos_fut_n': 2512, 
+'oos_fut_avgR': np.float64(0.096), 'oos_fut_t_month': np.float64(2.789)}
+{'variant': 'min_risk_atr 1.0', 'is_cash_n': 1427, 'is_cash_avgR': np.float64(-0.024), 'is_cash_t_month': 
+np.float64(1.805), 'is_fut_n': 1427, 'is_fut_avgR': np.float64(0.015), 'is_fut_t_month': np.float64(2.244), 
+'oos_cash_n': 1393, 'oos_cash_avgR': np.float64(0.007), 'oos_cash_t_month': np.float64(1.894), 'oos_fut_n': 1393, 
+'oos_fut_avgR': np.float64(0.052), 'oos_fut_t_month': np.float64(2.43)}
+
+

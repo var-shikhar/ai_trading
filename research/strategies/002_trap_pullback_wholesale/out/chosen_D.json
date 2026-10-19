@@ -1,0 +1,19 @@
+{
+  "setup": "trap",
+  "entry": "limit",
+  "exit": "trail",
+  "scratch": "none",
+  "mom_min": 0.7,
+  "max_pb_bars": 8,
+  "entry_window": 3,
+  "max_bars": 30,
+  "scratch_k": 3,
+  "stop_buf": 0.1,
+  "t1_gate": 1.0,
+  "nochase": 0.5,
+  "chan": 20,
+  "gap_rule": false,
+  "max_risk": 0.08,
+  "min_risk_atr": 0.5,
+  "note": "chosen from 26 qualifying cells"
+}

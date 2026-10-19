@@ -1,0 +1,83 @@
+﻿
+{'variant': 'chosen', 'is_cash_n': 4030, 'is_cash_avgR': np.float64(-0.242), 'is_cash_t_month': np.float64(-1.906), 
+'is_fut_n': 4030, 'is_fut_avgR': np.float64(0.051), 'is_fut_t_month': np.float64(0.459), 'oos_cash_n': 1838, 
+'oos_cash_avgR': np.float64(-0.656), 'oos_cash_t_month': np.float64(-5.297), 'oos_fut_n': 1838, 'oos_fut_avgR': 
+np.float64(-0.344), 'oos_fut_t_month': np.float64(-2.826)}
+{'variant': 'mom_min -0.1', 'is_cash_n': 5480, 'is_cash_avgR': np.float64(-0.289), 'is_cash_t_month': 
+np.float64(-2.348), 'is_fut_n': 5480, 'is_fut_avgR': np.float64(0.009), 'is_fut_t_month': np.float64(0.128), 
+'oos_cash_n': 2561, 'oos_cash_avgR': np.float64(-0.579), 'oos_cash_t_month': np.float64(-4.974), 'oos_fut_n': 2561, 
+'oos_fut_avgR': np.float64(-0.262), 'oos_fut_t_month': np.float64(-2.24)}
+{'variant': 'mom_min +0.1', 'is_cash_n': 2670, 'is_cash_avgR': np.float64(-0.22), 'is_cash_t_month': 
+np.float64(-1.495), 'is_fut_n': 2670, 'is_fut_avgR': np.float64(0.064), 'is_fut_t_month': np.float64(0.462), 
+'oos_cash_n': 1132, 'oos_cash_avgR': np.float64(-0.485), 'oos_cash_t_month': np.float64(-3.636), 'oos_fut_n': 1132, 
+'oos_fut_avgR': np.float64(-0.186), 'oos_fut_t_month': np.float64(-1.312)}
+{'variant': 'max_pb_bars x0.67', 'is_cash_n': 3720, 'is_cash_avgR': np.float64(-0.248), 'is_cash_t_month': 
+np.float64(-2.147), 'is_fut_n': 3720, 'is_fut_avgR': np.float64(0.048), 'is_fut_t_month': np.float64(0.343), 
+'oos_cash_n': 1687, 'oos_cash_avgR': np.float64(-0.684), 'oos_cash_t_month': np.float64(-4.862), 'oos_fut_n': 1687, 
+'oos_fut_avgR': np.float64(-0.37), 'oos_fut_t_month': np.float64(-2.654)}
+{'variant': 'max_pb_bars x1.5', 'is_cash_n': 4107, 'is_cash_avgR': np.float64(-0.246), 'is_cash_t_month': 
+np.float64(-1.988), 'is_fut_n': 4107, 'is_fut_avgR': np.float64(0.046), 'is_fut_t_month': np.float64(0.4), 
+'oos_cash_n': 1879, 'oos_cash_avgR': np.float64(-0.645), 'oos_cash_t_month': np.float64(-5.257), 'oos_fut_n': 1879, 
+'oos_fut_avgR': np.float64(-0.337), 'oos_fut_t_month': np.float64(-2.796)}
+{'variant': 'entry_window -', 'is_cash_n': 4013, 'is_cash_avgR': np.float64(-0.246), 'is_cash_t_month': 
+np.float64(-1.995), 'is_fut_n': 4013, 'is_fut_avgR': np.float64(0.044), 'is_fut_t_month': np.float64(0.393), 
+'oos_cash_n': 1821, 'oos_cash_avgR': np.float64(-0.641), 'oos_cash_t_month': np.float64(-5.213), 'oos_fut_n': 1821, 
+'oos_fut_avgR': np.float64(-0.334), 'oos_fut_t_month': np.float64(-2.736)}
+{'variant': 'entry_window +', 'is_cash_n': 4022, 'is_cash_avgR': np.float64(-0.226), 'is_cash_t_month': 
+np.float64(-1.772), 'is_fut_n': 4022, 'is_fut_avgR': np.float64(0.069), 'is_fut_t_month': np.float64(0.594), 
+'oos_cash_n': 1836, 'oos_cash_avgR': np.float64(-0.648), 'oos_cash_t_month': np.float64(-5.266), 'oos_fut_n': 1836, 
+'oos_fut_avgR': np.float64(-0.337), 'oos_fut_t_month': np.float64(-2.77)}
+{'variant': 'stop_buf 0.05', 'is_cash_n': 3818, 'is_cash_avgR': np.float64(-0.238), 'is_cash_t_month': 
+np.float64(-1.852), 'is_fut_n': 3818, 'is_fut_avgR': np.float64(0.059), 'is_fut_t_month': np.float64(0.498), 
+'oos_cash_n': 1748, 'oos_cash_avgR': np.float64(-0.645), 'oos_cash_t_month': np.float64(-5.46), 'oos_fut_n': 1748, 
+'oos_fut_avgR': np.float64(-0.332), 'oos_fut_t_month': np.float64(-2.854)}
+{'variant': 'stop_buf 0.2', 'is_cash_n': 4442, 'is_cash_avgR': np.float64(-0.288), 'is_cash_t_month': 
+np.float64(-2.633), 'is_fut_n': 4442, 'is_fut_avgR': np.float64(-0.001), 'is_fut_t_month': np.float64(0.181), 
+'oos_cash_n': 2015, 'oos_cash_avgR': np.float64(-0.657), 'oos_cash_t_month': np.float64(-5.183), 'oos_fut_n': 2015, 
+'oos_fut_avgR': np.float64(-0.351), 'oos_fut_t_month': np.float64(-2.744)}
+{'variant': 'max_bars x0.5', 'is_cash_n': 4212, 'is_cash_avgR': np.float64(-0.346), 'is_cash_t_month': 
+np.float64(-3.468), 'is_fut_n': 4212, 'is_fut_avgR': np.float64(-0.051), 'is_fut_t_month': np.float64(-0.566), 
+'oos_cash_n': 1916, 'oos_cash_avgR': np.float64(-0.636), 'oos_cash_t_month': np.float64(-6.453), 'oos_fut_n': 1916, 
+'oos_fut_avgR': np.float64(-0.324), 'oos_fut_t_month': np.float64(-3.353)}
+{'variant': 'max_bars x2', 'is_cash_n': 3948, 'is_cash_avgR': np.float64(-0.238), 'is_cash_t_month': 
+np.float64(-1.686), 'is_fut_n': 3948, 'is_fut_avgR': np.float64(0.056), 'is_fut_t_month': np.float64(0.515), 
+'oos_cash_n': 1820, 'oos_cash_avgR': np.float64(-0.676), 'oos_cash_t_month': np.float64(-5.424), 'oos_fut_n': 1820, 
+'oos_fut_avgR': np.float64(-0.366), 'oos_fut_t_month': np.float64(-2.991)}
+{'variant': 't1_gate 0.75', 'is_cash_n': 4030, 'is_cash_avgR': np.float64(-0.242), 'is_cash_t_month': 
+np.float64(-1.906), 'is_fut_n': 4030, 'is_fut_avgR': np.float64(0.051), 'is_fut_t_month': np.float64(0.459), 
+'oos_cash_n': 1838, 'oos_cash_avgR': np.float64(-0.656), 'oos_cash_t_month': np.float64(-5.297), 'oos_fut_n': 1838, 
+'oos_fut_avgR': np.float64(-0.344), 'oos_fut_t_month': np.float64(-2.826)}
+{'variant': 't1_gate 1.5', 'is_cash_n': 4030, 'is_cash_avgR': np.float64(-0.242), 'is_cash_t_month': 
+np.float64(-1.906), 'is_fut_n': 4030, 'is_fut_avgR': np.float64(0.051), 'is_fut_t_month': np.float64(0.459), 
+'oos_cash_n': 1838, 'oos_cash_avgR': np.float64(-0.656), 'oos_cash_t_month': np.float64(-5.297), 'oos_fut_n': 1838, 
+'oos_fut_avgR': np.float64(-0.344), 'oos_fut_t_month': np.float64(-2.826)}
+{'variant': 'nochase 0.25', 'is_cash_n': 4030, 'is_cash_avgR': np.float64(-0.242), 'is_cash_t_month': 
+np.float64(-1.906), 'is_fut_n': 4030, 'is_fut_avgR': np.float64(0.051), 'is_fut_t_month': np.float64(0.459), 
+'oos_cash_n': 1838, 'oos_cash_avgR': np.float64(-0.656), 'oos_cash_t_month': np.float64(-5.297), 'oos_fut_n': 1838, 
+'oos_fut_avgR': np.float64(-0.344), 'oos_fut_t_month': np.float64(-2.826)}
+{'variant': 'nochase 1.0', 'is_cash_n': 4030, 'is_cash_avgR': np.float64(-0.242), 'is_cash_t_month': 
+np.float64(-1.906), 'is_fut_n': 4030, 'is_fut_avgR': np.float64(0.051), 'is_fut_t_month': np.float64(0.459), 
+'oos_cash_n': 1838, 'oos_cash_avgR': np.float64(-0.656), 'oos_cash_t_month': np.float64(-5.297), 'oos_fut_n': 1838, 
+'oos_fut_avgR': np.float64(-0.344), 'oos_fut_t_month': np.float64(-2.826)}
+{'variant': 'chan 14', 'is_cash_n': 4789, 'is_cash_avgR': np.float64(-0.239), 'is_cash_t_month': np.float64(-2.054), 
+'is_fut_n': 4789, 'is_fut_avgR': np.float64(0.05), 'is_fut_t_month': np.float64(0.319), 'oos_cash_n': 2150, 
+'oos_cash_avgR': np.float64(-0.606), 'oos_cash_t_month': np.float64(-5.766), 'oos_fut_n': 2150, 'oos_fut_avgR': 
+np.float64(-0.299), 'oos_fut_t_month': np.float64(-2.887)}
+{'variant': 'chan 30', 'is_cash_n': 3011, 'is_cash_avgR': np.float64(-0.235), 'is_cash_t_month': np.float64(-1.65), 
+'is_fut_n': 3011, 'is_fut_avgR': np.float64(0.058), 'is_fut_t_month': np.float64(0.601), 'oos_cash_n': 1455, 
+'oos_cash_avgR': np.float64(-0.634), 'oos_cash_t_month': np.float64(-4.441), 'oos_fut_n': 1455, 'oos_fut_avgR': 
+np.float64(-0.323), 'oos_fut_t_month': np.float64(-2.228)}
+{'variant': 'min_risk_atr 0.25', 'is_cash_n': 5582, 'is_cash_avgR': np.float64(-0.445), 'is_cash_t_month': 
+np.float64(-3.144), 'is_fut_n': 5582, 'is_fut_avgR': np.float64(-0.017), 'is_fut_t_month': np.float64(0.019), 
+'oos_cash_n': 2601, 'oos_cash_avgR': np.float64(-0.804), 'oos_cash_t_month': np.float64(-6.469), 'oos_fut_n': 2601, 
+'oos_fut_avgR': np.float64(-0.346), 'oos_fut_t_month': np.float64(-2.688)}
+{'variant': 'min_risk_atr 1.0', 'is_cash_n': 1600, 'is_cash_avgR': np.float64(-0.03), 'is_cash_t_month': 
+np.float64(0.069), 'is_fut_n': 1600, 'is_fut_avgR': np.float64(0.154), 'is_fut_t_month': np.float64(1.858), 
+'oos_cash_n': 747, 'oos_cash_avgR': np.float64(-0.345), 'oos_cash_t_month': np.float64(-3.203), 'oos_fut_n': 747, 
+'oos_fut_avgR': np.float64(-0.156), 'oos_fut_t_month': np.float64(-1.522)}
+{'variant': 'gap_rule off', 'is_cash_n': 4032, 'is_cash_avgR': np.float64(-0.242), 'is_cash_t_month': 
+np.float64(-1.904), 'is_fut_n': 4032, 'is_fut_avgR': np.float64(0.052), 'is_fut_t_month': np.float64(0.462), 
+'oos_cash_n': 1841, 'oos_cash_avgR': np.float64(-0.656), 'oos_cash_t_month': np.float64(-5.296), 'oos_fut_n': 1841, 
+'oos_fut_avgR': np.float64(-0.345), 'oos_fut_t_month': np.float64(-2.824)}
+
+
