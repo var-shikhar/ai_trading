@@ -129,3 +129,10 @@ All of these must hold for a stack to pass:
 - **The trap and channel rules approximate YTC's discretionary reading** (`notes/ytc_synthesis.md` §8).
 - **Long only for now.** The F&O short mirror image is a separate test afterwards, with its own spec section, because drift and survivorship make long results unusable for shorts.
 - **Tier 2 filters are not in this spec.** Room to weekly S/R, the earnings blackout, the smoothness watchlist and the others will be tested one at a time only after the Tier 1 core has a verdict.
+
+## Amendments (made before the in-sample grid was run)
+1. **Minimum stop distance, 19 Oct 2026.** A trade is skipped if its stop is closer than **0.5 × ATR** (trading timeframe) to the entry. Sensitivity adds 0.25 and 1.0 × ATR.
+   - *Why:* the smoke test (`smoke.py`, in-sample, run before the grid) found limit and trigger prices sitting just above the pullback low, with stops as close as 0.1% of price.
+   - With a 0.32% round trip, costs alone then exceed 1R, and single trades reached −80R or worse. That's not a tradeable position, and it makes R meaningless.
+   - YTC puts the stop at structure; when the structure is at the entry, there's no trade.
+2. **Trap rule wording:** the clause "if price closes below PL − 1 ATR the setup is void" is vacuous, because PL is the lowest low, so a close can't be below it without lowering PL. The setup is simply armed on the reclaim bar, and the stop and entry-window rules handle failure.
