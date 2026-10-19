@@ -64,7 +64,10 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
 4. **Tooling added:** `portfolio.trade_stats` reports `t_month` (month-clustered; use it, since the per-trade t overstates significance by up to 2.5×). There's a context-matched random baseline (`random_pool(..., matched=True)`, 50 seeds), `backtest.benchmarks()` (NIFTY, equal-weight rebalanced and buy & hold), `select_params.py` (a pre-registered selection rule) and `reconcile_portfolio.py`.
 
 ## Next steps
-**Follow `ROADMAP.md`.** Phase 0 (the book study) is in progress. Strategy 002 is the hourly-to-daily swing strategy (decision 4 below).
+**Follow `ROADMAP.md`.**
+- Phase 0 (the book study) is done.
+- Phase 1 data is done for the research stage: survivorship-free adjusted daily from NSE bhavcopies, adjusted Yahoo 1h, F&O futures (see `DATA.md`).
+- **Strategy 002 spec is written** (`strategies/002_trap_pullback_wholesale/spec.md`, 2026-10-19), waiting for the user's review. Next: protocol step 0 (the diagnostic on 001's fills), then build and test 002 exactly as specified.
 1. Book study done (17 Oct 2026): `notes/ytc_synthesis.md` is the entry point. Next: the user picks the Tier 1 rules and answers its §9 decisions, then write `strategies/002_*/spec.md`. Stage A daily-only tests run on Yahoo; Stage B (1h entry layer) needs Fyers 1h history.
 2. **Later candidate** (was the lead for 002): a low-turnover momentum book, where 001's pullback-failure trigger only decides when to buy a top-momentum name, and exits are a trail or a rank drop. Judge it against equal-weight buy & hold and against random-timing entries into the same names.
 3. **Other candidates:**
@@ -131,9 +134,17 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
   - Report sample sizes and t-stats.
   - Always compare against buy & hold and random entries.
   - Flag survivorship bias.
-- **Commits:** make them in logical steps on `trading_research`, end each
-  message with the project's co-author line, and push to
-  `origin trading_research`.
+- **Branches (user's global rules, from 2026-10-18):** `dev` → `uat` → `main`.
+  Every task gets its own branch, `<type>/cl/<task>`, cut from `dev`
+  (e.g. `feat/cl/data-adjustments`, `docs/cl/strategy-002-spec`). Never
+  commit directly to `dev`, `uat` or `main`. When a task is done and tested,
+  ask the user before merging it into `dev`. Promotion to `uat`/`main` only
+  happens when the user says so.
+  - `dev` and `uat` were created from `main` on 2026-10-18.
+  - All research up to the data adjustments was merged into `dev` (`733fe69`).
+  - `trading_research` and `trading_research_data` are historical.
+- **Commits:** in logical steps on the task branch, each message ending with
+  the project's co-author line, pushed to the task branch on `origin`.
 - **How to report to the user:** concise, numbers first, then an honest verdict.
   The user prefers the strategy being researched and justified over being
   quickly implemented.
