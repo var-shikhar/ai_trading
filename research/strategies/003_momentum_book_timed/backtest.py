@@ -28,7 +28,9 @@ _spec.loader.exec_module(bt002)
 OUT = HERE / "out"
 OUT.mkdir(exist_ok=True)
 COST_SIDE = {"cash": 0.0015, "fut": 0.00065}
-PERIODS = {"in_sample": ("2005-01-01", "2018-12-31"), "seen": ("2019-01-01", "2026-12-31")}
+# Measurement starts at the first rebalance with valid 12-1 scores (spec amendment 1): IS from the
+# Jan 2006 month end (12 months of history needed), seen period from the Dec 2018 month end.
+PERIODS = {"in_sample": ("2006-01-31", "2018-12-31"), "seen": ("2018-12-31", "2026-12-31")}
 N_SEEDS = 50
 
 

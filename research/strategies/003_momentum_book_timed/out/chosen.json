@@ -1,0 +1,23 @@
+{
+  "B0": {
+    "n": 15,
+    "lookback": "12-1",
+    "entry": "B0",
+    "window": 15,
+    "fallback": "market",
+    "buffer": 2.0,
+    "rebalance": "last",
+    "cost": "cash"
+  },
+  "B1": {
+    "n": 15,
+    "lookback": "12-1",
+    "entry": "B1",
+    "window": 10,
+    "fallback": "skip",
+    "buffer": 2.0,
+    "rebalance": "last",
+    "cost": "cash"
+  },
+  "note_B0": "no cell beat EW B&H in-sample"
+}

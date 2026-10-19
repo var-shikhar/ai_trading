@@ -93,3 +93,9 @@ Status: **spec, written before any test** (19 Oct 2026). It builds on:
 - **Turnover:** monthly top-N with a 2N buffer typically turns over 60–100% a year. At a 0.32% round trip, that's about 0.2–0.3% a year in costs. It's reported, not assumed.
 - **0% cash yield while waiting** understates B1 slightly, and B1 with `skip` more so.
 - **Long only.** A short leg (bottom momentum through futures) isn't in 003. The market analysis showed the bottom quintile still rose on average.
+
+## Amendments
+1. **Measurement window, 19 Oct 2026.** This was found after the first in-sample grid and before any seen-period run.
+   - **The problem:** the in-sample window started on 1 Jan 2005, but 12-1 momentum needs 252 days of history. So every book was in cash at 0% until the first valid rebalance (31 Jan 2006). That counted in its CAGR. The buy & hold benchmark, computed from Jan 2005, earned that year (2005 was a strong year). The seen period had the same issue on a small scale (January 2019 in cash).
+   - **Fix:** measurement starts at the first rebalance with valid scores: **in-sample 31 Jan 2006 – 31 Dec 2018; seen 31 Dec 2018 – Oct 2026.** The selection is on the 31 Dec 2018 close, using only data up to then. Benchmarks are computed over exactly the same windows.
+   - No rule, parameter or selection criterion changed. The first grid is kept as `out/*_v0_window_flaw.*`.
