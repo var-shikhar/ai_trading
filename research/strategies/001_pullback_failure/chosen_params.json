@@ -1,0 +1,14 @@
+{
+  "context": "mom",
+  "mom_min": 0.7,
+  "max_pb_bars": 5,
+  "depth_min": 0.2,
+  "depth_max": 3.0,
+  "allow_break": true,
+  "exit": "trail",
+  "max_bars": 30,
+  "max_risk": 0.08,
+  "index_filter": false,
+  "min_room": 0.0,
+  "entry": "stop"
+}

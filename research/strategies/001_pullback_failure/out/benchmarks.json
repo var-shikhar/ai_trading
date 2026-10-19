@@ -1,0 +1,18 @@
+{
+  "in_sample": {
+    "nifty50_cagr%": 12.407020986692508,
+    "nifty50_maxdd%": -59.85591399335757,
+    "equal_weight_rebalanced_cagr%": 25.147116673285865,
+    "equal_weight_rebalanced_maxdd%": -56.63730905348415,
+    "equal_weight_buy_hold_cagr%": 24.356538746013044,
+    "equal_weight_buy_hold_maxdd%": -59.702228616953036
+  },
+  "out_of_sample": {
+    "nifty50_cagr%": 10.043253433833964,
+    "nifty50_maxdd%": -38.43985245274211,
+    "equal_weight_rebalanced_cagr%": 19.170737678061258,
+    "equal_weight_rebalanced_maxdd%": -37.020584618547836,
+    "equal_weight_buy_hold_cagr%": 19.177311767118187,
+    "equal_weight_buy_hold_maxdd%": -36.393258139784216
+  }
+}
