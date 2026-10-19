@@ -30,4 +30,8 @@ OTHERS = [
 ]
 
 STOCKS = NIFTY50_NOW + OTHERS
+
+# Renamed since the universe was drawn up (NSE symbol-change list). Yahoo's
+# current tickers use the new names; old names still serve old daily history.
+CURRENT_SYMBOL = {"TATAMOTORS": "TMPV", "LTIM": "LTM"}  # TMPV after the Oct 2025 demerger (CV arm listed as TMCV)
 INDICES = {"NIFTY50": "^NSEI", "BANKNIFTY": "^NSEBANK"}

@@ -29,4 +29,22 @@ Everything lives in `research/data/` (git-ignored). Each source below can be reb
   - Every NIFTY trading day is covered except the Sunday session of 25 Jun 2006. F&O also lacks 9 Oct 2013 and 30 Mar 2021.
   - 4,454 EQ symbols in total. 1,624 stopped trading, of which 169 were liquid (≥ ₹5 cr a day): HDFC, SATYAMCOMP, RCOM, JPASSOCIAT, HDIL, IBULHSGFIN and others. Some of these are renames (INFOSYSTCH→INFY, TISCO→TATASTEEL, ZOMATO→ETERNAL), so a symbol-change map is needed.
   - **Prices vs Yahoo:** day returns correlate 0.996 (median; minimum 0.977) once 365 split/bonus days are excluded. The raw bhavcopy shows those days as −50% to −90%.
-- **Weekend sessions:** the fetcher now also tries Saturdays and Sundays. That re-run was cut short because NSE blocked the IP after it was switched to 10 workers. Nothing bad was recorded: only 404s count as "no file". When the block lifts, re-run with `--workers=3`; it only fills in the remaining weekend days.
+- **Weekend sessions:** fetched after the NSE block lifted (3 workers; see the Adjustment section below).
+
+## Adjustment (split / bonus / demerger), 19 Oct 2026
+- **`common/fetch_nse_ref.py`** writes `nse_ref.duckdb`: NSE's corporate actions (42,131 rows, 2005→) and symbol changes (1,067).
+- **`common/adjust.py`** builds `adj_factors` and `data_flags` (rules in its docstring):
+  - **Listed** splits and bonuses are kept only when the price confirms them.
+  - **Our 132 stocks:** Yahoo's adjusted history decides the unlisted events. NSE's list is incomplete before about 2010; ITC 2005 (÷15) and HINDALCO 2005 were missing from it, for example.
+  - **Other stocks:** only clean ≥2× ratios are inferred, and every inferred or unexplained jump is flagged. Backtests skip trades spanning a flagged date (`adjust.flagged_dates()`).
+  - Dividends aren't adjusted (price returns).
+  - Load once with `adjust.load_canon()` (stocks with median value ≥ ₹10 lakh/day; about 230 MB), then `adjust.adjusted_panel(eq)`.
+- **Validation** (`common/validate_adjust.py`):
+  - 1,542 factors: 1,322 listed, 21 confirmed by Yahoo, 199 inferred.
+  - Our 132 stocks vs Yahoo: median correlation 0.996 on all days. 288 of 641,484 days differ by >5 points; the largest are Yahoo glitches (e.g. TRENT and CONCOR on 1 Jan, ZYDUSLIFE 2006).
+  - **Crash checks:** YES Bank 2018/2020, IDEA 2019, DHFL 2019, RCOM 2017, JP Associates 2012 and Satyam 2009 all stay as real moves.
+- **1h:** `common/hourly.py: load_1h()` undoes Yahoo's inconsistent 1h adjustment and applies the same factors as the daily panel.
+  - Before: BAJFINANCE 2025 was only half-adjusted and the SIEMENS 2025 demerger not at all (`common/check_1h_splits.py`).
+  - After: 135 stocks, median correlation of day returns with the adjusted daily panel 0.991 (minimum 0.974), 0 days off by >5 points, 34 bad bar-days dropped.
+- **Renames:** `universe.CURRENT_SYMBOL` maps TATAMOTORS→TMPV (after the Oct 2025 demerger; the commercial-vehicle arm is TMCV) and LTIM→LTM. Yahoo's 1h history for these starts only at the new listing date.
+- **Weekend sessions:** done; 14 files added, nothing left to retry.

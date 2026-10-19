@@ -22,7 +22,7 @@ import duckdb
 import pandas as pd
 import yfinance as yf
 
-from universe import INDICES, STOCKS
+from universe import CURRENT_SYMBOL, INDICES, STOCKS
 
 DB = Path(__file__).resolve().parents[1] / "data" / "yf_1h.duckdb"
 
@@ -33,7 +33,8 @@ def main() -> None:
         "CREATE TABLE IF NOT EXISTS bars_1h (symbol VARCHAR, ts TIMESTAMP, open DOUBLE, high DOUBLE, low DOUBLE,"
         " close DOUBLE, volume BIGINT, PRIMARY KEY (symbol, ts))"
     )
-    tickers = {**{s: f"{s}.NS" for s in STOCKS}, **INDICES}
+    # stored under the current NSE symbol (renamed names fetch under their new ticker)
+    tickers = {**{CURRENT_SYMBOL.get(s, s): f"{CURRENT_SYMBOL.get(s, s)}.NS" for s in STOCKS}, **INDICES}
     only = [a for a in sys.argv[1:] if not a.startswith("--")]
     missing = []
     for name, yt in tickers.items():
