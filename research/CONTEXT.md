@@ -67,7 +67,7 @@ Read this, then `research/README.md` (process and index), `research/notes/ytc.md
 **Follow `ROADMAP.md`.**
 - Phase 0 (the book study) is done.
 - Phase 1 data is done for the research stage: survivorship-free adjusted daily from NSE bhavcopies, adjusted Yahoo 1h, F&O futures (see `DATA.md`).
-- **Strategy 002 spec is written** (`strategies/002_trap_pullback_wholesale/spec.md`, 2026-10-19), waiting for the user's review. Next: protocol step 0 (the diagnostic on 001's fills), then build and test 002 exactly as specified.
+- **Strategy 002 tested (2026-10-19), see `strategies/002_trap_pullback_wholesale/results.md`.** Daily: REVISE. The trap + limit entry + trail beat random out-of-sample (+0.038R cash / +0.102R futures per trade, p = 0.04), but the portfolio makes only +2.6% / +7.1% CAGR vs 18.4% for equal-weight buy & hold. 1h: DROP (worse than random out-of-sample). The 2019-26 period is now used: further tuning must be judged in-sample only. Next: propose strategy 003, using 002's daily trap + limit entry as the timing layer inside a fully invested momentum book (new spec), and/or Tier 2 filters tested in-sample.
 1. Book study done (17 Oct 2026): `notes/ytc_synthesis.md` is the entry point. Next: the user picks the Tier 1 rules and answers its §9 decisions, then write `strategies/002_*/spec.md`. Stage A daily-only tests run on Yahoo; Stage B (1h entry layer) needs Fyers 1h history.
 2. **Later candidate** (was the lead for 002): a low-turnover momentum book, where 001's pullback-failure trigger only decides when to buy a top-momentum name, and exits are a trail or a rank drop. Judge it against equal-weight buy & hold and against random-timing entries into the same names.
 3. **Other candidates:**
