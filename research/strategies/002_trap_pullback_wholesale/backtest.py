@@ -283,6 +283,7 @@ def get_arrays(stack: str, chan: int = 20) -> dict:
     key = (stack, chan)
     if key not in _AR:
         _AR[key] = {s: arrays(f, chan) for s, f in load(stack).items()}
+        _FE.pop(stack, None)  # free the DataFrames (stack D is ~300 MB); benchmarks() reloads if needed
     return _AR[key]
 
 
