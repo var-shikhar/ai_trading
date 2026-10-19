@@ -1,0 +1,39 @@
+﻿
+[1/36] D trap  stop   trail   none   n= 2400 avgR cash=+0.024 t_month=+1.62 | cash +0.024 fut +0.065
+[2/36] D trap  stop   trail   time   n= 2479 avgR cash=+0.012 t_month=+1.58 | cash +0.012 fut +0.054
+[3/36] D trap  stop   trail   follow n= 2657 avgR cash=-0.030 t_month=+0.32 | cash -0.030 fut +0.012
+[4/36] D trap  stop   twopart none   n= 2374 avgR cash=+0.012 t_month=+1.51 | cash +0.012 fut +0.054
+[5/36] D trap  stop   twopart time   n= 2464 avgR cash=-0.004 t_month=+1.34 | cash -0.004 fut +0.038
+[6/36] D trap  stop   twopart follow n= 2649 avgR cash=-0.038 t_month=+0.06 | cash -0.038 fut +0.004
+[7/36] D trap  limit  trail   none   n= 2510 avgR cash=+0.064 t_month=+2.39 | cash +0.064 fut +0.119
+[8/36] D trap  limit  trail   time   n= 2571 avgR cash=+0.043 t_month=+2.25 | cash +0.043 fut +0.098
+[9/36] D trap  limit  trail   follow n= 2863 avgR cash=-0.045 t_month=+0.92 | cash -0.045 fut +0.009
+[10/36] D trap  limit  twopart none   n= 2460 avgR cash=+0.034 t_month=+2.48 | cash +0.034 fut +0.088
+[11/36] D trap  limit  twopart time   n= 2533 avgR cash=+0.015 t_month=+2.17 | cash +0.015 fut +0.070
+[12/36] D trap  limit  twopart follow n= 2858 avgR cash=-0.059 t_month=+0.48 | cash -0.059 fut -0.006
+[13/36] D trap  hybrid trail   none   n= 2595 avgR cash=+0.053 t_month=+2.35 | cash +0.053 fut +0.107
+[14/36] D trap  hybrid trail   time   n= 2660 avgR cash=+0.030 t_month=+2.25 | cash +0.030 fut +0.084
+[15/36] D trap  hybrid trail   follow n= 2959 avgR cash=-0.049 t_month=+1.01 | cash -0.049 fut +0.003
+[16/36] D trap  hybrid twopart none   n= 2545 avgR cash=+0.022 t_month=+2.37 | cash +0.022 fut +0.075
+[17/36] D trap  hybrid twopart time   n= 2623 avgR cash=+0.007 t_month=+2.17 | cash +0.007 fut +0.060
+[18/36] D trap  hybrid twopart follow n= 2953 avgR cash=-0.064 t_month=+0.56 | cash -0.064 fut -0.011
+[19/36] D plain stop   trail   none   n= 7068 avgR cash=-0.105 t_month=-1.59 | cash -0.105 fut -0.056
+[20/36] D plain stop   trail   time   n= 8009 avgR cash=-0.114 t_month=-2.26 | cash -0.114 fut -0.065
+[21/36] D plain stop   trail   follow n=10005 avgR cash=-0.103 t_month=-3.01 | cash -0.103 fut -0.055
+[22/36] D plain stop   twopart none   n= 7155 avgR cash=-0.111 t_month=-2.03 | cash -0.111 fut -0.063
+[23/36] D plain stop   twopart time   n= 8149 avgR cash=-0.124 t_month=-2.78 | cash -0.124 fut -0.075
+[24/36] D plain stop   twopart follow n=10130 avgR cash=-0.105 t_month=-3.30 | cash -0.105 fut -0.057
+[25/36] D plain limit  trail   none   n= 4204 avgR cash=-0.046 t_month=+1.64 | cash -0.046 fut +0.021
+[26/36] D plain limit  trail   time   n= 4314 avgR cash=-0.058 t_month=+1.44 | cash -0.058 fut +0.009
+[27/36] D plain limit  trail   follow n= 5624 avgR cash=-0.139 t_month=-0.34 | cash -0.139 fut -0.073
+[28/36] D plain limit  twopart none   n= 4269 avgR cash=-0.081 t_month=+1.04 | cash -0.081 fut -0.014
+[29/36] D plain limit  twopart time   n= 4384 avgR cash=-0.092 t_month=+0.74 | cash -0.092 fut -0.025
+[30/36] D plain limit  twopart follow n= 5684 avgR cash=-0.151 t_month=-1.28 | cash -0.151 fut -0.085
+[31/36] D plain hybrid trail   none   n= 4676 avgR cash=-0.059 t_month=+1.32 | cash -0.059 fut +0.003
+[32/36] D plain hybrid trail   time   n= 4890 avgR cash=-0.076 t_month=+1.02 | cash -0.076 fut -0.013
+[33/36] D plain hybrid trail   follow n= 6246 avgR cash=-0.136 t_month=-0.60 | cash -0.136 fut -0.075
+[34/36] D plain hybrid twopart none   n= 4752 avgR cash=-0.081 t_month=+0.89 | cash -0.081 fut -0.019
+[35/36] D plain hybrid twopart time   n= 4981 avgR cash=-0.100 t_month=+0.42 | cash -0.100 fut -0.038
+[36/36] D plain hybrid twopart follow n= 6322 avgR cash=-0.140 t_month=-1.29 | cash -0.140 fut -0.078
+
+
